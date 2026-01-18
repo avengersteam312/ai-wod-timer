@@ -1,0 +1,56 @@
+# Tabata Workout Tests
+description: 'Tabata Workout Parser Tests'
+
+prompts:
+  - file://prompts/tabata.txt
+
+providers:
+  - id: openai:gpt-4o
+    config:
+      max_tokens: 2000
+      response_format:
+        type: json_object
+
+tests:
+  - description: "Tabata Air Squats"
+    vars:
+      workout_text: |
+        Tabata:
+        Air Squats
+        (20 seconds work / 10 seconds rest for 8 rounds)
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "tabata"'
+      # Tabata = 16 intervals (8 work + 8 rest)
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length === 16'
+      # Total duration = 8 * 30 = 240s
+      - type: javascript
+        value: 'JSON.parse(output).intervals.reduce((sum, i) => sum + i.duration, 0) === 240'
+
+  - description: "Tabata This (multi-exercise)"
+    vars:
+      workout_text: |
+        Tabata This!
+        8 rounds each of (20 sec work / 10 sec rest):
+        Tabata Row (for calories)
+        Rest 1 minute
+        Tabata Squats
+        Rest 1 minute
+        Tabata Pull-ups
+        Rest 1 minute
+        Tabata Push-ups
+        Rest 1 minute
+        Tabata Sit-ups
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "tabata"'
+      - type: javascript
+        value: 'JSON.parse(output).movements.length >= 5'
+      # Should have 16 intervals per exercise + 60s rest between (4 rests)
+      # 5 exercises * 16 intervals + 4 * 1 rest = 84 intervals
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length >= 80'
+

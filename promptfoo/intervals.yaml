@@ -1,0 +1,54 @@
+# Intervals Workout Tests
+description: 'Intervals Workout Parser Tests'
+
+prompts:
+  - file://prompts/intervals.txt
+
+providers:
+  - id: openai:gpt-4o
+    config:
+      max_tokens: 2000
+      response_format:
+        type: json_object
+
+tests:
+  - description: "30/15 x 4 rounds"
+    vars:
+      workout_text: |
+        30/15 x 4 rounds:
+        Burpees
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "intervals"'
+      # 4 rounds of 30s work + 15s rest = 7 or 8 intervals (may strip trailing rest)
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length >= 7 && JSON.parse(output).intervals.length <= 8'
+
+  - description: "40 on 20 off x 6"
+    vars:
+      workout_text: |
+        40 on 20 off x 6:
+        Mountain Climbers
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "intervals"'
+      # 6 rounds * 2 intervals = 11 or 12 (may strip trailing rest)
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length >= 11 && JSON.parse(output).intervals.length <= 12'
+
+  - description: "Circuit 30/15"
+    vars:
+      workout_text: |
+        30/15 Circuit x 3 rounds:
+        Squats
+        Push-ups
+        Lunges
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "intervals"'
+      - type: javascript
+        value: 'JSON.parse(output).movements.length === 3'
+
