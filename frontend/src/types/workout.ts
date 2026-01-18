@@ -1,12 +1,4 @@
-export enum WorkoutType {
-  AMRAP = 'amrap',
-  EMOM = 'emom',
-  FOR_TIME = 'for_time',
-  TABATA = 'tabata',
-  CHIPPER = 'chipper',
-  ROUNDS = 'rounds',
-  CUSTOM = 'custom',
-}
+export type WorkoutType = 'amrap' | 'emom' | 'for_time' | 'tabata' | 'intervals' | 'stopwatch' | 'custom'
 
 export interface Movement {
   name: string

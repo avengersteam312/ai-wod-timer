@@ -14,7 +14,6 @@ const displayTime = computed(() => {
   }
 
   if (isIntervalBased.value && currentInterval.value) {
-    // For interval-based workouts (EMOM, Tabata), show countdown in MM:SS format
     const remaining = currentInterval.value.duration - intervalTime.value
     return formatTime(remaining)
   }
@@ -25,92 +24,159 @@ const displayTime = computed(() => {
   return formatTimeDetailed(currentTime.value)
 })
 
-const timeClass = computed(() => {
-  if (isPreparing.value) return 'text-blue-500 animate-pulse'
-  if (isCompleted.value) return 'text-green-500'
+// Determine current state for styling
+const timerState = computed(() => {
+  if (isPreparing.value) return 'preparing'
+  if (isCompleted.value) return 'complete'
 
   if (isIntervalBased.value && currentInterval.value) {
     const remaining = currentInterval.value.duration - intervalTime.value
-    if (remaining <= 3) return 'text-red-500 animate-pulse'
-    if (currentInterval.value.type === 'rest') return 'text-blue-400'
-    return 'text-foreground'
+    if (remaining <= 3) return 'warning'
+    if (currentInterval.value.type === 'rest') return 'rest'
+    return 'work'
   }
 
   if (config.value?.total_seconds) {
     const remaining = config.value.total_seconds - currentTime.value
-    if (remaining <= 10) return 'text-red-500 animate-pulse'
-    if (remaining <= 30) return 'text-orange-500'
+    if (remaining <= 10) return 'warning'
+    if (remaining <= 30) return 'work'
   }
 
+  return 'work'
+})
+
+const ringColorClass = computed(() => {
+  const stateColors: Record<string, string> = {
+    preparing: 'stroke-timer-preparing',
+    complete: 'stroke-timer-complete',
+    warning: 'stroke-timer-warning',
+    rest: 'stroke-timer-rest',
+    work: 'stroke-timer-work'
+  }
+  return stateColors[timerState.value] || 'stroke-timer-work'
+})
+
+const labelColorClass = computed(() => {
+  const stateColors: Record<string, string> = {
+    preparing: 'text-timer-preparing',
+    complete: 'text-timer-complete',
+    warning: 'text-timer-warning',
+    rest: 'text-timer-rest',
+    work: 'text-timer-work'
+  }
+  return stateColors[timerState.value] || 'text-timer-work'
+})
+
+const timeClass = computed(() => {
+  if (timerState.value === 'preparing' || timerState.value === 'warning') {
+    return `${labelColorClass.value} animate-pulse`
+  }
+  if (timerState.value === 'complete') {
+    return labelColorClass.value
+  }
   return 'text-foreground'
 })
 
 const displayLabel = computed(() => {
-  if (isPreparing.value) return 'Get Ready'
-  if (isCompleted.value) return 'Complete!'
+  if (isPreparing.value) return 'GET READY'
+  if (isCompleted.value) return 'WORKOUT COMPLETE'
 
   if (isIntervalBased.value && currentInterval.value) {
-    return currentInterval.value.label
+    const roundNum = currentIntervalIndex.value + 1
+    const type = currentInterval.value.type === 'rest' ? 'Rest' : 'Work'
+    return `Round ${roundNum} - ${type}`
   }
 
   return null
 })
 
-const intervalProgress = computed(() => {
-  if (!isIntervalBased.value || !currentInterval.value) return 0
-  return (intervalTime.value / currentInterval.value.duration) * 100
+// Progress for the circular ring (0-100)
+const ringProgress = computed(() => {
+  if (isPreparing.value) {
+    return ((prepDuration.value - prepTime.value) / prepDuration.value) * 100
+  }
+
+  if (isIntervalBased.value && currentInterval.value) {
+    return (intervalTime.value / currentInterval.value.duration) * 100
+  }
+
+  if (config.value?.total_seconds) {
+    return timerStore.progress
+  }
+
+  return 0
 })
 
-const showIntervalInfo = computed(() => {
-  return isIntervalBased.value && currentInterval.value && !isPreparing.value
-})
+// SVG circle calculations
+const ringSize = 200
+const strokeWidth = 8
+const radius = (ringSize - strokeWidth) / 2
+const circumference = 2 * Math.PI * radius
 
-const intervalCounter = computed(() => {
-  if (!isIntervalBased.value) return ''
-  return `${currentIntervalIndex.value + 1}/${totalIntervals.value}`
+const strokeDashoffset = computed(() => {
+  return circumference - (ringProgress.value / 100) * circumference
 })
 
 const totalTimeDisplay = computed(() => {
   if (!config.value?.total_seconds) return ''
-  return formatTime(currentTime.value)
+  const remaining = config.value.total_seconds - currentTime.value
+  return `${formatTime(remaining)} remaining`
 })
 </script>
 
 <template>
-  <div class="flex flex-col items-center justify-center space-y-4">
-    <!-- Interval Label -->
-    <div v-if="displayLabel" class="text-2xl md:text-3xl font-semibold text-muted-foreground">
-      {{ displayLabel }}
-    </div>
-
-    <!-- Main Timer Display -->
-    <div :class="['text-8xl md:text-9xl font-bold tabular-nums tracking-tight', timeClass]">
-      {{ displayTime }}
-    </div>
-
-    <!-- Interval Progress Bar -->
-    <div v-if="showIntervalInfo" class="w-full max-w-2xl space-y-2">
-      <div class="h-3 bg-muted rounded-full overflow-hidden">
-        <div
-          :class="['h-full transition-all duration-300 ease-linear', currentInterval?.type === 'rest' ? 'bg-blue-400' : 'bg-primary']"
-          :style="{ width: `${intervalProgress}%` }"
+  <div class="flex flex-col items-center justify-center">
+    <!-- Timer with Circular Progress Ring -->
+    <div class="relative flex items-center justify-center" :style="{ width: `${ringSize}px`, height: `${ringSize}px` }">
+      <!-- Background Ring -->
+      <svg
+        :width="ringSize"
+        :height="ringSize"
+        class="absolute transform -rotate-90"
+      >
+        <circle
+          :cx="ringSize / 2"
+          :cy="ringSize / 2"
+          :r="radius"
+          fill="none"
+          class="stroke-surface-elevated"
+          :stroke-width="strokeWidth"
         />
-      </div>
-
-      <!-- Interval Counter and Total Time -->
-      <div class="flex justify-between text-sm text-muted-foreground">
-        <span class="font-medium">Set {{ intervalCounter }}</span>
-        <span>Total: {{ totalTimeDisplay }}</span>
-      </div>
-    </div>
-
-    <!-- Regular Progress Bar (for non-interval workouts) -->
-    <div v-else-if="config?.total_seconds && !isPreparing" class="w-full max-w-2xl">
-      <div class="h-2 bg-muted rounded-full overflow-hidden">
-        <div
-          class="h-full bg-primary transition-all duration-300 ease-linear"
-          :style="{ width: `${timerStore.progress}%` }"
+        <!-- Progress Ring -->
+        <circle
+          :cx="ringSize / 2"
+          :cy="ringSize / 2"
+          :r="radius"
+          fill="none"
+          :class="ringColorClass"
+          :stroke-width="strokeWidth"
+          stroke-linecap="round"
+          :stroke-dasharray="circumference"
+          :stroke-dashoffset="strokeDashoffset"
+          class="transition-all duration-300 ease-linear"
         />
+      </svg>
+
+      <!-- Timer Content (inside ring) -->
+      <div class="absolute flex flex-col items-center justify-center text-center">
+        <!-- Interval Label -->
+        <div v-if="displayLabel" :class="['text-sm font-medium mb-1', labelColorClass]">
+          {{ displayLabel }}
+        </div>
+
+        <!-- Main Timer Display -->
+        <div :class="['text-6xl font-bold tabular-nums tracking-tight', timeClass]">
+          {{ displayTime }}
+        </div>
+
+        <!-- Total Time Remaining -->
+        <div v-if="totalTimeDisplay && !isPreparing && !isCompleted" class="text-xs text-muted-foreground mt-1">
+          {{ totalTimeDisplay }}
+        </div>
+
+        <div v-if="isCompleted" class="text-xs text-muted-foreground mt-1">
+          Great job!
+        </div>
       </div>
     </div>
   </div>
