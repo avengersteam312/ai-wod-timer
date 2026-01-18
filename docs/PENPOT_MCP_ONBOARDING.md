@@ -22,7 +22,6 @@ Penpot MCP enables AI-assisted design workflows by connecting Penpot (open-sourc
 ### 1. Clone the Repository
 
 ```bash
-cd ~/IdeaProjects
 git clone https://github.com/penpot/penpot-mcp.git
 cd penpot-mcp
 ```
@@ -136,7 +135,7 @@ export PENPOT_MCP_SERVER_ADDRESS=your-domain.com
 
 1. Ensure the server is running:
    ```bash
-   cd ~/IdeaProjects/penpot-mcp
+   cd penpot-mcp
    npm run bootstrap
    ```
 
@@ -177,7 +176,7 @@ penpot-mcp/
 
 | Task | Command |
 |------|---------|
-| Start servers | `cd ~/IdeaProjects/penpot-mcp && npm run bootstrap` |
+| Start servers | `cd penpot-mcp && npm run bootstrap` |
 | Add to Claude Code | `claude mcp add penpot -t http http://localhost:4401/mcp` |
 | Check connection | `claude mcp list` |
 | Remove from Claude | `claude mcp remove penpot` |
