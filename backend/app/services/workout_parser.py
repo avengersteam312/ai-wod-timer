@@ -41,7 +41,7 @@ class WorkoutParser:
 
         # Get AI interpretation using type-specific prompt
         ai_result = await ai_service.parse_workout(workout_text, detected_type)
-        print(ai_result)
+
         # Ensure workout type matches our classification
         ai_result["workout_type"] = detected_type.value
 
@@ -55,10 +55,12 @@ class WorkoutParser:
         # Normalize text: lowercase, strip whitespace
         text = workout_text.lower().strip()
         # Check if text ends with rest pattern (e.g., "rest 1:00", "rest 1min", "rest")
-        rest_pattern = r'rest\s*[\d:]*\s*(min|sec|s|m)?\s*$'
+        rest_pattern = r"rest\s*[\d:]*\s*(min|sec|s|m)?\s*$"
         return bool(re.search(rest_pattern, text))
 
-    def _strip_trailing_rest(self, intervals: List[Interval], workout_text: str) -> List[Interval]:
+    def _strip_trailing_rest(
+        self, intervals: List[Interval], workout_text: str
+    ) -> List[Interval]:
         """
         Remove trailing rest interval if workout doesn't explicitly end with rest.
         """
