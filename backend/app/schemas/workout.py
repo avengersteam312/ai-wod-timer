@@ -29,7 +29,6 @@ class AudioCue(BaseModel):
 
 class Interval(BaseModel):
     duration: int
-    label: str
     type: str = "work"
 
 
@@ -76,7 +75,11 @@ class ParsedWorkout(BaseModel):
     @property
     def time_cap(self) -> Optional[int]:
         """Time cap (same as duration for capped workouts)."""
-        if self.workout_type == WorkoutType.FOR_TIME and self.duration and self.duration > 0:
+        if (
+            self.workout_type == WorkoutType.FOR_TIME
+            and self.duration
+            and self.duration > 0
+        ):
             return self.duration
         return None
 
@@ -95,7 +98,11 @@ class ParsedWorkout(BaseModel):
     def timer_config(self) -> TimerConfig:
         """Build timer_config object for UI compatibility."""
         # Determine timer type based on workout type
-        if self.workout_type in [WorkoutType.EMOM, WorkoutType.TABATA, WorkoutType.INTERVALS]:
+        if self.workout_type in [
+            WorkoutType.EMOM,
+            WorkoutType.TABATA,
+            WorkoutType.INTERVALS,
+        ]:
             timer_type = "intervals"
         elif self.workout_type == WorkoutType.STOPWATCH:
             timer_type = "stopwatch"

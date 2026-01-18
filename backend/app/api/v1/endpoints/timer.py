@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from app.schemas.workout import WorkoutParseRequest, ParsedWorkout
 from app.services.workout_parser import workout_parser
+import traceback
 
 router = APIRouter()
 
@@ -25,6 +26,8 @@ async def parse_workout(request: WorkoutParseRequest):
         parsed = await workout_parser.parse(request.workout_text)
         return parsed
     except Exception as e:
+        print(f"Parse endpoint error: {str(e)}")
+        print(f"Full traceback: {traceback.format_exc()}")
         raise HTTPException(
             status_code=500,
             detail=f"Failed to parse workout: {str(e)}"

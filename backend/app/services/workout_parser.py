@@ -37,11 +37,13 @@ class WorkoutParser:
         3. Convert AI result to intervals-based schema
         """
         # Classify workout type locally (fast, no AI)
+        print(f"Input text for classification: {repr(workout_text)}")
         detected_type = self.classify_workout_type(workout_text)
+        print(f"Classifier detected type: {detected_type}")
 
         # Get AI interpretation using type-specific prompt
         ai_result = await ai_service.parse_workout(workout_text, detected_type)
-
+        print(f"AI result: {ai_result}")
         # Ensure workout type matches our classification
         ai_result["workout_type"] = detected_type.value
 
