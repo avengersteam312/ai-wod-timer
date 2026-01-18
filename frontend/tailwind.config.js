@@ -41,6 +41,18 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        // Timer-specific semantic colors
+        surface: {
+          DEFAULT: "hsl(var(--surface))",
+          elevated: "hsl(var(--surface-elevated))",
+        },
+        timer: {
+          work: "hsl(var(--timer-work))",
+          rest: "hsl(var(--timer-rest))",
+          complete: "hsl(var(--timer-complete))",
+          warning: "hsl(var(--timer-warning))",
+          preparing: "hsl(var(--timer-preparing))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
