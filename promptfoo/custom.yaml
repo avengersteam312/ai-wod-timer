@@ -1,0 +1,58 @@
+# Custom Workout Tests
+description: 'Custom Workout Parser Tests'
+
+prompts:
+  - file://prompts/custom.txt
+
+providers:
+  - id: openai:gpt-4o
+    config:
+      max_tokens: 2000
+      response_format:
+        type: json_object
+
+tests:
+  - description: "Death by Thrusters"
+    vars:
+      workout_text: |
+        Death by Thrusters
+        EMOM until failure:
+        Minute 1: 1 Thruster (95/65 lbs)
+        Minute 2: 2 Thrusters
+        Minute 3: 3 Thrusters
+        ...continue adding 1 rep each minute until you can't complete
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "custom"'
+      - type: javascript
+        value: 'JSON.parse(output).movements.some(m => m.name.toLowerCase().includes("thruster"))'
+      # Should have multiple 60s intervals
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length >= 1'
+
+  - description: "5 rounds simple"
+    vars:
+      workout_text: |
+        5 rounds
+        10 pull-ups
+        20 pushups
+        30 squats
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).movements.length === 3'
+
+  - description: "Ladder workout"
+    vars:
+      workout_text: |
+        Ladder 1-10 Pull-ups
+        (1, 2, 3, 4, 5, 6, 7, 8, 9, 10 reps)
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "custom"'
+      # Ladder is usually stopwatch mode
+      - type: javascript
+        value: 'JSON.parse(output).intervals[0].duration === 0'
+

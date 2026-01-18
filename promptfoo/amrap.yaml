@@ -1,0 +1,65 @@
+# AMRAP Workout Tests
+description: 'AMRAP Workout Parser Tests'
+
+prompts:
+  - file://prompts/amrap.txt
+
+providers:
+  - id: openai:gpt-4o
+    config:
+      max_tokens: 2000
+      response_format:
+        type: json_object
+
+tests:
+  - description: "AMRAP 20min basic"
+    vars:
+      workout_text: |
+        AMRAP 20min:
+        10 Wall Balls (20/14 lbs)
+        10 Box Jumps (24/20 in)
+        10 Burpees
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "amrap"'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length === 1'
+      - type: javascript
+        value: 'JSON.parse(output).intervals[0].duration === 1200'
+      - type: javascript
+        value: 'JSON.parse(output).movements.length === 3'
+
+  - description: "AMRAP Cindy"
+    vars:
+      workout_text: |
+        Cindy
+        AMRAP 20min:
+        5 Pull-ups
+        10 Push-ups
+        15 Air Squats
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "amrap"'
+      - type: javascript
+        value: 'JSON.parse(output).intervals[0].duration === 1200'
+      - type: javascript
+        value: 'JSON.parse(output).movements.length === 3'
+
+  - description: "AMRAP with duration movement"
+    vars:
+      workout_text: |
+        AMRAP 15min:
+        200m Run
+        10 Dumbbell Snatches (50/35 lbs)
+        30 second Plank Hold
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "amrap"'
+      - type: javascript
+        value: 'JSON.parse(output).intervals[0].duration === 900'
+      - type: javascript
+        value: 'JSON.parse(output).movements.length === 3'
+

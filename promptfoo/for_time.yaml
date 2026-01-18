@@ -1,0 +1,117 @@
+# For Time Workout Tests
+description: 'For Time Workout Parser Tests'
+
+prompts:
+  - file://prompts/for_time.txt
+
+providers:
+  - id: openai:gpt-4o
+    config:
+      max_tokens: 2000
+      response_format:
+        type: json_object
+
+tests:
+  - description: "For Time - Fran (no cap)"
+    vars:
+      workout_text: |
+        Fran
+        For Time:
+        21-15-9 reps of:
+        Thrusters (95/65 lbs)
+        Pull-ups
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "for_time"'
+      - type: javascript
+        value: 'JSON.parse(output).movements.length >= 2'
+      # No time cap = stopwatch mode (duration 0)
+      - type: javascript
+        value: 'JSON.parse(output).intervals[0].duration === 0'
+
+  - description: "For Time with 15min cap"
+    vars:
+      workout_text: |
+        For Time (15 min cap):
+        50 Double Unders
+        40 Sit-ups
+        30 Kettlebell Swings (53/35 lbs)
+        20 Box Jumps (24/20 in)
+        10 Burpees
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "for_time"'
+      - type: javascript
+        value: 'JSON.parse(output).intervals[0].duration === 900'
+      - type: javascript
+        value: 'JSON.parse(output).movements.length === 5'
+
+  - description: "For Time - Helen (3 rounds)"
+    vars:
+      workout_text: |
+        Helen
+        3 Rounds For Time:
+        400m Run
+        21 Kettlebell Swings (53/35 lbs)
+        12 Pull-ups
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "for_time"'
+      - type: javascript
+        value: 'JSON.parse(output).movements.length === 3'
+      # No time cap = stopwatch
+      - type: javascript
+        value: 'JSON.parse(output).intervals[0].duration === 0'
+
+  - description: "For Time - Grace"
+    vars:
+      workout_text: |
+        Grace
+        For Time:
+        30 Clean and Jerks (135/95 lbs)
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "for_time"'
+      - type: javascript
+        value: 'JSON.parse(output).movements.length === 1'
+      - type: javascript
+        value: 'JSON.parse(output).movements[0].reps === 30'
+
+  - description: "100 burpees for time"
+    vars:
+      workout_text: |
+        100 burpees for time
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "for_time"'
+      - type: javascript
+        value: 'JSON.parse(output).movements.length === 1'
+      - type: javascript
+        value: 'JSON.parse(output).movements[0].reps === 100'
+
+  - description: "For Time - Murph"
+    vars:
+      workout_text: |
+        Murph
+        For Time (with a 20 lb vest):
+        1 Mile Run
+        100 Pull-ups
+        200 Push-ups
+        300 Air Squats
+        1 Mile Run
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "for_time"'
+      - type: javascript
+        value: 'JSON.parse(output).movements.length >= 4'
+      - type: javascript
+        value: 'JSON.parse(output).movements.some(m => m.reps === 100)'
+      - type: javascript
+        value: 'JSON.parse(output).movements.some(m => m.reps === 200)'
+

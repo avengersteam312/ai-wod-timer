@@ -1,0 +1,41 @@
+# Stopwatch Workout Tests
+description: 'Stopwatch Workout Parser Tests'
+
+prompts:
+  - file://prompts/stopwatch.txt
+
+providers:
+  - id: openai:gpt-4o
+    config:
+      max_tokens: 2000
+      response_format:
+        type: json_object
+
+tests:
+  - description: "Stopwatch - practice handstands"
+    vars:
+      workout_text: |
+        Practice handstands for quality
+        No time limit
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "stopwatch"'
+      - type: javascript
+        value: 'JSON.parse(output).intervals[0].duration === 0'
+
+  - description: "Stopwatch - track time"
+    vars:
+      workout_text: |
+        Track time:
+        50 Pull-ups
+        100 Push-ups
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "stopwatch"'
+      - type: javascript
+        value: 'JSON.parse(output).intervals[0].duration === 0'
+      - type: javascript
+        value: 'JSON.parse(output).movements.length === 2'
+

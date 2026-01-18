@@ -55,3 +55,7 @@ build/
 # Claude Code
 .claude/
 CLAUDE*.md
+
+# Promptfoo
+promptfoo/prompts/
+promptfoo-results.json

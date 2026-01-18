@@ -1,7 +1,9 @@
 from openai import OpenAI
 from app.config import settings
+from app.schemas.workout import WorkoutType
+from app.prompts import prompt_manager
 import json
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 
 class AIService:
@@ -9,60 +11,36 @@ class AIService:
         self.provider = settings.AI_PROVIDER
         self.model = settings.AI_MODEL
         self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        self.prompt_manager = prompt_manager
 
-    async def parse_workout(self, workout_text: str) -> Dict[str, Any]:
+    async def parse_workout(
+        self, workout_text: str, workout_type: Optional[WorkoutType] = None
+    ) -> Dict[str, Any]:
         """
-        Use AI to parse workout text and generate timer configuration
+        Use AI to parse workout text and generate timer configuration.
+
+        Args:
+            workout_text: The raw workout description.
+            workout_type: Pre-classified workout type (optional).
+                         If provided, uses type-specific prompt for efficiency.
+
+        Returns:
+            Parsed workout data as dictionary.
         """
-        system_prompt = """You are a CrossFit and functional fitness timer configuration assistant.
-Parse workout descriptions and generate precise timer configurations.
+        # Use type-specific prompt if workout type is provided
+        if workout_type:
+            system_prompt = self.prompt_manager.get_system_prompt(workout_type)
+        else:
+            # Fallback to generic prompt for unknown types
+            system_prompt = self.prompt_manager.get_system_prompt(WorkoutType.CUSTOM)
 
-Identify workout types:
-- AMRAP: As Many Rounds As Possible in X minutes
-- EMOM: Every Minute On the Minute for X minutes
-- For Time: Complete work as fast as possible (may have time cap)
-- Tabata: 20 seconds work / 10 seconds rest intervals
-- Rounds: X rounds of movements (may be for time or with rest)
-- Chipper: Long list of movements done once for time
-
-Return a JSON object with this exact structure:
-{
-  "workout_type": "amrap|emom|for_time|tabata|rounds|custom",
-  "movements": [{"name": "Movement Name", "reps": 10, "weight": "20/14 lbs", "duration": null}],
-  "rounds": null or number,
-  "duration": total_seconds or null,
-  "time_cap": seconds or null,
-  "rest_between_rounds": seconds or null,
-  "timer_config": {
-    "type": "countdown|intervals|rounds|tabata",
-    "total_seconds": number or null,
-    "rounds": number or null,
-    "intervals": [{"duration": seconds, "label": "Work/Rest", "type": "work|rest"}],
-    "audio_cues": [{"time": seconds_from_start, "message": "text", "type": "announcement"}],
-    "rest_between_rounds": seconds or null
-  },
-  "ai_interpretation": "Brief explanation of the workout structure"
-}
-
-Audio cues guidelines:
-- Add countdown at start (3, 2, 1, GO)
-- Add warnings at key intervals (halfway, 5min, 1min, 30sec, 10sec remaining)
-- For EMOM, announce each minute
-- For Tabata, announce work/rest transitions
-- Add completion message
-
-Be precise with time calculations and ensure audio cues align with workout structure."""
-
-        user_prompt = f"""Parse this workout and generate a timer configuration:
-
-{workout_text}
-
-Return only the JSON object, no other text."""
+        user_prompt = self.prompt_manager.get_user_prompt(workout_text)
 
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
-                max_tokens=2000,
+                max_tokens=4000,
+                response_format={"type": "json_object"},
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},

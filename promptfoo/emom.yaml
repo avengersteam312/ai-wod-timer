@@ -1,0 +1,81 @@
+# EMOM Workout Tests
+description: 'EMOM Workout Parser Tests'
+
+prompts:
+  - file://prompts/emom.txt
+
+providers:
+  - id: openai:gpt-4o
+    config:
+      max_tokens: 2000
+      response_format:
+        type: json_object
+
+tests:
+  - description: "EMOM 12min basic"
+    vars:
+      workout_text: |
+        EMOM 12min:
+        5 Power Cleans (135/95 lbs)
+        10 Push-ups
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "emom"'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length === 12'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.every(i => i.duration === 60)'
+      - type: javascript
+        value: 'JSON.parse(output).movements.length === 2'
+
+  - description: "EMOM 20min alternating"
+    vars:
+      workout_text: |
+        EMOM 20min (alternating):
+        Odd minutes: 15 Wall Balls (20/14 lbs)
+        Even minutes: 12 Cal Row
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "emom"'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length === 20'
+      - type: javascript
+        value: 'JSON.parse(output).movements.length === 2'
+
+  - description: "E2MOM 16min"
+    vars:
+      workout_text: |
+        E2MOM 16min:
+        3 Squat Cleans (185/125 lbs)
+        6 Bar-Facing Burpees
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "emom"'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length === 8'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.every(i => i.duration === 120)'
+
+  - description: "EMOM with rest"
+    vars:
+      workout_text: |
+        EMOM x2:00
+        1 round of Macho Man
+        rest 1:00
+        EMOM x3:00
+        1 round of Macho Man
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "emom"'
+      # 2 work + 1 rest + 3 work = 6 intervals
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length === 6'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.filter(i => i.type === "work").length === 5'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.filter(i => i.type === "rest").length === 1'
+
