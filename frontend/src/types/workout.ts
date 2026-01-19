@@ -26,7 +26,6 @@ export interface TimerConfig {
   rounds?: number
   intervals: Interval[]
   audio_cues: AudioCue[]
-  rest_between_rounds?: number
 }
 
 export interface ParsedWorkout {
@@ -35,7 +34,6 @@ export interface ParsedWorkout {
   rounds?: number
   duration?: number
   time_cap?: number
-  rest_between_rounds?: number
   timer_config: TimerConfig
   raw_text: string
   ai_interpretation?: string

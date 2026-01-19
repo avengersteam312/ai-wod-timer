@@ -55,7 +55,8 @@ class PromptManager:
         Get the complete system prompt for a workout type.
 
         Combines the workout-specific instructions with the base template
-        that defines the JSON output structure.
+        that defines the JSON output structure. For CUSTOM workouts (unrecognized
+        types), only the base prompt is used.
 
         Args:
             workout_type: The classified workout type.
@@ -66,7 +67,9 @@ class PromptManager:
         workout_prompt = self.get_workout_prompt(workout_type)
         base_prompt = BASE_SYSTEM_PROMPT.format(workout_type=workout_type.value)
 
-        return f"{workout_prompt}\n\n{base_prompt}"
+        if workout_prompt:
+            return f"{workout_prompt}\n\n{base_prompt}"
+        return base_prompt
 
     def get_user_prompt(self, workout_text: str) -> str:
         """
