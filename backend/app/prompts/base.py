@@ -39,6 +39,14 @@ INTERVAL CREATION RULES:
   (a) a repeat count AND (b) an explicit time duration for the repeated unit.
 - If multiple consecutive lines describe items without explicit time boundaries between them, group them into a single "work" interval (duration = the nearest explicit duration if present, otherwise 0).
 
+NAMED COMPLEXES:
+- Named complexes (like "Macho Man", "DT", "Linda", "Grace") are NOT movements themselves.
+- If the text defines what a named complex contains, extract ONLY the actual movements.
+- Example: '"Macho Man" = 3 power cleans, 3 front squats, 3 push jerks'
+  → movements: [{{"name": "power cleans", "reps": 3}}, {{"name": "front squats", "reps": 3}}, {{"name": "push jerks", "reps": 3}}]
+  → Do NOT include {{"name": "Macho Man", ...}} in movements.
+- If the complex definition is provided in the text, use it. Otherwise, omit unknown complex names.
+
 MOVEMENT STRUCTURE (USE AS-IS, DO NOT MODIFY):
 - Rep-based: {{"name": "string", "reps": number}}
 - Time-based: {{"name": "string", "duration": number}}
