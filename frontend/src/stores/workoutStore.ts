@@ -16,8 +16,10 @@ export const useWorkoutStore = defineStore('workout', () => {
       const result = await workoutApi.parseWorkout({ workout_text: workoutText })
       currentWorkout.value = result
       return result
-    } catch (err: any) {
-      error.value = err.response?.data?.detail || err.message || 'Failed to parse workout'
+    } catch (err) {
+      // Handle Axios errors with proper typing
+      const axiosError = err as { response?: { data?: { detail?: string } }; message?: string }
+      error.value = axiosError.response?.data?.detail || axiosError.message || 'Failed to parse workout'
       throw err
     } finally {
       isLoading.value = false

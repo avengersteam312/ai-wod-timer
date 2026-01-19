@@ -59,3 +59,16 @@ CLAUDE*.md
 # Promptfoo
 promptfoo/prompts/
 promptfoo-results.json
+
+# Firebase
+firebase-service-account.json
+**/firebase-service-account.json
+**/firebase-*.json
+*.service-account.json
+# Allow specific JSON files needed for the project
+!package.json
+!package-lock.json
+!tsconfig*.json
+!tailwind.config.js
+!postcss.config.js
+!*.config.json
