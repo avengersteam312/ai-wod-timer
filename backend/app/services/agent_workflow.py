@@ -156,8 +156,6 @@ async def run_workflow(workflow_input: WorkflowInput) -> dict:
         category = classify_result.final_output.category
         workout_type = _get_workout_type_from_category(category)
 
-        print(f"Agent classifier detected type: {workout_type.value}")
-
         # Step 2: Get type-specific prompts
         workout_prompt = prompt_manager.get_workout_prompt(workout_type)
         base_prompt = (
@@ -211,8 +209,6 @@ async def run_workflow(workflow_input: WorkflowInput) -> dict:
             "intervals": [i.model_dump() for i in parsed.intervals],
             "ai_interpretation": parsed.ai_interpretation,
         }
-
-        print(f"Agent parser result: {result}")
 
         return result
 

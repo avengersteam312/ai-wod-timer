@@ -96,17 +96,21 @@ export function useTimer() {
           if (nextInterval.type === 'rest') {
             speak('Rest')
           } else if (nextInterval.type === 'work') {
-            // Extract round number from label (e.g., "Minute 3" -> "3")
-            const roundMatch = nextInterval.label.match(/\d+/)
-            if (roundMatch) {
-              const roundNum = parseInt(roundMatch[0])
-              // Check if this is the last work interval
-              const isLastRound = currentIntervalIndex.value >= totalIntervals.value - 2
-              if (isLastRound) {
-                speak(`Final round`)
-              } else {
-                speak(`Round ${roundNum}`)
+            // Count work rounds up to and including current index
+            const intervals = config.value?.intervals || []
+            let workRoundNum = 0
+            for (let i = 0; i <= currentIntervalIndex.value; i++) {
+              if (intervals[i]?.type === 'work') {
+                workRoundNum++
               }
+            }
+
+            // Check if this is the last work interval
+            const remainingWorkIntervals = intervals.slice(currentIntervalIndex.value + 1).filter(i => i.type === 'work').length
+            if (remainingWorkIntervals === 0) {
+              speak('Final round')
+            } else {
+              speak(`Round ${workRoundNum}`)
             }
           }
         }

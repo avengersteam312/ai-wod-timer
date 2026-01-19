@@ -7,7 +7,7 @@ CONCEPT:
 - Unlike Tabata (fixed 20/10), intervals can have any work/rest ratio
 - Common in HIIT training, circuit workouts, and conditioning
 
-INTERVAL STRUCTURE:
+RULES:
 - Alternating work and rest intervals
 - Create separate interval for each work and rest period
 - type: "work" for active periods, "rest" for recovery periods

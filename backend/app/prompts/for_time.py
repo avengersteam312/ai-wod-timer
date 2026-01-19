@@ -8,12 +8,10 @@ CONCEPT:
 - Time cap limits maximum duration (optional)
 - Always 1 single interval regardless of rounds or rep schemes
 
-INTERVAL STRUCTURE:
+RULES:
 - With time cap: 1 interval with duration = time cap in seconds
 - Without time cap: 1 interval with duration = 0 (stopwatch mode)
 - type: "work" (always)
-
-REP SCHEMES:
 - "21-15-9" = descending rep scheme (still 1 interval, not 3)
 - "5 RFT" = 5 rounds for time (still 1 interval)
 - Rep schemes describe the work, not separate intervals

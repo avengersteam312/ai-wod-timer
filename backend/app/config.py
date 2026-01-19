@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     # AI Service
     OPENAI_API_KEY: str = ""
     AI_PROVIDER: str = "openai"
-    AI_MODEL: str = "gpt-4.1-mini"
+    AI_MODEL: str = "gpt-4-turbo"
     AI_CLASSIFIER_MODEL: str = "gpt-4.1-mini"  # Fast, cheap model for classification
     USE_AGENT_WORKFLOW: bool = False  # Set to True to use OpenAI Agents SDK workflow
 
