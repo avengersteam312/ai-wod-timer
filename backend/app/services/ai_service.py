@@ -62,9 +62,6 @@ class AIService:
             return parsed_data
 
         except Exception as e:
-            import traceback
-            print(f"AI parsing error: {str(e)}")
-            print(f"Traceback: {traceback.format_exc()}")
             raise Exception(f"AI parsing failed: {str(e)}")
 
     async def generate_audio_cues(

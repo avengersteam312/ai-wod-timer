@@ -36,12 +36,8 @@ class AgentWorkoutParser:
         Returns:
             ParsedWorkout object with structured data
         """
-        print(f"[AgentParser] Input text: {repr(workout_text)}")
-
         # Run the agent workflow
         ai_result = await agent_workflow.parse(workout_text)
-
-        print(f"[AgentParser] AI result: {ai_result}")
 
         # Convert to our schema
         return self._convert_ai_result(ai_result, workout_text)
