@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     # CORS
     BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:5173", "http://localhost:3000"]
 
+    # Firebase
+    FIREBASE_PROJECT_ID: str = "ai-wod-timer"
+    # Optional: Path to Firebase service account JSON file (for production)
+    # If not provided, will use default credentials or project ID
+    FIREBASE_CREDENTIALS_PATH: str = ""
+
     class Config:
         env_file = ".env"
         case_sensitive = True

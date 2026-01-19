@@ -18,7 +18,8 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "tailwind-merge": "^2.5.0",
-    "lucide-vue-next": "^0.468.0"
+    "lucide-vue-next": "^0.468.0",
+    "firebase": "^10.13.0"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",

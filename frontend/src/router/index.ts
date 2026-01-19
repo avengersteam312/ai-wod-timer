@@ -1,15 +1,74 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { watch } from 'vue'
 import TimerView from '@/views/TimerView.vue'
+import LoginView from '@/views/LoginView.vue'
+import { useAuthStore } from '@/stores/authStore'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
+      path: '/login',
+      name: 'login',
+      component: LoginView,
+      meta: { requiresGuest: true }, // Only accessible when not logged in
+    },
+    {
       path: '/',
       name: 'timer',
       component: TimerView,
+      meta: { requiresAuth: true }, // Requires authentication
     },
   ],
+})
+
+// Navigation guard to protect routes
+router.beforeEach(async (to, from, next) => {
+  const authStore = useAuthStore()
+  
+  // Wait for auth to initialize with timeout
+  if (authStore.isLoading) {
+    const timeout = 2000 // 2 seconds max wait
+    
+    // Use Promise to wait for auth to load
+    await new Promise<void>((resolve) => {
+      // If already loaded, resolve immediately
+      if (!authStore.isLoading) {
+        resolve()
+        return
+      }
+      
+      // Watch for loading state to change
+      const stopWatcher = watch(
+        () => authStore.isLoading,
+        (isLoading) => {
+          if (!isLoading) {
+            stopWatcher()
+            resolve()
+          }
+        },
+        { immediate: true }
+      )
+      
+      // Timeout fallback
+      setTimeout(() => {
+        stopWatcher()
+        resolve()
+      }, timeout)
+    })
+  }
+  
+  // Route handling logic
+  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+    // Redirect to login if trying to access protected route
+    next({ name: 'login', query: { redirect: to.fullPath } })
+  } else if (to.meta.requiresGuest && authStore.isAuthenticated) {
+    // Redirect to home if already logged in
+    const redirect = (to.query.redirect as string) || '/'
+    next(redirect)
+  } else {
+    next()
+  }
 })
 
 export default router

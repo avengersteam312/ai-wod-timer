@@ -1,8 +1,10 @@
+import logging
 from fastapi import APIRouter, HTTPException, Query
 from app.schemas.workout import WorkoutParseRequest, ParsedWorkout
 from app.services.workout_parser import workout_parser
 from app.config import settings
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -46,10 +48,18 @@ async def parse_workout(
         parser = _get_parser(use_agent)
         parsed = await parser.parse(request.workout_text)
         return parsed
+    except ValueError as e:
+        # Validation errors - can expose to user
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid workout format: {str(e)}"
+        )
     except Exception as e:
+        # Log internal errors but don't expose details
+        logger.error(f"Failed to parse workout: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to parse workout: {str(e)}"
+            detail="Failed to parse workout. Please check the format and try again."
         )
 
 

@@ -9,6 +9,7 @@ import TimerControls from '@/components/timer/TimerControls.vue'
 import MovementList from '@/components/timer/MovementList.vue'
 import { ArrowLeft, Volume2, VolumeX } from 'lucide-vue-next'
 import { useAudio } from '@/composables/useAudio'
+import ProfileMenu from '@/components/ProfileMenu.vue'
 
 const workoutStore = useWorkoutStore()
 const timerStore = useTimerStore()
@@ -59,10 +60,16 @@ const isRestInterval = computed(() => {
 <template>
   <div class="min-h-screen bg-background">
     <!-- Workout Input Screen -->
-    <div v-if="!currentWorkout" class="p-4 md:p-8">
-      <div class="max-w-md mx-auto">
+    <div v-if="!currentWorkout" class="min-h-screen flex flex-col max-w-md mx-auto">
+      <!-- Header -->
+      <header class="flex items-center justify-end px-4 py-3">
+        <ProfileMenu />
+      </header>
+      
+      <!-- Main Content -->
+      <main class="flex-1 p-4 md:p-8">
         <WorkoutInput @workout-parsed="() => {}" />
-      </div>
+      </main>
     </div>
 
     <!-- Timer Screen (Mobile-optimized layout) -->
@@ -81,14 +88,17 @@ const isRestInterval = computed(() => {
           {{ workoutTitle }}
         </h1>
 
-        <button
-          @click="toggleAudio"
-          class="p-2 -mr-2 text-foreground hover:text-muted-foreground transition-colors"
-          aria-label="Toggle audio"
-        >
-          <Volume2 v-if="audioEnabled" class="h-6 w-6" />
-          <VolumeX v-else class="h-6 w-6" />
-        </button>
+        <div class="flex items-center gap-2">
+          <button
+            @click="toggleAudio"
+            class="p-2 text-foreground hover:text-muted-foreground transition-colors"
+            aria-label="Toggle audio"
+          >
+            <Volume2 v-if="audioEnabled" class="h-6 w-6" />
+            <VolumeX v-else class="h-6 w-6" />
+          </button>
+          <ProfileMenu />
+        </div>
       </header>
 
       <!-- Main Content -->
