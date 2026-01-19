@@ -8,7 +8,7 @@ CONCEPT:
 - Athlete controls when to stop
 - No time pressure - focus on quality or just recording completion time
 
-INTERVAL STRUCTURE:
+RULES:
 - Always 1 single interval
 - duration: 0 (signals count-up/stopwatch mode)
 - type: "work"

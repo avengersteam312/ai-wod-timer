@@ -30,13 +30,12 @@ TIME PARSING RULES:
 - Convert all durations to seconds.
 
 INTERVAL CREATION RULES:
+- Workout-specific rules take priority over these defaults.
 - Create an interval for each activity or step mentioned in the text.
 - If no explicit time span is present, use duration = 0.
 - If the text explicitly indicates rest, pause, or break, use type = "rest".
 - Otherwise, use type = "work".
 - Preserve the order in which intervals appear in the text.
-- Expand repetitions only if the text explicitly provides BOTH:
-  (a) a repeat count AND (b) an explicit time duration for the repeated unit.
 - If multiple consecutive lines describe items without explicit time boundaries between them, group them into a single "work" interval (duration = the nearest explicit duration if present, otherwise 0).
 
 NAMED COMPLEXES:

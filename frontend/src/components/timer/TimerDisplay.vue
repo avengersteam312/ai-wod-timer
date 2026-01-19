@@ -5,7 +5,7 @@ import { storeToRefs } from 'pinia'
 import { formatTimeDetailed, formatTime } from '@/lib/utils'
 
 const timerStore = useTimerStore()
-const { currentTime, intervalTime, config, isCompleted, isPreparing, prepTime, prepDuration, isIntervalBased, currentInterval, currentIntervalIndex, totalIntervals } = storeToRefs(timerStore)
+const { currentTime, intervalTime, config, isCompleted, isPreparing, prepTime, prepDuration, isIntervalBased, currentInterval, currentIntervalIndex } = storeToRefs(timerStore)
 
 const displayTime = computed(() => {
   if (isPreparing.value) {
@@ -82,9 +82,23 @@ const displayLabel = computed(() => {
   if (isCompleted.value) return 'WORKOUT COMPLETE'
 
   if (isIntervalBased.value && currentInterval.value) {
-    const roundNum = currentIntervalIndex.value + 1
     const type = currentInterval.value.type === 'rest' ? 'Rest' : 'Work'
-    return `Round ${roundNum} - ${type}`
+
+    // Count only work rounds up to and including current index
+    const intervals = timerStore.config?.intervals || []
+    let workRoundNum = 0
+    for (let i = 0; i <= currentIntervalIndex.value; i++) {
+      if (intervals[i]?.type === 'work') {
+        workRoundNum++
+      }
+    }
+
+    // During rest, show the round number that just completed
+    if (currentInterval.value.type === 'rest') {
+      return `Round ${workRoundNum} - ${type}`
+    }
+
+    return `Round ${workRoundNum} - ${type}`
   }
 
   return null

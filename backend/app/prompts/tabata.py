@@ -8,12 +8,11 @@ CONCEPT:
 - High intensity interval training protocol
 - Named after Dr. Izumi Tabata's research
 
-INTERVAL STRUCTURE:
+RULES:
 - Alternating work (20s) and rest (10s) intervals
 - 8 rounds = 16 interval objects per exercise
 - type: "work" for 20s intervals, "rest" for 10s intervals
-
-MULTI-EXERCISE TABATA:
+- MULTI-EXERCISE TABATA:
 - Each exercise gets full 8 rounds (16 intervals)
 - Add 60 seconds rest between different exercises
 - Total intervals = (exercises × 16) + (exercises - 1) rest intervals

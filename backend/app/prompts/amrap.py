@@ -7,7 +7,7 @@ CONCEPT:
 - Goal is to complete as many rounds/reps as possible before time expires
 - No rest intervals - continuous work for the entire duration
 
-INTERVAL STRUCTURE:
+RULES:
 - Always 1 single work interval for the entire duration
 - type: "work" (never rest for AMRAP)
 - duration: total time in seconds

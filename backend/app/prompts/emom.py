@@ -7,16 +7,16 @@ CONCEPT:
 - Remaining time in the interval is rest before next round begins
 - Each interval is SEPARATE (not one combined interval)
 
-INTERVAL DURATION BY TYPE:
-- EMOM = 60 seconds per interval
-- E2MOM (Every 2 Minutes) = 120 seconds per interval
-- E3MOM (Every 3 Minutes) = 180 seconds per interval
-- E[N]MOM = N * 60 seconds per interval
+!!! CRITICAL !!!
+- NEVER create work intervals longer than 60 seconds for standard EMOM
+- ALWAYS split "EMOM xN:00" into N separate 60-second work intervals
 
-INTERVAL STRUCTURE:
-- Create one interval per round/minute
-- type: "work" for each round
-- duration: based on EMOM variant (60s, 120s, 180s, etc.)
+RULES:
+- EMOM = 60 seconds per interval
+- E2MOM = 120 seconds per interval
+- E3MOM = 180 seconds per interval
+- E[N]MOM = N * 60 seconds per interval
+- "EMOM xN:00" generates N separate work intervals of 60 seconds each
 
 EXAMPLES:
 

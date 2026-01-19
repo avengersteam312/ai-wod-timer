@@ -23,12 +23,7 @@ const handleBack = () => {
 // Workout title for header
 const workoutTitle = computed(() => {
   if (!currentWorkout.value) return ''
-  const type = currentWorkout.value.workout_type.toUpperCase()
-  const duration = currentWorkout.value.duration
-  if (duration) {
-    return `${type} ${Math.floor(duration / 60)} min`
-  }
-  return type
+  return currentWorkout.value.workout_type.toUpperCase()
 })
 
 // Current movement display
