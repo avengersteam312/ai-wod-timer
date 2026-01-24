@@ -19,17 +19,27 @@ export const useTimerStore = defineStore('timer', () => {
   const currentIntervalIndex = ref(0)
   const prepTime = ref(0) // Countdown preparation time
   const prepDuration = ref(5) // 5 seconds to get ready
+  const autoStart = ref(false) // Flag for auto-starting without preparation
+  const skipPreparation = ref(false) // Flag to skip preparation countdown
+
+  // Work & Rest timer state
+  const workRestPhase = ref<'work' | 'rest'>('work')
+  const workRestWorkDuration = ref(0) // Stores work duration to match for rest
+  const workRestRestTime = ref(0) // Current rest countdown time
 
   const isRunning = computed(() => state.value === TimerState.RUNNING)
   const isPreparing = computed(() => state.value === TimerState.PREPARING)
   const isPaused = computed(() => state.value === TimerState.PAUSED)
   const isCompleted = computed(() => state.value === TimerState.COMPLETED)
 
-  const isIntervalBased = computed(() =>
-    config.value?.type === 'intervals' &&
-    config.value?.intervals &&
-    config.value.intervals.length > 0
-  )
+  const isIntervalBased = computed(() => {
+    const intervalTypes = ['intervals', 'tabata', 'emom']
+    return intervalTypes.includes(config.value?.type || '') &&
+      config.value?.intervals &&
+      config.value.intervals.length > 0
+  })
+
+  const isWorkRestTimer = computed(() => config.value?.type === 'work_rest')
 
   const progress = computed(() => {
     if (!config.value?.total_seconds) return 0
@@ -43,21 +53,38 @@ export const useTimerStore = defineStore('timer', () => {
 
   const totalIntervals = computed(() => config.value?.intervals?.length || 0)
 
-  const setConfig = (timerConfig: TimerConfig) => {
+  const setConfig = (timerConfig: TimerConfig, options?: { autoStart?: boolean; skipPreparation?: boolean; prepDuration?: number }) => {
     config.value = timerConfig
     currentTime.value = 0
     intervalTime.value = 0
     currentRound.value = 1
     currentIntervalIndex.value = 0
     prepTime.value = 0
+    prepDuration.value = options?.prepDuration ?? 5
     state.value = TimerState.IDLE
+    autoStart.value = options?.autoStart ?? false
+    skipPreparation.value = options?.skipPreparation ?? false
+    // Reset work_rest state
+    workRestPhase.value = 'work'
+    workRestWorkDuration.value = 0
+    workRestRestTime.value = 0
   }
 
-  const start = () => {
+  const clearAutoStart = () => {
+    autoStart.value = false
+    skipPreparation.value = false
+  }
+
+  const start = (skipPreparation: boolean = false) => {
     if (state.value === TimerState.IDLE) {
-      // Start preparation countdown
-      state.value = TimerState.PREPARING
-      prepTime.value = 0
+      if (skipPreparation) {
+        // Start immediately without preparation countdown
+        state.value = TimerState.RUNNING
+      } else {
+        // Start preparation countdown
+        state.value = TimerState.PREPARING
+        prepTime.value = 0
+      }
     } else if (state.value === TimerState.PAUSED) {
       // Resume from pause
       state.value = TimerState.RUNNING
@@ -82,6 +109,10 @@ export const useTimerStore = defineStore('timer', () => {
     currentIntervalIndex.value = 0
     prepTime.value = 0
     state.value = TimerState.IDLE
+    // Reset work_rest state
+    workRestPhase.value = 'work'
+    workRestWorkDuration.value = 0
+    workRestRestTime.value = 0
   }
 
   const incrementPrepTime = () => {
@@ -117,6 +148,31 @@ export const useTimerStore = defineStore('timer', () => {
     }
   }
 
+  // Work & Rest timer methods
+  const startWorkRestRest = () => {
+    // Store current work time as rest duration
+    workRestWorkDuration.value = intervalTime.value
+    workRestRestTime.value = intervalTime.value
+    workRestPhase.value = 'rest'
+    intervalTime.value = 0
+  }
+
+  const decrementWorkRestRestTime = () => {
+    if (workRestRestTime.value > 0) {
+      workRestRestTime.value--
+    }
+  }
+
+  const startNextWorkRestRound = () => {
+    if (config.value?.rounds && currentRound.value < config.value.rounds) {
+      currentRound.value++
+      workRestPhase.value = 'work'
+      intervalTime.value = 0
+      workRestWorkDuration.value = 0
+      workRestRestTime.value = 0
+    }
+  }
+
   return {
     state,
     currentTime,
@@ -126,14 +182,21 @@ export const useTimerStore = defineStore('timer', () => {
     currentIntervalIndex,
     prepTime,
     prepDuration,
+    autoStart,
+    skipPreparation,
     isRunning,
     isPreparing,
     isPaused,
     isCompleted,
     isIntervalBased,
+    isWorkRestTimer,
     progress,
     currentInterval,
     totalIntervals,
+    // Work & Rest state
+    workRestPhase,
+    workRestWorkDuration,
+    workRestRestTime,
     setConfig,
     start,
     startWorkout,
@@ -146,5 +209,10 @@ export const useTimerStore = defineStore('timer', () => {
     incrementPrepTime,
     nextInterval,
     nextRound,
+    clearAutoStart,
+    // Work & Rest methods
+    startWorkRestRest,
+    decrementWorkRestRestTime,
+    startNextWorkRestRound,
   }
 })

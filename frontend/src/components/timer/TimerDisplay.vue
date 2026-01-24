@@ -5,7 +5,7 @@ import { storeToRefs } from 'pinia'
 import { formatTimeDetailed, formatTime } from '@/lib/utils'
 
 const timerStore = useTimerStore()
-const { currentTime, intervalTime, config, isCompleted, isPreparing, prepTime, prepDuration, isIntervalBased, currentInterval, currentIntervalIndex } = storeToRefs(timerStore)
+const { currentTime, intervalTime, config, isCompleted, isPreparing, prepTime, prepDuration, isIntervalBased, currentInterval, currentIntervalIndex, isWorkRestTimer, workRestPhase, workRestRestTime, workRestWorkDuration, currentRound } = storeToRefs(timerStore)
 
 const displayTime = computed(() => {
   if (isPreparing.value) {
@@ -13,14 +13,28 @@ const displayTime = computed(() => {
     return remaining.toString()
   }
 
+  // Work & Rest timer
+  if (isWorkRestTimer.value) {
+    if (workRestPhase.value === 'work') {
+      // Work phase - count up
+      return formatTimeDetailed(intervalTime.value)
+    } else {
+      // Rest phase - count down
+      return formatTimeDetailed(workRestRestTime.value)
+    }
+  }
+
   if (isIntervalBased.value && currentInterval.value) {
     const remaining = currentInterval.value.duration - intervalTime.value
     return formatTime(remaining)
   }
 
-  if (config.value?.type === 'countdown' && config.value?.total_seconds) {
-    return formatTimeDetailed(config.value.total_seconds - currentTime.value)
+  // Countdown timers: countdown, amrap (count down from total to 0)
+  const countdownTypes = ['countdown', 'amrap']
+  if (countdownTypes.includes(config.value?.type || '') && config.value?.total_seconds) {
+    return formatTimeDetailed(Math.max(0, config.value.total_seconds - currentTime.value))
   }
+  // For Time and others: count up from 0
   return formatTimeDetailed(currentTime.value)
 })
 
@@ -28,6 +42,15 @@ const displayTime = computed(() => {
 const timerState = computed(() => {
   if (isPreparing.value) return 'preparing'
   if (isCompleted.value) return 'complete'
+
+  // Work & Rest timer
+  if (isWorkRestTimer.value) {
+    if (workRestPhase.value === 'rest') {
+      if (workRestRestTime.value <= 3) return 'warning'
+      return 'rest'
+    }
+    return 'work'
+  }
 
   if (isIntervalBased.value && currentInterval.value) {
     const remaining = currentInterval.value.duration - intervalTime.value
@@ -81,8 +104,14 @@ const displayLabel = computed(() => {
   if (isPreparing.value) return 'GET READY'
   if (isCompleted.value) return 'WORKOUT COMPLETE'
 
+  // Work & Rest timer
+  if (isWorkRestTimer.value) {
+    const phase = workRestPhase.value === 'work' ? 'Work' : 'Rest'
+    return `Round ${currentRound.value} - ${phase}`
+  }
+
   if (isIntervalBased.value && currentInterval.value) {
-    const type = currentInterval.value.type === 'rest' ? 'Rest' : 'Work'
+    const isRest = currentInterval.value.type === 'rest'
 
     // Count only work rounds up to and including current index
     const intervals = timerStore.config?.intervals || []
@@ -93,11 +122,14 @@ const displayLabel = computed(() => {
       }
     }
 
-    // During rest, show the round number that just completed
-    if (currentInterval.value.type === 'rest') {
-      return `Round ${workRoundNum} - ${type}`
+    // For EMOM (no rest intervals), just show "Round X"
+    const hasRestIntervals = intervals.some(i => i.type === 'rest')
+    if (!hasRestIntervals) {
+      return `Round ${workRoundNum}`
     }
 
+    // For timers with work/rest, show "Round X - Work" or "Round X - Rest"
+    const type = isRest ? 'Rest' : 'Work'
     return `Round ${workRoundNum} - ${type}`
   }
 
@@ -108,6 +140,16 @@ const displayLabel = computed(() => {
 const ringProgress = computed(() => {
   if (isPreparing.value) {
     return ((prepDuration.value - prepTime.value) / prepDuration.value) * 100
+  }
+
+  // Work & Rest timer
+  if (isWorkRestTimer.value) {
+    if (workRestPhase.value === 'rest' && workRestWorkDuration.value > 0) {
+      // Rest phase - show progress as rest time elapsed
+      return ((workRestWorkDuration.value - workRestRestTime.value) / workRestWorkDuration.value) * 100
+    }
+    // Work phase - no progress ring (indeterminate)
+    return 0
   }
 
   if (isIntervalBased.value && currentInterval.value) {
@@ -132,7 +174,15 @@ const strokeDashoffset = computed(() => {
 })
 
 const totalTimeDisplay = computed(() => {
+  // Work & Rest timer - show total elapsed time
+  if (isWorkRestTimer.value) {
+    return `Total: ${formatTimeDetailed(currentTime.value)}`
+  }
+
   if (!config.value?.total_seconds) return ''
+  // Don't show "remaining" for countdown-style timers (they already show remaining time)
+  const countdownTypes = ['countdown', 'amrap']
+  if (countdownTypes.includes(config.value.type)) return ''
   const remaining = config.value.total_seconds - currentTime.value
   return `${formatTime(remaining)} remaining`
 })

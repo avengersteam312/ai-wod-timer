@@ -5,17 +5,17 @@ import { useAudio } from './useAudio'
 
 export function useTimer() {
   const timerStore = useTimerStore()
-  const { state, currentTime, config, prepTime, prepDuration, intervalTime, currentInterval, currentIntervalIndex, totalIntervals, isIntervalBased } = storeToRefs(timerStore)
+  const { state, currentTime, config, prepTime, prepDuration, intervalTime, currentInterval, currentIntervalIndex, totalIntervals, isIntervalBased, isWorkRestTimer, workRestPhase, workRestRestTime, currentRound } = storeToRefs(timerStore)
   const { playBeep, playCountdown, speak } = useAudio()
 
   let intervalId: number | null = null
   const lastCueTime = ref(-1)
   const lastIntervalCue = ref(-1)
 
-  const startTimer = () => {
+  const startTimer = (skipPreparation: boolean = false) => {
     if (intervalId) return
 
-    timerStore.start()
+    timerStore.start(skipPreparation)
     intervalId = window.setInterval(() => {
       if (state.value === TimerState.PREPARING) {
         handlePreparation()
@@ -50,11 +50,66 @@ export function useTimer() {
   const handleRunning = () => {
     timerStore.incrementTime()
 
-    if (isIntervalBased.value) {
+    if (isWorkRestTimer.value) {
+      handleWorkRestTimer()
+    } else if (isIntervalBased.value) {
       handleIntervalTimer()
     } else {
       checkAudioCues()
       checkCompletion()
+    }
+  }
+
+  const handleWorkRestTimer = () => {
+    if (workRestPhase.value === 'work') {
+      // Work phase - just increment interval time (counting up)
+      timerStore.incrementIntervalTime()
+    } else {
+      // Rest phase - countdown
+      timerStore.decrementWorkRestRestTime()
+
+      const remaining = workRestRestTime.value
+
+      // Voice countdown: "ten seconds", 3, 2, 1
+      if (remaining === 10 || remaining === 3 || remaining === 2 || remaining === 1) {
+        speak(remaining === 10 ? 'ten seconds' : remaining.toString())
+        playCountdown()
+      }
+
+      // Rest complete
+      if (remaining <= 0) {
+        const totalRounds = config.value?.rounds || 1
+        if (currentRound.value >= totalRounds) {
+          // Workout complete
+          speak('Great work!')
+          playBeep()
+          timerStore.complete()
+          pauseTimer()
+        } else {
+          // Start next round
+          timerStore.startNextWorkRestRound()
+          speak(`Round ${currentRound.value}`)
+          playBeep()
+        }
+      }
+    }
+  }
+
+  // Trigger work->rest transition (called from UI when user clicks Done)
+  const triggerWorkRestRest = () => {
+    if (!isWorkRestTimer.value || workRestPhase.value !== 'work') return
+
+    const totalRounds = config.value?.rounds || 1
+    // If last round, complete immediately without rest
+    if (currentRound.value >= totalRounds) {
+      speak('Great work!')
+      playBeep()
+      timerStore.complete()
+      pauseTimer()
+    } else {
+      timerStore.startWorkRestRest()
+      speak('Rest')
+      playBeep()
     }
   }
 
@@ -189,5 +244,6 @@ export function useTimer() {
     startTimer,
     pauseTimer,
     resetTimer,
+    triggerWorkRestRest,
   }
 }
