@@ -10,6 +10,7 @@
     /* Surface colors - light theme */
     --surface: 0 0% 98%;
     --surface-elevated: 0 0% 96%;
+    --card-elevated: 0 0% 99%;
 
     --card: 0 0% 100%;
     --card-foreground: 240 10% 3.9%;
@@ -54,6 +55,7 @@
     /* Surface colors */
     --surface: 0 0% 10%;             /* #1A1A1A */
     --surface-elevated: 0 0% 15%;    /* #262626 */
+    --card-elevated: 0 0% 12%;       /* #1F1F1F */
 
     --card: 0 0% 10%;                /* #1A1A1A */
     --card-foreground: 0 0% 100%;

@@ -61,15 +61,10 @@ const parseAndNavigate = async () => {
 
 <template>
   <div class="space-y-6">
-    <div class="text-center">
-      <h1 class="text-4xl font-bold tracking-tight mb-2">AI Workout Timer</h1>
-      <p class="text-muted-foreground">Paste your workout and let AI generate a smart timer</p>
-    </div>
-
-    <Card class="p-6">
+    <Card class="p-6 bg-card-elevated border-border/50 shadow-lg">
       <div class="space-y-4">
         <div>
-          <label class="text-sm font-medium mb-2 block">Your Workout</label>
+          <label class="text-sm font-medium mb-2 block font-athletic">Your Workout</label>
           <Textarea
             v-model="workoutText"
             placeholder="Paste your workout here...
@@ -83,15 +78,20 @@ AMRAP 20min:
           />
         </div>
 
-        <div class="flex gap-2">
+        <div class="flex flex-col gap-2">
           <Button
             @click="parseAndNavigate"
             :disabled="!workoutText.trim() || workoutStore.isLoading"
-            class="flex-1"
+            variant="magic"
+            class="w-full rounded-full"
           >
             <Loader2 v-if="workoutStore.isLoading" class="mr-2 h-4 w-4 animate-spin" />
-            Start Timer
+            {{ workoutStore.isLoading ? 'Creating...' : 'Create Timer' }}
           </Button>
+          
+          <div v-if="workoutStore.isLoading" class="text-xs text-center text-muted-foreground">
+            Your custom timer is being created...
+          </div>
         </div>
 
         <div v-if="workoutStore.error" class="text-sm text-destructive">
@@ -101,7 +101,7 @@ AMRAP 20min:
     </Card>
 
     <div>
-      <h3 class="text-sm font-medium mb-3">Example Workouts</h3>
+      <h3 class="text-sm font-medium mb-3 font-athletic">Example Workouts</h3>
       <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
         <Button
           v-for="example in exampleWorkouts"
