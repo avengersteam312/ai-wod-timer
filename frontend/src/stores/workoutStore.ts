@@ -31,11 +31,17 @@ export const useWorkoutStore = defineStore('workout', () => {
     error.value = null
   }
 
+  const setManualWorkout = (workout: ParsedWorkout) => {
+    currentWorkout.value = workout
+    error.value = null
+  }
+
   return {
     currentWorkout,
     isLoading,
     error,
     parseWorkout,
     clearWorkout,
+    setManualWorkout,
   }
 })

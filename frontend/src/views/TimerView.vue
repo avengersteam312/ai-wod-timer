@@ -1,21 +1,47 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useWorkoutStore } from '@/stores/workoutStore'
 import { useTimerStore } from '@/stores/timerStore'
 import { storeToRefs } from 'pinia'
 import WorkoutInput from '@/components/WorkoutInput.vue'
+import ManualTimer from '@/components/ManualTimer.vue'
 import TimerDisplay from '@/components/timer/TimerDisplay.vue'
 import TimerControls from '@/components/timer/TimerControls.vue'
 import MovementList from '@/components/timer/MovementList.vue'
 import { ArrowLeft, Volume2, VolumeX } from 'lucide-vue-next'
 import { useAudio } from '@/composables/useAudio'
+import { useTimer } from '@/composables/useTimer'
 import ProfileMenu from '@/components/ProfileMenu.vue'
+
+type InputMode = 'ai' | 'manual'
 
 const workoutStore = useWorkoutStore()
 const timerStore = useTimerStore()
 const { currentWorkout } = storeToRefs(workoutStore)
-const { currentInterval, isIntervalBased, isCompleted } = storeToRefs(timerStore)
+const { currentInterval, isIntervalBased, isCompleted, autoStart, skipPreparation } = storeToRefs(timerStore)
 const { audioEnabled, toggleAudio } = useAudio()
+const { startTimer } = useTimer()
+
+// Input mode toggle state
+const inputMode = ref<InputMode>('ai')
+
+// Watch for auto-start flag when workout is loaded
+watch(currentWorkout, (workout) => {
+  if (workout && autoStart.value) {
+    // Auto-start the timer (with or without preparation based on flag)
+    startTimer(skipPreparation.value)
+    timerStore.clearAutoStart()
+  }
+}, { immediate: true })
+
+// Watch for rest timer completion - redirect back to manual timer list immediately
+watch(isCompleted, (completed) => {
+  if (completed && currentWorkout.value?.workout_type === 'custom' && currentWorkout.value?.raw_text?.includes('Rest')) {
+    workoutStore.clearWorkout()
+    timerStore.reset()
+    inputMode.value = 'manual'
+  }
+})
 
 const handleBack = () => {
   workoutStore.clearWorkout()
@@ -62,13 +88,46 @@ const isRestInterval = computed(() => {
     <!-- Workout Input Screen -->
     <div v-if="!currentWorkout" class="min-h-screen flex flex-col max-w-md mx-auto">
       <!-- Header -->
-      <header class="flex items-center justify-end px-4 py-3">
+      <header class="flex items-center justify-between px-4 py-3">
+        <!-- Mode Toggle -->
+        <div class="flex bg-surface rounded-full p-1">
+          <button
+            @click="inputMode = 'ai'"
+            :class="[
+              'px-3 py-1.5 rounded-full text-xs font-medium transition-colors',
+              inputMode === 'ai'
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+            ]"
+          >
+            AI Parse
+          </button>
+          <button
+            @click="inputMode = 'manual'"
+            :class="[
+              'px-3 py-1.5 rounded-full text-xs font-medium transition-colors',
+              inputMode === 'manual'
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+            ]"
+          >
+            Manual
+          </button>
+        </div>
         <ProfileMenu />
       </header>
-      
+
       <!-- Main Content -->
       <main class="flex-1 p-4 md:p-8">
-        <WorkoutInput @workout-parsed="() => {}" />
+        <WorkoutInput
+          v-if="inputMode === 'ai'"
+          @workout-parsed="() => {}"
+          @switch-to-manual="inputMode = 'manual'"
+        />
+        <ManualTimer
+          v-else
+          @switch-to-a-i="inputMode = 'ai'"
+        />
       </main>
     </div>
 

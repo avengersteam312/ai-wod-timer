@@ -48,6 +48,7 @@ const handleParse = async () => {
 
 const emit = defineEmits<{
   workoutParsed: []
+  switchToManual: []
 }>()
 
 const parseAndNavigate = async () => {
@@ -112,6 +113,16 @@ AMRAP 20min:
           {{ example.name }}
         </Button>
       </div>
+    </div>
+
+    <!-- Switch to Manual mode link -->
+    <div class="text-center pt-2">
+      <button
+        @click="$emit('switchToManual')"
+        class="text-muted-foreground hover:text-foreground text-sm transition-colors"
+      >
+        Or create manual timer →
+      </button>
     </div>
   </div>
 </template>
