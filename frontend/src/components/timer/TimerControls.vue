@@ -10,7 +10,14 @@ const { state, isCompleted, currentInterval, skipPreparation, isWorkRestTimer, w
 const { startTimer, pauseTimer, resetTimer, triggerWorkRestRest } = useTimer()
 
 const handleStartPause = () => {
-  if (state.value === TimerState.RUNNING || state.value === TimerState.PREPARING) {
+  // Disable pause during countdown - use reset instead
+  if (state.value === TimerState.PREPARING) {
+    // During countdown, reset instead of pause for better UX
+    resetTimer()
+    return
+  }
+  
+  if (state.value === TimerState.RUNNING) {
     pauseTimer()
   } else {
     startTimer(skipPreparation.value)
@@ -18,7 +25,11 @@ const handleStartPause = () => {
 }
 
 const isActive = computed(() =>
-  state.value === TimerState.RUNNING || state.value === TimerState.PREPARING
+  state.value === TimerState.RUNNING
+)
+
+const isPreparing = computed(() =>
+  state.value === TimerState.PREPARING
 )
 
 // Show Done button for work_rest timer during work phase while running
@@ -47,13 +58,16 @@ const primaryButtonClass = computed(() => {
     </button>
 
     <!-- Play/Pause Button (Primary - 72px) -->
+    <!-- During countdown, clicking resets instead of pausing -->
     <button
       @click="handleStartPause"
+      :disabled="isPreparing"
       :class="[
         'w-[72px] h-[72px] rounded-full flex items-center justify-center transition-colors',
-        primaryButtonClass
+        primaryButtonClass,
+        isPreparing ? 'opacity-50 cursor-not-allowed' : ''
       ]"
-      aria-label="Play/Pause"
+      :aria-label="isPreparing ? 'Reset countdown' : 'Play/Pause'"
     >
       <Check v-if="isCompleted" class="h-8 w-8 text-background" />
       <Pause v-else-if="isActive" class="h-8 w-8 text-background" />

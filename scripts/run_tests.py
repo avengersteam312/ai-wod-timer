@@ -8,14 +8,21 @@ This script:
 3. Runs all promptfoo tests
 
 Usage:
-    python scripts/run_tests.py
-    python scripts/run_tests.py --type emom  # Run single type
+    python3 scripts/run_tests.py
+    python3 scripts/run_tests.py --type emom  # Run single type
 """
 
 import os
 import subprocess
 import sys
 from pathlib import Path
+
+# Ensure Python 3.6+ is being used (required for f-strings)
+if sys.version_info < (3, 6):
+    print("Error: This script requires Python 3.6 or higher")
+    print("Current Python version: {}".format(sys.version))
+    print("Please run with: python3 scripts/run_tests.py")
+    sys.exit(1)
 
 # Get project root (1 level up from this script)
 PROJECT_ROOT = Path(__file__).parent.parent

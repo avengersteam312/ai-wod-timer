@@ -12,6 +12,7 @@ import { ArrowLeft, Volume2, VolumeX } from 'lucide-vue-next'
 import { useAudio } from '@/composables/useAudio'
 import { useTimer } from '@/composables/useTimer'
 import ProfileMenu from '@/components/ProfileMenu.vue'
+import type { Movement } from '@/types/workout'
 
 type InputMode = 'ai' | 'manual'
 
@@ -80,6 +81,27 @@ const nextMovement = computed(() => {
 // Determine if we're in rest state
 const isRestInterval = computed(() => {
   return currentInterval.value?.type === 'rest'
+})
+
+// Format movement display with reps/duration
+const formatMovementDisplay = (movement: Movement) => {
+  const repsOrDuration = movement.reps ?? movement.duration
+  if (repsOrDuration != null) {
+    // Append 's' only if we're displaying duration (not reps)
+    const isDuration = movement.reps == null && movement.duration != null
+    return `${repsOrDuration}${isDuration ? 's' : ''} ${movement.name}`
+  }
+  return movement.name
+}
+
+const currentMovementDisplay = computed(() => {
+  if (!currentMovement.value) return ''
+  return formatMovementDisplay(currentMovement.value)
+})
+
+const nextMovementDisplay = computed(() => {
+  if (!nextMovement.value) return ''
+  return formatMovementDisplay(nextMovement.value)
 })
 </script>
 
@@ -173,7 +195,7 @@ const isRestInterval = computed(() => {
             CURRENT MOVEMENT
           </p>
           <h2 class="text-2xl font-bold text-foreground">
-            {{ currentMovement.reps || currentMovement.duration }}{{ currentMovement.duration ? 's' : '' }} {{ currentMovement.name }}
+            {{ currentMovementDisplay }}
           </h2>
           <p v-if="currentMovement.weight" class="text-sm text-muted-foreground mt-1">
             {{ currentMovement.weight }}
@@ -212,7 +234,7 @@ const isRestInterval = computed(() => {
             NEXT:
           </span>
           <span class="text-sm text-muted-foreground">
-            {{ nextMovement.reps || nextMovement.duration }}{{ nextMovement.duration ? 's' : '' }} {{ nextMovement.name }}
+            {{ nextMovementDisplay }}
           </span>
         </div>
 

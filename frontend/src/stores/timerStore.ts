@@ -86,8 +86,14 @@ export const useTimerStore = defineStore('timer', () => {
         prepTime.value = 0
       }
     } else if (state.value === TimerState.PAUSED) {
-      // Resume from pause
-      state.value = TimerState.RUNNING
+      // Resume from pause - check if we were preparing or running
+      // If prepTime < prepDuration, we were still in preparation (including prepTime === 0)
+      // If prepTime >= prepDuration, preparation was complete, so resume running
+      if (prepTime.value < prepDuration.value) {
+        state.value = TimerState.PREPARING
+      } else {
+        state.value = TimerState.RUNNING
+      }
     }
   }
 
@@ -97,7 +103,7 @@ export const useTimerStore = defineStore('timer', () => {
   }
 
   const pause = () => {
-    if (state.value === TimerState.RUNNING) {
+    if (state.value === TimerState.RUNNING || state.value === TimerState.PREPARING) {
       state.value = TimerState.PAUSED
     }
   }
