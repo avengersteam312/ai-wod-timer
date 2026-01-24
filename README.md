@@ -80,8 +80,10 @@ ANTHROPIC_API_KEY=your_api_key_here
 
 4. Start all services:
 ```bash
-docker-compose up
+docker compose up
 ```
+
+**Note:** If you're using Docker Desktop or Docker Engine 20.10+, use `docker compose` (without hyphen). For older installations, you may need to install docker-compose separately or use `docker-compose` (with hyphen).
 
 5. Access the application:
 - Frontend: http://localhost:5173

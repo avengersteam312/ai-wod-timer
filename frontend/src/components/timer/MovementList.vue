@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useWorkoutStore } from '@/stores/workoutStore'
 import { useTimerStore } from '@/stores/timerStore'
 import { storeToRefs } from 'pinia'
+import type { Movement } from '@/types/workout'
 
 const workoutStore = useWorkoutStore()
 const timerStore = useTimerStore()
@@ -23,6 +24,12 @@ const roundsList = computed(() => {
   for (let i = 0; i < Math.min(roundCount, 4); i++) { // Show max 4 rounds
     const movementIndex = i % movementCount
     const movement = movements[movementIndex]
+    
+    // Skip if movement doesn't exist (shouldn't happen, but TypeScript safety check)
+    if (!movement) continue
+    
+    // TypeScript now knows movement is defined after the check above
+    const movementDefined: Movement = movement
     const intervalIndex = i
 
     let status: 'completed' | 'current' | 'pending' = 'pending'
@@ -36,9 +43,17 @@ const roundsList = computed(() => {
       status = 'completed'
     }
 
+    // Format movement display: only show reps/duration if they exist
+    const repsOrDuration = movementDefined.reps ?? movementDefined.duration
+    // Append 's' only if we're displaying duration (not reps)
+    const isDuration = movementDefined.reps == null && movementDefined.duration != null
+    const movementDisplay = repsOrDuration != null
+      ? `${repsOrDuration}${isDuration ? 's' : ''} ${movementDefined.name}`
+      : movementDefined.name
+
     rounds.push({
       roundNumber: i + 1,
-      movement: `${movement.reps || movement.duration}${movement.duration ? 's' : ''} ${movement.name}`,
+      movement: movementDisplay,
       status
     })
   }
@@ -49,7 +64,7 @@ const roundsList = computed(() => {
 // For non-interval workouts, show the movement list
 const movementsList = computed(() => {
   if (!currentWorkout.value) return []
-  return currentWorkout.value.movements.map((movement, index) => ({
+  return currentWorkout.value.movements.map((movement: Movement) => ({
     reps: movement.reps || movement.duration,
     unit: movement.duration ? 's' : '',
     name: movement.name,
