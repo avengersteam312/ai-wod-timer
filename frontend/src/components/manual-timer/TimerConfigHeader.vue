@@ -54,7 +54,7 @@ const onCountdownBlur = (e: Event) => {
         <ArrowLeft class="w-5 h-5" />
       </button>
       <div>
-        <h1 class="text-2xl font-bold">{{ currentTypeInfo.label }}</h1>
+        <h1 class="text-2xl font-bold font-athletic">{{ currentTypeInfo.label }}</h1>
         <p class="text-sm text-muted-foreground">{{ currentTypeInfo.description }}</p>
       </div>
     </div>

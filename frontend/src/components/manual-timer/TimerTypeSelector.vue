@@ -29,12 +29,6 @@ const timerTypes: TimerTypeOption[] = [
 
 <template>
   <div class="space-y-6">
-    <!-- Header -->
-    <div class="text-center">
-      <h1 class="text-4xl font-bold tracking-tight mb-2">Manual Timer</h1>
-      <p class="text-muted-foreground">Select a timer type</p>
-    </div>
-
     <!-- Timer Type List -->
     <div class="space-y-2">
       <button
@@ -47,7 +41,7 @@ const timerTypes: TimerTypeOption[] = [
           <component :is="type.icon" class="w-6 h-6" />
         </div>
         <div class="flex-1">
-          <h3 class="font-semibold text-foreground">{{ type.label }}</h3>
+          <h3 class="font-semibold text-foreground font-athletic">{{ type.label }}</h3>
           <p class="text-sm text-muted-foreground">{{ type.description }}</p>
         </div>
         <svg class="w-5 h-5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">

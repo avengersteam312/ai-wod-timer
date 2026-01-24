@@ -227,7 +227,7 @@ const handleStart = () => {
       <Button
         @click="handleStart"
         :disabled="!isValidConfig"
-        class="w-full py-6 text-lg"
+        class="w-full py-6 text-lg rounded-full"
       >
         Start Timer
       </Button>

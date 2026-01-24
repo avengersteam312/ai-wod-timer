@@ -158,7 +158,7 @@ const clearResetEmailError = () => {
     <Card class="w-full max-w-md p-8">
       <div class="space-y-6">
         <div class="text-center">
-          <h1 class="text-3xl font-bold text-foreground">
+          <h1 class="text-3xl font-bold text-foreground font-athletic">
             {{ showPasswordReset ? 'Reset Password' : (isLogin ? 'Sign In' : 'Sign Up') }}
           </h1>
           <p v-if="!showPasswordReset" class="mt-2 text-sm text-muted-foreground">
@@ -169,7 +169,7 @@ const clearResetEmailError = () => {
         <!-- Password Reset Form -->
         <form v-if="showPasswordReset" @submit.prevent="handlePasswordReset" class="space-y-4">
           <div>
-            <h2 class="text-xl font-semibold text-foreground mb-2">Reset Password</h2>
+            <h2 class="text-xl font-semibold text-foreground mb-2 font-athletic">Reset Password</h2>
             <p class="text-sm text-muted-foreground mb-4">
               Enter your email address and we'll send you a link to reset your password.
             </p>

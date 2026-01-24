@@ -111,36 +111,43 @@ const nextMovementDisplay = computed(() => {
     <div v-if="!currentWorkout" class="min-h-screen flex flex-col max-w-md mx-auto">
       <!-- Header -->
       <header class="flex items-center justify-between px-4 py-3">
-        <!-- Mode Toggle -->
-        <div class="flex bg-surface rounded-full p-1">
-          <button
-            @click="inputMode = 'ai'"
-            :class="[
-              'px-3 py-1.5 rounded-full text-xs font-medium transition-colors',
-              inputMode === 'ai'
-                ? 'bg-primary text-primary-foreground'
-                : 'text-muted-foreground hover:text-foreground'
-            ]"
-          >
-            AI Parse
-          </button>
-          <button
-            @click="inputMode = 'manual'"
-            :class="[
-              'px-3 py-1.5 rounded-full text-xs font-medium transition-colors',
-              inputMode === 'manual'
-                ? 'bg-primary text-primary-foreground'
-                : 'text-muted-foreground hover:text-foreground'
-            ]"
-          >
-            Manual
-          </button>
-        </div>
+        <!-- App Title -->
+        <h1 class="text-sm font-semibold text-foreground font-athletic">
+          AI Workout Timer
+        </h1>
         <ProfileMenu />
       </header>
 
       <!-- Main Content -->
       <main class="flex-1 p-4 md:p-8">
+        <!-- Mode Toggle - Centered above content -->
+        <div class="flex justify-center mb-6">
+          <div class="flex bg-surface rounded-full p-1">
+            <button
+              @click="inputMode = 'ai'"
+              :class="[
+                'px-3 py-1.5 rounded-full text-xs font-medium transition-colors',
+                inputMode === 'ai'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              ]"
+            >
+              AI Build
+            </button>
+            <button
+              @click="inputMode = 'manual'"
+              :class="[
+                'px-3 py-1.5 rounded-full text-xs font-medium transition-colors',
+                inputMode === 'manual'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              ]"
+            >
+              Manual
+            </button>
+          </div>
+        </div>
+
         <WorkoutInput
           v-if="inputMode === 'ai'"
           @workout-parsed="() => {}"
@@ -165,7 +172,7 @@ const nextMovementDisplay = computed(() => {
           <ArrowLeft class="h-6 w-6" />
         </button>
 
-        <h1 class="text-base font-semibold text-foreground">
+        <h1 class="text-base font-semibold text-foreground font-athletic">
           {{ workoutTitle }}
         </h1>
 
@@ -191,10 +198,10 @@ const nextMovementDisplay = computed(() => {
 
         <!-- Current Movement Card -->
         <div v-if="currentMovement && !isRestInterval" class="bg-surface rounded-xl p-4 text-center">
-          <p class="text-[10px] font-semibold tracking-wider text-muted-foreground mb-1">
+          <p class="text-[10px] font-semibold tracking-wider text-muted-foreground mb-1 font-athletic">
             CURRENT MOVEMENT
           </p>
-          <h2 class="text-2xl font-bold text-foreground">
+          <h2 class="text-2xl font-bold text-foreground font-athletic">
             {{ currentMovementDisplay }}
           </h2>
           <p v-if="currentMovement.weight" class="text-sm text-muted-foreground mt-1">
@@ -204,10 +211,10 @@ const nextMovementDisplay = computed(() => {
 
         <!-- Rest Interval Card -->
         <div v-else-if="isRestInterval" class="bg-surface rounded-xl p-4 text-center">
-          <p class="text-[10px] font-semibold tracking-wider text-muted-foreground mb-1">
+          <p class="text-[10px] font-semibold tracking-wider text-muted-foreground mb-1 font-athletic">
             REST
           </p>
-          <h2 class="text-2xl font-bold text-foreground">
+          <h2 class="text-2xl font-bold text-foreground font-athletic">
             Take a breath
           </h2>
           <p class="text-sm text-muted-foreground mt-1">
@@ -217,10 +224,10 @@ const nextMovementDisplay = computed(() => {
 
         <!-- Completed Card -->
         <div v-else-if="isCompleted" class="bg-surface rounded-xl p-4 text-center">
-          <p class="text-[10px] font-semibold tracking-wider text-muted-foreground mb-1">
+          <p class="text-[10px] font-semibold tracking-wider text-muted-foreground mb-1 font-athletic">
             TOTAL ROUNDS
           </p>
-          <h2 class="text-2xl font-bold text-foreground">
+          <h2 class="text-2xl font-bold text-foreground font-athletic">
             {{ currentWorkout.rounds || Math.ceil(timerStore.totalIntervals / currentWorkout.movements.length) }} Rounds
           </h2>
           <p class="text-sm text-muted-foreground mt-1">
