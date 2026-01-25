@@ -1,11 +1,88 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useTimerStore } from '@/stores/timerStore'
+import { computed, ref, watch, onUnmounted } from 'vue'
+import { useTimerStore, TimerState } from '@/stores/timerStore'
 import { storeToRefs } from 'pinia'
 import { formatTimeDetailed, formatTime } from '@/lib/utils'
 
 const timerStore = useTimerStore()
-const { currentTime, intervalTime, config, isCompleted, isPreparing, prepTime, prepDuration, isIntervalBased, currentInterval, currentIntervalIndex, isWorkRestTimer, workRestPhase, workRestRestTime, workRestWorkDuration, currentRound } = storeToRefs(timerStore)
+const { currentTime, intervalTime, config, isCompleted, isPreparing, prepTime, prepDuration, isIntervalBased, currentInterval, isWorkRestTimer, workRestPhase, workRestRestTime, workRestWorkDuration, state } = storeToRefs(timerStore)
+
+// Smooth progress interpolation
+const smoothProgress = ref(0)
+let animationFrameId: number | null = null
+let lastTimestamp = 0
+let baseProgress = 0
+
+const updateSmoothProgress = (timestamp: number) => {
+  if (state.value !== TimerState.RUNNING && state.value !== TimerState.PREPARING) {
+    smoothProgress.value = baseProgress
+    return
+  }
+
+  const elapsed = (timestamp - lastTimestamp) / 1000 // seconds since last update
+
+  // Calculate progress increment per second based on timer type
+  let progressPerSecond = 0
+
+  if (state.value === TimerState.PREPARING) {
+    // Preparation countdown - progress decreases
+    progressPerSecond = -(100 / prepDuration.value)
+  } else if (isWorkRestTimer.value && workRestPhase.value === 'rest' && workRestWorkDuration.value > 0) {
+    // Work & Rest timer rest phase - progress increases as rest time decreases
+    progressPerSecond = 100 / workRestWorkDuration.value
+  } else if (isIntervalBased.value && currentInterval.value && currentInterval.value.duration > 0) {
+    progressPerSecond = 100 / currentInterval.value.duration
+  } else if (config.value?.total_seconds) {
+    progressPerSecond = 100 / config.value.total_seconds
+  }
+
+  const newProgress = baseProgress + (elapsed * progressPerSecond)
+  smoothProgress.value = Math.max(0, Math.min(100, newProgress))
+  animationFrameId = requestAnimationFrame(updateSmoothProgress)
+}
+
+// Sync base progress when timer values change
+watch([currentTime, intervalTime, prepTime, workRestRestTime, workRestPhase, state], () => {
+  if (state.value === TimerState.PREPARING) {
+    // Preparation countdown - progress starts at 100% and decreases
+    baseProgress = ((prepDuration.value - prepTime.value) / prepDuration.value) * 100
+    smoothProgress.value = baseProgress
+    lastTimestamp = performance.now()
+
+    if (!animationFrameId) {
+      animationFrameId = requestAnimationFrame(updateSmoothProgress)
+    }
+  } else if (state.value === TimerState.RUNNING) {
+    // Calculate base progress from current timer state
+    if (isWorkRestTimer.value && workRestPhase.value === 'rest' && workRestWorkDuration.value > 0) {
+      // Work & Rest timer rest phase - progress based on rest time remaining
+      baseProgress = ((workRestWorkDuration.value - workRestRestTime.value) / workRestWorkDuration.value) * 100
+    } else if (isIntervalBased.value && currentInterval.value && currentInterval.value.duration > 0) {
+      baseProgress = (intervalTime.value / currentInterval.value.duration) * 100
+    } else if (config.value?.total_seconds) {
+      baseProgress = (currentTime.value / config.value.total_seconds) * 100
+    } else {
+      baseProgress = 0
+    }
+    smoothProgress.value = baseProgress
+    lastTimestamp = performance.now()
+
+    if (!animationFrameId) {
+      animationFrameId = requestAnimationFrame(updateSmoothProgress)
+    }
+  } else {
+    if (animationFrameId) {
+      cancelAnimationFrame(animationFrameId)
+      animationFrameId = null
+    }
+  }
+}, { immediate: true })
+
+onUnmounted(() => {
+  if (animationFrameId) {
+    cancelAnimationFrame(animationFrameId)
+  }
+})
 
 const displayTime = computed(() => {
   if (isPreparing.value) {
@@ -111,35 +188,15 @@ const timeClass = computed(() => {
 
 const displayLabel = computed(() => {
   if (isPreparing.value) return 'GET READY'
-  if (isCompleted.value) return 'WORKOUT COMPLETE'
+  if (isCompleted.value) return 'DONE'
 
   // Work & Rest timer
   if (isWorkRestTimer.value) {
-    const phase = workRestPhase.value === 'work' ? 'Work' : 'Rest'
-    return `Round ${currentRound.value} - ${phase}`
+    return workRestPhase.value === 'work' ? 'WORK' : 'REST'
   }
 
   if (isIntervalBased.value && currentInterval.value) {
-    const isRest = currentInterval.value.type === 'rest'
-
-    // Count only work rounds up to and including current index
-    const intervals = timerStore.config?.intervals || []
-    let workRoundNum = 0
-    for (let i = 0; i <= currentIntervalIndex.value; i++) {
-      if (intervals[i]?.type === 'work') {
-        workRoundNum++
-      }
-    }
-
-    // For EMOM (no rest intervals), just show "Round X"
-    const hasRestIntervals = intervals.some(i => i.type === 'rest')
-    if (!hasRestIntervals) {
-      return `Round ${workRoundNum}`
-    }
-
-    // For timers with work/rest, show "Round X - Work" or "Round X - Rest"
-    const type = isRest ? 'Rest' : 'Work'
-    return `Round ${workRoundNum} - ${type}`
+    return currentInterval.value.type === 'rest' ? 'REST' : 'WORK'
   }
 
   return null
@@ -177,23 +234,34 @@ const ringProgress = computed(() => {
 })
 
 // SVG circle calculations
-const ringSize = 200
-const strokeWidth = 8
+const ringSize = 260
+const strokeWidth = 10
 const radius = (ringSize - strokeWidth) / 2
 const circumference = 2 * Math.PI * radius
 
 const strokeDashoffset = computed(() => {
-  return circumference - (ringProgress.value / 100) * circumference
+  // Use smooth interpolated progress when running or preparing, otherwise use stepped progress
+  const isAnimating = state.value === TimerState.RUNNING || state.value === TimerState.PREPARING
+  const progress = isAnimating ? smoothProgress.value : ringProgress.value
+  return circumference - (progress / 100) * circumference
 })
 
 const totalTimeDisplay = computed(() => {
+  // Only show total time when it differs from main display
+  // (i.e., for interval-based timers where main shows interval time)
+
   // Work & Rest timer - show total elapsed time
   if (isWorkRestTimer.value) {
     return `Total: ${formatTimeDetailed(currentTime.value)}`
   }
 
-  // Show total elapsed time for all timer types
-  return `Total: ${formatTimeDetailed(currentTime.value)}`
+  // Interval-based timers - show total when main shows interval time
+  if (isIntervalBased.value && currentInterval.value) {
+    return `Total: ${formatTimeDetailed(currentTime.value)}`
+  }
+
+  // Stopwatch, for_time, amrap - main timer IS the total, don't show duplicate
+  return null
 })
 </script>
 
@@ -226,14 +294,13 @@ const totalTimeDisplay = computed(() => {
           stroke-linecap="round"
           :stroke-dasharray="circumference"
           :stroke-dashoffset="strokeDashoffset"
-          class="transition-all duration-300 ease-linear"
         />
       </svg>
 
       <!-- Timer Content (inside ring) -->
       <div class="absolute flex flex-col items-center justify-center text-center">
         <!-- Interval Label -->
-        <div v-if="displayLabel" :class="['text-sm font-medium mb-1', labelColorClass]">
+        <div v-if="displayLabel" :class="['text-xl font-bold mb-1', labelColorClass]">
           {{ displayLabel }}
         </div>
 
@@ -242,13 +309,9 @@ const totalTimeDisplay = computed(() => {
           {{ displayTime }}
         </div>
 
-        <!-- Total Time Remaining -->
-        <div v-if="totalTimeDisplay && !isPreparing && !isCompleted" class="text-xs text-muted-foreground mt-1">
+        <!-- Total Time -->
+        <div v-if="totalTimeDisplay && !isPreparing" class="text-xs text-muted-foreground mt-1">
           {{ totalTimeDisplay }}
-        </div>
-
-        <div v-if="isCompleted" class="text-xs text-muted-foreground mt-1">
-          Great job!
         </div>
       </div>
     </div>
