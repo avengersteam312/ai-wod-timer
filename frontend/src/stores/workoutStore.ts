@@ -14,6 +14,8 @@ export const useWorkoutStore = defineStore('workout', () => {
 
     try {
       const result = await workoutApi.parseWorkout({ workout_text: workoutText })
+      // Use the user's input as workout notes
+      result.notes = workoutText
       currentWorkout.value = result
       return result
     } catch (err) {

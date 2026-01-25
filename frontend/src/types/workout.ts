@@ -38,6 +38,7 @@ export interface ParsedWorkout {
   timer_config: TimerConfig
   raw_text: string
   ai_interpretation?: string
+  notes?: string
 }
 
 export interface WorkoutParseRequest {

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { TimerConfig, AudioCue } from '@/types/workout'
+import type { TimerConfig } from '@/types/workout'
 
 export enum TimerState {
   IDLE = 'idle',
@@ -10,25 +10,38 @@ export enum TimerState {
   COMPLETED = 'completed',
 }
 
+// Manual round tracking for AMRAP, stopwatch, for_time timers
+export interface ManualRound {
+  roundNumber: number
+  completedAt: number // elapsed seconds when round was completed
+  duration: number // seconds this round took
+}
+
 export const useTimerStore = defineStore('timer', () => {
+  // Core timer state
   const state = ref<TimerState>(TimerState.IDLE)
-  const currentTime = ref(0) // Total elapsed time
-  const intervalTime = ref(0) // Time within current interval
+  const currentTime = ref(0)
+  const intervalTime = ref(0)
   const config = ref<TimerConfig | null>(null)
   const currentRound = ref(1)
   const currentIntervalIndex = ref(0)
-  const prepTime = ref(0) // Countdown preparation time
-  const prepDuration = ref(5) // 5 seconds to get ready
-  const autoStart = ref(false) // Flag for auto-starting without preparation
-  const skipPreparation = ref(false) // Flag to skip preparation countdown
+  const prepTime = ref(0)
+  const prepDuration = ref(5)
+  const autoStart = ref(false)
+  const skipPreparation = ref(false)
 
   // Work & Rest timer state
   const workRestPhase = ref<'work' | 'rest'>('work')
-  const workRestWorkDuration = ref(0) // Stores work duration to match for rest
-  const workRestRestTime = ref(0) // Current rest countdown time
+  const workRestWorkDuration = ref(0)
+  const workRestRestTime = ref(0)
 
   // Repeat interval state (for "until failure" workouts)
-  const repeatRound = ref(1) // Tracks rounds for repeating intervals
+  const repeatRound = ref(1)
+  const repeatWorkRound = ref(0)
+  const repeatRestRound = ref(0)
+
+  // Manual round counter state
+  const manualRounds = ref<ManualRound[]>([])
 
   const isRunning = computed(() => state.value === TimerState.RUNNING)
   const isPreparing = computed(() => state.value === TimerState.PREPARING)
@@ -78,6 +91,10 @@ export const useTimerStore = defineStore('timer', () => {
     workRestRestTime.value = 0
     // Reset repeat state
     repeatRound.value = 1
+    repeatWorkRound.value = 0
+    repeatRestRound.value = 0
+    // Reset manual rounds
+    manualRounds.value = []
   }
 
   const clearAutoStart = () => {
@@ -131,6 +148,10 @@ export const useTimerStore = defineStore('timer', () => {
     workRestRestTime.value = 0
     // Reset repeat state
     repeatRound.value = 1
+    repeatWorkRound.value = 0
+    repeatRestRound.value = 0
+    // Reset manual rounds
+    manualRounds.value = []
   }
 
   const incrementPrepTime = () => {
@@ -168,6 +189,28 @@ export const useTimerStore = defineStore('timer', () => {
 
   const incrementRepeatRound = () => {
     repeatRound.value++
+  }
+
+  const incrementRepeatWorkRound = () => {
+    repeatWorkRound.value++
+  }
+
+  const incrementRepeatRestRound = () => {
+    repeatRestRound.value++
+  }
+
+  // Manual round counter methods
+  const addManualRound = () => {
+    const completedAt = currentTime.value
+    const lastRound = manualRounds.value[manualRounds.value.length - 1]
+    const previousTime = lastRound ? lastRound.completedAt : 0
+    const duration = completedAt - previousTime
+
+    manualRounds.value.push({
+      roundNumber: manualRounds.value.length + 1,
+      completedAt,
+      duration
+    })
   }
 
   // Work & Rest timer methods
@@ -239,6 +282,13 @@ export const useTimerStore = defineStore('timer', () => {
     startNextWorkRestRound,
     // Repeat interval state
     repeatRound,
+    repeatWorkRound,
+    repeatRestRound,
     incrementRepeatRound,
+    incrementRepeatWorkRound,
+    incrementRepeatRestRound,
+    // Manual round counter
+    manualRounds,
+    addManualRound,
   }
 })

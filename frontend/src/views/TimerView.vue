@@ -17,7 +17,8 @@ import {
   ControlsBlock,
   WorkoutProgressBlock,
   WorkoutSummaryBlock,
-  RoundCounterBlock
+  RoundCounterBlock,
+  ManualRoundCounterBlock
 } from '@/components/timer/blocks'
 
 type InputMode = 'ai' | 'manual'
@@ -162,6 +163,9 @@ const workoutTitle = () => {
 
         <!-- Round Counter -->
         <RoundCounterBlock v-if="showRoundCounter" />
+
+        <!-- Manual Round Counter (for AMRAP, for_time, stopwatch) -->
+        <ManualRoundCounterBlock />
 
         <!-- Timer Controls -->
         <ControlsBlock v-if="showControls" />

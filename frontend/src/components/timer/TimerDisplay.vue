@@ -1,11 +1,53 @@
 <script setup lang="ts">
 import { computed, ref, watch, onUnmounted } from 'vue'
 import { useTimerStore, TimerState } from '@/stores/timerStore'
+import { useWorkoutStore } from '@/stores/workoutStore'
 import { storeToRefs } from 'pinia'
 import { formatTimeDetailed, formatTime } from '@/lib/utils'
 
 const timerStore = useTimerStore()
-const { currentTime, intervalTime, config, isCompleted, isPreparing, prepTime, prepDuration, isIntervalBased, currentInterval, isWorkRestTimer, workRestPhase, workRestRestTime, workRestWorkDuration, state } = storeToRefs(timerStore)
+const workoutStore = useWorkoutStore()
+const { currentTime, intervalTime, config, isCompleted, isPreparing, prepTime, prepDuration, isIntervalBased, currentInterval, isWorkRestTimer, workRestPhase, workRestRestTime, workRestWorkDuration, state, isRunning, isPaused } = storeToRefs(timerStore)
+const { currentWorkout } = storeToRefs(workoutStore)
+
+// Check if RoundCounterBlock would be shown (to avoid duplicate counters)
+const hasRoundCounterBlock = computed(() => {
+  if (isWorkRestTimer.value) return true
+  const intervals = currentWorkout.value?.timer_config?.intervals
+  if (!intervals) return false
+  // RoundCounterBlock shows for 2+ intervals or any repeat interval
+  const hasRepeat = intervals.some(i => i.repeat)
+  return hasRepeat || intervals.length >= 2
+})
+
+// Check if manual round counter is active (can add rounds by tapping)
+const canAddManualRound = computed(() => {
+  const type = currentWorkout.value?.workout_type
+  if (!type) return false
+  // Don't show if RoundCounterBlock is already showing
+  if (hasRoundCounterBlock.value) return false
+  // Don't show for rest timer (no rounds concept)
+  if (type === 'rest') return false
+  // Allow for all other workout types without predefined rounds
+  return true
+})
+
+// Check if timer is active (running or paused but started)
+const isTimerActive = computed(() => {
+  return (isRunning.value || isPaused.value) && !isCompleted.value
+})
+
+// Show tap indicator when manual rounds are available and timer is active
+const showTapIndicator = computed(() => {
+  return canAddManualRound.value && isTimerActive.value
+})
+
+// Handle tap to add round
+const handleTimerTap = () => {
+  if (canAddManualRound.value && isRunning.value && !isCompleted.value) {
+    timerStore.addManualRound()
+  }
+}
 
 // Smooth progress interpolation
 const smoothProgress = ref(0)
@@ -268,7 +310,31 @@ const totalTimeDisplay = computed(() => {
 <template>
   <div class="flex flex-col items-center justify-center">
     <!-- Timer with Circular Progress Ring -->
-    <div class="relative flex items-center justify-center" :style="{ width: `${ringSize}px`, height: `${ringSize}px` }">
+    <div
+      class="relative flex items-center justify-center"
+      :class="{ 'cursor-pointer': showTapIndicator }"
+      :style="{ width: `${ringSize}px`, height: `${ringSize}px` }"
+      @click="handleTimerTap"
+    >
+      <!-- Tap indicator - multiple pulsing rings -->
+      <template v-if="showTapIndicator">
+        <div
+          class="absolute rounded-full animate-ripple-1 border-2"
+          :class="ringColorClass.replace('stroke-', 'border-')"
+          :style="{ width: `${ringSize + 16}px`, height: `${ringSize + 16}px` }"
+        />
+        <div
+          class="absolute rounded-full animate-ripple-2 border-2"
+          :class="ringColorClass.replace('stroke-', 'border-')"
+          :style="{ width: `${ringSize + 16}px`, height: `${ringSize + 16}px` }"
+        />
+        <div
+          class="absolute rounded-full animate-ripple-3 border-2"
+          :class="ringColorClass.replace('stroke-', 'border-')"
+          :style="{ width: `${ringSize + 16}px`, height: `${ringSize + 16}px` }"
+        />
+      </template>
+
       <!-- Background Ring -->
       <svg
         :width="ringSize"
@@ -309,11 +375,41 @@ const totalTimeDisplay = computed(() => {
           {{ displayTime }}
         </div>
 
-        <!-- Total Time -->
+        <!-- Total Time or Tap Hint -->
         <div v-if="totalTimeDisplay && !isPreparing" class="text-xs text-muted-foreground mt-1">
           {{ totalTimeDisplay }}
+        </div>
+        <div v-else-if="showTapIndicator" class="text-xs text-muted-foreground mt-1">
+          tap to count round
         </div>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+@keyframes ripple {
+  0% {
+    transform: scale(1);
+    opacity: 0.4;
+  }
+  100% {
+    transform: scale(1.15);
+    opacity: 0;
+  }
+}
+
+.animate-ripple-1 {
+  animation: ripple 2s ease-out infinite;
+}
+
+.animate-ripple-2 {
+  animation: ripple 2s ease-out infinite;
+  animation-delay: 0.6s;
+}
+
+.animate-ripple-3 {
+  animation: ripple 2s ease-out infinite;
+  animation-delay: 1.2s;
+}
+</style>

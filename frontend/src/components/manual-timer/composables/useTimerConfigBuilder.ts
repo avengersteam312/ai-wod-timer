@@ -233,14 +233,15 @@ const workoutTypeMap: Record<TimerType, ParsedWorkout['workout_type']> = {
   work_rest: 'work_rest'
 }
 
-export function buildManualWorkout(type: TimerType, timerConfig: TimerConfig): ParsedWorkout {
+export function buildManualWorkout(type: TimerType, timerConfig: TimerConfig, notes?: string): ParsedWorkout {
   return {
     workout_type: workoutTypeMap[type],
     movements: [{ name: typeLabels[type] }],
     rounds: timerConfig.rounds,
     duration: timerConfig.total_seconds,
     timer_config: timerConfig,
-    raw_text: `Manual ${typeLabels[type]} timer`
+    raw_text: `Manual ${typeLabels[type]} timer`,
+    notes: notes || undefined
   }
 }
 
