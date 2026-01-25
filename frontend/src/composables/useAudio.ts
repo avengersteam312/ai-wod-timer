@@ -43,14 +43,23 @@ export function useAudio() {
   const speak = (text: string) => {
     if (!audioEnabled.value || !synth) return
 
-    synth.cancel() // Cancel any ongoing speech
+    synth.cancel()
+    synth.resume()
 
     const utterance = new SpeechSynthesisUtterance(text)
+    const voices = synth.getVoices()
+    if (voices.length > 0) {
+      const englishVoice = voices.find(v => v.lang.startsWith('en'))
+      if (englishVoice) {
+        utterance.voice = englishVoice
+      }
+    }
     utterance.rate = 1.0
     utterance.pitch = 1.0
     utterance.volume = 1.0
 
     synth.speak(utterance)
+    synth.resume()
   }
 
   const toggleAudio = () => {

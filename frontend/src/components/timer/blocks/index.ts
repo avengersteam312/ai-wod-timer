@@ -1,0 +1,7 @@
+export { default as TimerBlock } from './TimerBlock.vue'
+export { default as CurrentMovementBlock } from './CurrentMovementBlock.vue'
+export { default as NextMovementBlock } from './NextMovementBlock.vue'
+export { default as ControlsBlock } from './ControlsBlock.vue'
+export { default as WorkoutProgressBlock } from './WorkoutProgressBlock.vue'
+export { default as WorkoutSummaryBlock } from './WorkoutSummaryBlock.vue'
+export { default as RoundCounterBlock } from './RoundCounterBlock.vue'

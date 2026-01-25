@@ -3,11 +3,11 @@ import { computed } from 'vue'
 import { useTimerStore, TimerState } from '@/stores/timerStore'
 import { storeToRefs } from 'pinia'
 import { useTimer } from '@/composables/useTimer'
-import { Play, Pause, RotateCcw, SkipForward, Check, Coffee, Dumbbell } from 'lucide-vue-next'
+import { Play, Pause, RotateCcw, Check, Coffee, Dumbbell, Square } from 'lucide-vue-next'
 
 const timerStore = useTimerStore()
-const { state, isCompleted, currentInterval, skipPreparation, isWorkRestTimer, workRestPhase, isOpenEndedInterval } = storeToRefs(timerStore)
-const { startTimer, pauseTimer, resetTimer, triggerWorkRestRest, triggerNextInterval } = useTimer()
+const { state, isCompleted, currentInterval, currentIntervalIndex, config, skipPreparation, isWorkRestTimer, workRestPhase, isIntervalBased } = storeToRefs(timerStore)
+const { startTimer, pauseTimer, resetTimer, triggerWorkRestRest, skipToNextInterval } = useTimer()
 
 const handleStartPause = () => {
   // Disable pause during countdown - use reset instead
@@ -32,24 +32,57 @@ const isPreparing = computed(() =>
   state.value === TimerState.PREPARING
 )
 
+// Reset button is only enabled when timer has started (not idle)
+const resetButtonEnabled = computed(() =>
+  state.value !== TimerState.IDLE
+)
+
 // Show Done button for work_rest timer during work phase while running
 const showDoneButton = computed(() =>
   isWorkRestTimer.value && workRestPhase.value === 'work' && state.value === TimerState.RUNNING
 )
 
-// Show next interval button for open-ended intervals (duration: 0)
-// Only show when running or paused (transition makes sense during active workout)
-const showNextIntervalButton = computed(() =>
-  isOpenEndedInterval.value &&
-  (state.value === TimerState.RUNNING || state.value === TimerState.PAUSED) &&
-  !isWorkRestTimer.value
+// Check if there are any rest intervals
+const hasRestIntervals = computed(() => {
+  const intervals = config.value?.intervals
+  if (!intervals || intervals.length === 0) return false
+  return intervals.some(interval => interval.type === 'rest')
+})
+
+// Show skip to next interval button only if there are rest intervals (otherwise show stop button)
+const showSkipButton = computed(() =>
+  isIntervalBased.value && !isWorkRestTimer.value && hasRestIntervals.value
 )
 
-// Button label/icon depends on current interval type and next interval type
+// Skip button is only enabled when running or paused
+const skipButtonEnabled = computed(() =>
+  state.value === TimerState.RUNNING || state.value === TimerState.PAUSED
+)
+
+// Next interval type (to determine which icon to show)
 const nextIntervalIsRest = computed(() => {
-  if (!currentInterval.value) return false
-  return currentInterval.value.type === 'work'
+  const intervals = config.value?.intervals
+  if (!intervals || intervals.length === 0) return false
+
+  const nextIndex = currentIntervalIndex.value + 1
+  if (nextIndex >= intervals.length) {
+    // No next interval - show stop/complete icon behavior
+    return false
+  }
+
+  return intervals[nextIndex].type === 'rest'
 })
+
+// End button is only enabled when running or paused
+const endButtonEnabled = computed(() =>
+  state.value === TimerState.RUNNING || state.value === TimerState.PAUSED
+)
+
+// End the timer manually
+const endTimer = () => {
+  if (!endButtonEnabled.value) return
+  timerStore.complete()
+}
 
 // Determine primary button color based on state
 const primaryButtonClass = computed(() => {
@@ -65,10 +98,14 @@ const primaryButtonClass = computed(() => {
     <!-- Reset Button (Secondary - 48px) -->
     <button
       @click="resetTimer"
-      class="w-12 h-12 rounded-full bg-surface-elevated hover:bg-surface-elevated/80 flex items-center justify-center transition-colors"
+      :disabled="!resetButtonEnabled"
+      :class="[
+        'w-12 h-12 rounded-full bg-surface-elevated border border-muted-foreground/40 flex items-center justify-center transition-colors',
+        resetButtonEnabled ? 'hover:bg-surface-elevated/80 hover:border-muted-foreground/60' : 'opacity-50 cursor-not-allowed'
+      ]"
       aria-label="Reset"
     >
-      <RotateCcw class="h-5 w-5 text-muted-foreground" />
+      <RotateCcw class="h-5 w-5 text-foreground" />
     </button>
 
     <!-- Play/Pause Button (Primary - 72px) -->
@@ -92,33 +129,42 @@ const primaryButtonClass = computed(() => {
     <button
       v-if="showDoneButton"
       @click="triggerWorkRestRest"
-      class="w-12 h-12 rounded-full bg-timer-rest hover:bg-timer-rest/90 flex items-center justify-center transition-colors"
+      class="w-12 h-12 rounded-full bg-surface-elevated border border-timer-rest/60 hover:border-timer-rest flex items-center justify-center transition-colors"
       aria-label="Done - Start Rest"
     >
-      <Coffee class="h-5 w-5 text-background" />
+      <Coffee class="h-5 w-5 text-timer-rest" />
     </button>
 
-    <!-- Next Interval Button for open-ended intervals (duration: 0) -->
+    <!-- Skip to Next Interval Button for interval-based timers -->
     <button
-      v-else-if="showNextIntervalButton"
-      @click="triggerNextInterval"
+      v-else-if="showSkipButton"
+      @click="skipToNextInterval"
+      :disabled="!skipButtonEnabled"
       :class="[
-        'w-12 h-12 rounded-full flex items-center justify-center transition-colors',
-        nextIntervalIsRest ? 'bg-timer-rest hover:bg-timer-rest/90' : 'bg-timer-work hover:bg-timer-work/90'
+        'w-12 h-12 rounded-full bg-surface-elevated flex items-center justify-center transition-colors',
+        nextIntervalIsRest ? 'border border-timer-rest/60' : 'border border-timer-work/60',
+        skipButtonEnabled
+          ? (nextIntervalIsRest ? 'hover:border-timer-rest' : 'hover:border-timer-work')
+          : 'opacity-50 cursor-not-allowed'
       ]"
-      :aria-label="nextIntervalIsRest ? 'Take Rest' : 'Start Work'"
+      :aria-label="nextIntervalIsRest ? 'Skip to Rest' : 'Skip to Work'"
     >
-      <Coffee v-if="nextIntervalIsRest" class="h-5 w-5 text-background" />
-      <Dumbbell v-else class="h-5 w-5 text-background" />
+      <Coffee v-if="nextIntervalIsRest" class="h-5 w-5 text-timer-rest" />
+      <Dumbbell v-else class="h-5 w-5 text-timer-work" />
     </button>
 
-    <!-- Skip Button (Secondary - 48px) -->
+    <!-- End Timer Button -->
     <button
       v-else
-      class="w-12 h-12 rounded-full bg-surface-elevated hover:bg-surface-elevated/80 flex items-center justify-center transition-colors"
-      aria-label="Skip"
+      @click="endTimer"
+      :disabled="!endButtonEnabled"
+      :class="[
+        'w-12 h-12 rounded-full bg-surface-elevated border border-red-500/60 flex items-center justify-center transition-colors',
+        endButtonEnabled ? 'hover:border-red-500' : 'opacity-50 cursor-not-allowed'
+      ]"
+      aria-label="End Timer"
     >
-      <SkipForward class="h-5 w-5 text-muted-foreground" />
+      <Square class="h-5 w-5 text-red-500 fill-current" />
     </button>
   </div>
 </template>

@@ -11,6 +11,8 @@ export function useTimer() {
   let intervalId: number | null = null
   const lastCueTime = ref(-1)
   const lastIntervalCue = ref(-1)
+  const announcedHalfway = ref(false)
+  const announcedIntervalHalfway = ref(false)
 
   // Helper: Count work rounds up to and including given index
   const countWorkRounds = (upToIndex: number): number => {
@@ -42,10 +44,9 @@ export function useTimer() {
 
     const remaining = prepDuration.value - prepTime.value
 
-    // Announce countdown: "ten seconds", 3, 2, 1
+    // Announce countdown: "ten seconds" (voice only), 3, 2, 1 (voice + beep)
     if (remaining === 10) {
       speak('ten seconds')
-      playCountdown()
     } else if (remaining > 0 && remaining <= 3) {
       speak(remaining.toString())
       playCountdown()
@@ -82,9 +83,11 @@ export function useTimer() {
 
       const remaining = workRestRestTime.value
 
-      // Voice countdown: "ten seconds", 3, 2, 1
-      if (remaining === 10 || remaining === 3 || remaining === 2 || remaining === 1) {
-        speak(remaining === 10 ? 'ten seconds' : remaining.toString())
+      // Voice countdown: "ten seconds" (voice only), 3, 2, 1 (voice + beep)
+      if (remaining === 10) {
+        speak('ten seconds')
+      } else if (remaining === 3 || remaining === 2 || remaining === 1) {
+        speak(remaining.toString())
         playCountdown()
       }
 
@@ -100,7 +103,12 @@ export function useTimer() {
         } else {
           // Start next round
           timerStore.startNextWorkRestRound()
-          speak(`Round ${currentRound.value}`)
+          const totalRounds = config.value?.rounds || 1
+          if (currentRound.value >= totalRounds) {
+            speak(`Round ${currentRound.value}, last round`)
+          } else {
+            speak(`Round ${currentRound.value}`)
+          }
           playBeep()
         }
       }
@@ -121,7 +129,6 @@ export function useTimer() {
     } else {
       timerStore.startWorkRestRest()
       speak('Rest')
-      playBeep()
     }
   }
 
@@ -135,6 +142,7 @@ export function useTimer() {
 
     timerStore.resetIntervalTime()
     lastIntervalCue.value = -1
+    announcedIntervalHalfway.value = false
 
     // Check if this was the last interval
     if (currentIntervalIndex.value >= totalIntervals.value - 1) {
@@ -151,7 +159,55 @@ export function useTimer() {
         if (nextInterval.type === 'rest') {
           speak('Rest')
         } else if (nextInterval.type === 'work') {
-          speak(`Round ${countWorkRounds(currentIntervalIndex.value)}`)
+          const workRoundNum = countWorkRounds(currentIntervalIndex.value)
+          const intervals = config.value?.intervals || []
+          const remainingWorkIntervals = intervals.slice(currentIntervalIndex.value + 1).filter(i => i.type === 'work').length
+          if (remainingWorkIntervals === 0) {
+            speak(`Round ${workRoundNum}, last round`)
+          } else {
+            speak(`Round ${workRoundNum}`)
+          }
+        }
+        playBeep()
+      }
+    }
+  }
+
+  // Skip to next interval for all interval-based timers
+  const skipToNextInterval = () => {
+    if (!isIntervalBased.value) return
+    if (state.value !== TimerState.RUNNING && state.value !== TimerState.PAUSED) return
+
+    const interval = currentInterval.value
+    if (!interval) return
+
+    timerStore.resetIntervalTime()
+    lastIntervalCue.value = -1
+    announcedIntervalHalfway.value = false
+
+    // Check if this was the last interval
+    if (currentIntervalIndex.value >= totalIntervals.value - 1) {
+      speak('Great work!')
+      playBeep()
+      timerStore.complete()
+      pauseTimer()
+    } else {
+      // Move to next interval
+      timerStore.nextInterval()
+      const nextInterval = currentInterval.value
+
+      if (nextInterval) {
+        if (nextInterval.type === 'rest') {
+          speak('Rest')
+        } else if (nextInterval.type === 'work') {
+          const workRoundNum = countWorkRounds(currentIntervalIndex.value)
+          const intervals = config.value?.intervals || []
+          const remainingWorkIntervals = intervals.slice(currentIntervalIndex.value + 1).filter(i => i.type === 'work').length
+          if (remainingWorkIntervals === 0) {
+            speak(`Round ${workRoundNum}, last round`)
+          } else {
+            speak(`Round ${workRoundNum}`)
+          }
         }
         playBeep()
       }
@@ -170,11 +226,25 @@ export function useTimer() {
     }
 
     const remaining = interval.duration - intervalTime.value
+    const halfwayPoint = Math.floor(interval.duration / 2)
+    const isHalfway = interval.type === 'work' && intervalTime.value === halfwayPoint && halfwayPoint > 0
 
-    // Voice countdown: "ten seconds", 3, 2, 1
-    if (remaining === 10 || remaining === 3 || remaining === 2 || remaining === 1) {
+    // Announce "halfway" for work intervals
+    if (isHalfway && !announcedIntervalHalfway.value) {
+      speak('halfway')
+      announcedIntervalHalfway.value = true
+    }
+
+    // Voice countdown: "ten seconds" (voice only), 3, 2, 1 (voice + beep)
+    // Skip "ten seconds" if we just announced "halfway" (they can coincide for 20-second intervals)
+    if (remaining === 10 && !isHalfway) {
       if (lastIntervalCue.value !== remaining) {
-        speak(remaining === 10 ? 'ten seconds' : remaining.toString())
+        speak('ten seconds')
+        lastIntervalCue.value = remaining
+      }
+    } else if (remaining === 3 || remaining === 2 || remaining === 1) {
+      if (lastIntervalCue.value !== remaining) {
+        speak(remaining.toString())
         playCountdown()
         lastIntervalCue.value = remaining
       }
@@ -184,6 +254,7 @@ export function useTimer() {
     if (intervalTime.value >= interval.duration) {
       timerStore.resetIntervalTime()
       lastIntervalCue.value = -1
+      announcedIntervalHalfway.value = false
 
       // Check if this is a repeating interval (until failure)
       if (interval.repeat) {
@@ -216,7 +287,7 @@ export function useTimer() {
             const intervals = config.value?.intervals || []
             const remainingWorkIntervals = intervals.slice(currentIntervalIndex.value + 1).filter(i => i.type === 'work').length
             if (remainingWorkIntervals === 0) {
-              speak('Final round')
+              speak(`Round ${workRoundNum}, last round`)
             } else {
               speak(`Round ${workRoundNum}`)
             }
@@ -242,17 +313,32 @@ export function useTimer() {
     }
     lastCueTime.value = -1
     lastIntervalCue.value = -1
+    announcedHalfway.value = false
+    announcedIntervalHalfway.value = false
   }
 
   const checkAudioCues = () => {
     if (!config.value?.total_seconds) return
 
     const remaining = config.value.total_seconds - currentTime.value
+    const halfwayPoint = Math.floor(config.value.total_seconds / 2)
 
-    // Voice countdown: "ten seconds", 3, 2, 1
-    if (remaining === 10 || remaining === 3 || remaining === 2 || remaining === 1) {
+    // Announce "halfway" for AMRAP and for_time timers
+    const timerType = config.value.type
+    if ((timerType === 'amrap' || timerType === 'for_time') && currentTime.value === halfwayPoint && halfwayPoint > 0 && !announcedHalfway.value) {
+      speak('halfway')
+      announcedHalfway.value = true
+    }
+
+    // Voice countdown: "ten seconds" (voice only), 3, 2, 1 (voice + beep)
+    if (remaining === 10) {
       if (lastCueTime.value !== remaining) {
-        speak(remaining === 10 ? 'ten seconds' : remaining.toString())
+        speak('ten seconds')
+        lastCueTime.value = remaining
+      }
+    } else if (remaining === 3 || remaining === 2 || remaining === 1) {
+      if (lastCueTime.value !== remaining) {
+        speak(remaining.toString())
         playCountdown()
         lastCueTime.value = remaining
       }
@@ -299,5 +385,6 @@ export function useTimer() {
     resetTimer,
     triggerWorkRestRest,
     triggerNextInterval,
+    skipToNextInterval,
   }
 }

@@ -1,27 +1,43 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { ref, watch } from 'vue'
 import { useWorkoutStore } from '@/stores/workoutStore'
 import { useTimerStore } from '@/stores/timerStore'
 import { storeToRefs } from 'pinia'
 import WorkoutInput from '@/components/WorkoutInput.vue'
 import ManualTimer from '@/components/ManualTimer.vue'
-import TimerDisplay from '@/components/timer/TimerDisplay.vue'
-import TimerControls from '@/components/timer/TimerControls.vue'
-import MovementList from '@/components/timer/MovementList.vue'
 import { ArrowLeft, Volume2, VolumeX } from 'lucide-vue-next'
 import { useAudio } from '@/composables/useAudio'
 import { useTimer } from '@/composables/useTimer'
+import { useTimerLayout } from '@/composables/useTimerLayout'
 import ProfileMenu from '@/components/ProfileMenu.vue'
-import type { Movement } from '@/types/workout'
+import {
+  TimerBlock,
+  CurrentMovementBlock,
+  NextMovementBlock,
+  ControlsBlock,
+  WorkoutProgressBlock,
+  WorkoutSummaryBlock,
+  RoundCounterBlock
+} from '@/components/timer/blocks'
 
 type InputMode = 'ai' | 'manual'
 
 const workoutStore = useWorkoutStore()
 const timerStore = useTimerStore()
 const { currentWorkout } = storeToRefs(workoutStore)
-const { currentInterval, isIntervalBased, isCompleted, autoStart, skipPreparation } = storeToRefs(timerStore)
+const { isCompleted, autoStart, skipPreparation } = storeToRefs(timerStore)
 const { audioEnabled, toggleAudio } = useAudio()
 const { startTimer } = useTimer()
+const {
+  showTimerBlock,
+  showCurrentMovement,
+  showNextMovement,
+  showControls,
+  showProgress,
+  showCompletedCard,
+  showWorkoutSummary,
+  showRoundCounter
+} = useTimerLayout()
 
 // Input mode toggle state
 const inputMode = ref<InputMode>('ai')
@@ -49,60 +65,10 @@ const handleBack = () => {
 }
 
 // Workout title for header
-const workoutTitle = computed(() => {
+const workoutTitle = () => {
   if (!currentWorkout.value) return ''
   return currentWorkout.value.workout_type.toUpperCase()
-})
-
-// Current movement display
-const currentMovement = computed(() => {
-  if (!currentWorkout.value) return null
-  if (isIntervalBased.value && currentInterval.value) {
-    // Find the movement for the current interval
-    const movements = currentWorkout.value.movements
-    const idx = (timerStore.currentIntervalIndex) % movements.length
-    return movements[idx]
-  }
-  // For non-interval workouts, show first movement
-  return currentWorkout.value.movements[0]
-})
-
-// Next movement display
-const nextMovement = computed(() => {
-  if (!currentWorkout.value || isCompleted.value) return null
-  if (isIntervalBased.value) {
-    const movements = currentWorkout.value.movements
-    const nextIdx = (timerStore.currentIntervalIndex + 1) % movements.length
-    return movements[nextIdx]
-  }
-  return currentWorkout.value.movements[1] || null
-})
-
-// Determine if we're in rest state
-const isRestInterval = computed(() => {
-  return currentInterval.value?.type === 'rest'
-})
-
-// Format movement display with reps/duration
-const formatMovementDisplay = (movement: Movement) => {
-  const repsOrDuration = movement.reps ?? movement.duration
-  if (repsOrDuration != null) {
-    // Append 's' only if we're displaying duration (not reps)
-    const isDuration = movement.reps == null && movement.duration != null
-    return `${repsOrDuration}${isDuration ? 's' : ''} ${movement.name}`
-  }
-  return movement.name
 }
-
-const currentMovementDisplay = computed(() => {
-  if (!currentMovement.value) return ''
-  return formatMovementDisplay(currentMovement.value)
-})
-
-const nextMovementDisplay = computed(() => {
-  if (!nextMovement.value) return ''
-  return formatMovementDisplay(nextMovement.value)
-})
 </script>
 
 <template>
@@ -173,7 +139,7 @@ const nextMovementDisplay = computed(() => {
         </button>
 
         <h1 class="text-base font-semibold text-foreground font-athletic">
-          {{ workoutTitle }}
+          {{ workoutTitle() }}
         </h1>
 
         <div class="flex items-center gap-2">
@@ -192,75 +158,37 @@ const nextMovementDisplay = computed(() => {
       <!-- Main Content -->
       <main class="flex-1 flex flex-col px-4 pb-4 space-y-4">
         <!-- Timer Display with Ring -->
-        <div class="flex justify-center py-4">
-          <TimerDisplay />
-        </div>
+        <TimerBlock v-if="showTimerBlock" />
 
-        <!-- Current Movement Card -->
-        <div v-if="currentMovement && !isRestInterval" class="bg-surface rounded-xl p-4 text-center">
-          <p class="text-[10px] font-semibold tracking-wider text-muted-foreground mb-1 font-athletic">
-            CURRENT MOVEMENT
-          </p>
-          <h2 class="text-2xl font-bold text-foreground font-athletic">
-            {{ currentMovementDisplay }}
-          </h2>
-          <p v-if="currentMovement.weight" class="text-sm text-muted-foreground mt-1">
-            {{ currentMovement.weight }}
-          </p>
-        </div>
+        <!-- Round Counter -->
+        <RoundCounterBlock v-if="showRoundCounter" />
 
-        <!-- Rest Interval Card -->
-        <div v-else-if="isRestInterval" class="bg-surface rounded-xl p-4 text-center">
-          <p class="text-[10px] font-semibold tracking-wider text-muted-foreground mb-1 font-athletic">
-            REST
-          </p>
-          <h2 class="text-2xl font-bold text-foreground font-athletic">
-            Take a breath
-          </h2>
-          <p class="text-sm text-muted-foreground mt-1">
-            Next round starts soon
-          </p>
-        </div>
+        <!-- Timer Controls -->
+        <ControlsBlock v-if="showControls" />
 
-        <!-- Completed Card -->
-        <div v-else-if="isCompleted" class="bg-surface rounded-xl p-4 text-center">
-          <p class="text-[10px] font-semibold tracking-wider text-muted-foreground mb-1 font-athletic">
-            TOTAL ROUNDS
-          </p>
-          <h2 class="text-2xl font-bold text-foreground font-athletic">
-            {{ currentWorkout.rounds || Math.ceil(timerStore.totalIntervals / currentWorkout.movements.length) }} Rounds
-          </h2>
-          <p class="text-sm text-muted-foreground mt-1">
-            Workout complete!
-          </p>
-        </div>
+        <!-- Workout Summary -->
+        <WorkoutSummaryBlock v-if="showWorkoutSummary" />
+
+        <!-- Current Movement / Rest / Completed Card -->
+        <CurrentMovementBlock
+          v-if="showCurrentMovement"
+          :show-completed-card="showCompletedCard"
+        />
 
         <!-- Next Movement Preview -->
-        <div v-if="nextMovement && !isCompleted" class="bg-surface-elevated rounded-lg px-3 py-2 flex items-center gap-2">
-          <span class="text-[10px] font-semibold tracking-wider text-muted-foreground">
-            NEXT:
-          </span>
-          <span class="text-sm text-muted-foreground">
-            {{ nextMovementDisplay }}
-          </span>
-        </div>
+        <NextMovementBlock v-if="showNextMovement" />
 
         <!-- Start New Workout Button (when completed) -->
         <button
-          v-if="isCompleted"
+          v-if="isCompleted && showCompletedCard"
           @click="handleBack"
           class="w-full bg-timer-complete text-background font-semibold py-3 rounded-lg hover:bg-timer-complete/90 transition-colors"
         >
           Start New Workout
         </button>
 
-        <!-- Timer Controls -->
-        <div class="py-2">
-          <TimerControls />
-        </div>
-
-        <!-- Movement List -->
-        <MovementList />
+        <!-- Movement List / Workout Progress -->
+        <WorkoutProgressBlock v-if="showProgress" />
       </main>
     </div>
   </div>

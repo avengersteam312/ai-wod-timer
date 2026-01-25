@@ -1,4 +1,4 @@
-export type WorkoutType = 'amrap' | 'emom' | 'for_time' | 'tabata' | 'intervals' | 'stopwatch' | 'custom' | 'work_rest'
+export type WorkoutType = 'amrap' | 'emom' | 'for_time' | 'tabata' | 'intervals' | 'stopwatch' | 'custom' | 'work_rest' | 'rest'
 
 export interface Movement {
   name: string

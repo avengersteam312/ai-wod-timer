@@ -223,7 +223,7 @@ const typeLabels: Record<TimerType, string> = {
 }
 
 const workoutTypeMap: Record<TimerType, ParsedWorkout['workout_type']> = {
-  rest: 'custom',
+  rest: 'rest',
   stopwatch: 'stopwatch',
   amrap: 'amrap',
   for_time: 'for_time',
