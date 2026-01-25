@@ -71,11 +71,112 @@ tests:
       - type: is-json
       - type: javascript
         value: 'JSON.parse(output).workout_type === "emom"'
-      # 2 work + 1 rest + 3 work = 6 intervals
+      # "EMOM x2:00" = every 2 min (1x120s), rest 1:00 (1x60s), "EMOM x3:00" = every 3 min (1x180s) = 3 intervals
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length === 3'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.filter(i => i.type === "work").length === 2'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.filter(i => i.type === "rest").length === 1'
+
+  # Tests from prompt examples
+  - description: "EMOM 10min basic"
+    vars:
+      workout_text: "EMOM 10: 5 Pull-ups, 10 Push-ups"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "emom"'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length === 10'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.every(i => i.duration === 60)'
+      - type: javascript
+        value: 'JSON.parse(output).movements.length === 2'
+
+  - description: "E2MOM 12min"
+    vars:
+      workout_text: "E2MOM 12 min: 3 Power Cleans 155#, 6 Bar Facing Burpees"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "emom"'
+      # 12 min / 2 min per interval = 6 intervals
       - type: javascript
         value: 'JSON.parse(output).intervals.length === 6'
       - type: javascript
-        value: 'JSON.parse(output).intervals.filter(i => i.type === "work").length === 5'
+        value: 'JSON.parse(output).intervals.every(i => i.duration === 120)'
+
+  - description: "E3MOM 15min"
+    vars:
+      workout_text: "E3MOM x 15: 400m Run"
+    assert:
+      - type: is-json
       - type: javascript
-        value: 'JSON.parse(output).intervals.filter(i => i.type === "rest").length === 1'
+        value: 'JSON.parse(output).workout_type === "emom"'
+      # 15 min / 3 min per interval = 5 intervals
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length === 5'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.every(i => i.duration === 180)'
+
+  - description: "Every 90 seconds for 9 min"
+    vars:
+      workout_text: "Every 90 sec for 9 min: 5 Deadlifts 225#"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "emom"'
+      # 9 min (540s) / 90s = 6 intervals
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length === 6'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.every(i => i.duration === 90)'
+
+  - description: "EMOM until failure with cap"
+    vars:
+      workout_text: "EMOM until failure, 3 power cleans, 3 front squats, 3 jerks, CAP: 10:00"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "emom"'
+      # 10 min cap = 10 intervals of 60s
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length === 10'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.every(i => i.duration === 60)'
+      - type: javascript
+        value: 'JSON.parse(output).movements.length === 3'
+
+  - description: "Rotating EMOM 30s work 30s rest"
+    vars:
+      workout_text: "EMOM x12:00, Min 1-4: 30s max rope climbs, Min 5-8: 30s max half GHD sit ups, Min 9-12: 30s max pistol squats"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "emom"'
+      # 12 min with 30s work / 30s rest = 24 intervals
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length === 24'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.filter(i => i.type === "work").length === 12'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.filter(i => i.type === "rest").length === 12'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.every(i => i.duration === 30)'
+
+  - description: "EMOM ladder until failure (repeat)"
+    vars:
+      workout_text: "Every minute until failure 1-2-3-4-5-6-7-8-9-10-etc... strict HSPU"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "emom"'
+      # Single repeating interval
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length === 1'
+      - type: javascript
+        value: 'JSON.parse(output).intervals[0].duration === 60'
+      - type: javascript
+        value: 'JSON.parse(output).intervals[0].repeat === true'
 

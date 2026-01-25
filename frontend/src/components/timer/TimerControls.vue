@@ -3,11 +3,11 @@ import { computed } from 'vue'
 import { useTimerStore, TimerState } from '@/stores/timerStore'
 import { storeToRefs } from 'pinia'
 import { useTimer } from '@/composables/useTimer'
-import { Play, Pause, RotateCcw, SkipForward, Check, Coffee } from 'lucide-vue-next'
+import { Play, Pause, RotateCcw, SkipForward, Check, Coffee, Dumbbell } from 'lucide-vue-next'
 
 const timerStore = useTimerStore()
-const { state, isCompleted, currentInterval, skipPreparation, isWorkRestTimer, workRestPhase } = storeToRefs(timerStore)
-const { startTimer, pauseTimer, resetTimer, triggerWorkRestRest } = useTimer()
+const { state, isCompleted, currentInterval, skipPreparation, isWorkRestTimer, workRestPhase, isOpenEndedInterval } = storeToRefs(timerStore)
+const { startTimer, pauseTimer, resetTimer, triggerWorkRestRest, triggerNextInterval } = useTimer()
 
 const handleStartPause = () => {
   // Disable pause during countdown - use reset instead
@@ -36,6 +36,20 @@ const isPreparing = computed(() =>
 const showDoneButton = computed(() =>
   isWorkRestTimer.value && workRestPhase.value === 'work' && state.value === TimerState.RUNNING
 )
+
+// Show next interval button for open-ended intervals (duration: 0)
+// Only show when running or paused (transition makes sense during active workout)
+const showNextIntervalButton = computed(() =>
+  isOpenEndedInterval.value &&
+  (state.value === TimerState.RUNNING || state.value === TimerState.PAUSED) &&
+  !isWorkRestTimer.value
+)
+
+// Button label/icon depends on current interval type and next interval type
+const nextIntervalIsRest = computed(() => {
+  if (!currentInterval.value) return false
+  return currentInterval.value.type === 'work'
+})
 
 // Determine primary button color based on state
 const primaryButtonClass = computed(() => {
@@ -82,6 +96,20 @@ const primaryButtonClass = computed(() => {
       aria-label="Done - Start Rest"
     >
       <Coffee class="h-5 w-5 text-background" />
+    </button>
+
+    <!-- Next Interval Button for open-ended intervals (duration: 0) -->
+    <button
+      v-else-if="showNextIntervalButton"
+      @click="triggerNextInterval"
+      :class="[
+        'w-12 h-12 rounded-full flex items-center justify-center transition-colors',
+        nextIntervalIsRest ? 'bg-timer-rest hover:bg-timer-rest/90' : 'bg-timer-work hover:bg-timer-work/90'
+      ]"
+      :aria-label="nextIntervalIsRest ? 'Take Rest' : 'Start Work'"
+    >
+      <Coffee v-if="nextIntervalIsRest" class="h-5 w-5 text-background" />
+      <Dumbbell v-else class="h-5 w-5 text-background" />
     </button>
 
     <!-- Skip Button (Secondary - 48px) -->

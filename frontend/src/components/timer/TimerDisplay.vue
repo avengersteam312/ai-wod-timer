@@ -25,6 +25,10 @@ const displayTime = computed(() => {
   }
 
   if (isIntervalBased.value && currentInterval.value) {
+    // Open-ended interval (duration: 0) - count up like stopwatch
+    if (currentInterval.value.duration === 0) {
+      return formatTimeDetailed(intervalTime.value)
+    }
     const remaining = currentInterval.value.duration - intervalTime.value
     return formatTime(remaining)
   }
@@ -53,6 +57,11 @@ const timerState = computed(() => {
   }
 
   if (isIntervalBased.value && currentInterval.value) {
+    // Open-ended interval (duration: 0) - no warning state
+    if (currentInterval.value.duration === 0) {
+      if (currentInterval.value.type === 'rest') return 'rest'
+      return 'work'
+    }
     const remaining = currentInterval.value.duration - intervalTime.value
     if (remaining <= 3) return 'warning'
     if (currentInterval.value.type === 'rest') return 'rest'
@@ -153,6 +162,10 @@ const ringProgress = computed(() => {
   }
 
   if (isIntervalBased.value && currentInterval.value) {
+    // Open-ended interval (duration: 0) - no progress ring
+    if (currentInterval.value.duration === 0) {
+      return 0
+    }
     return (intervalTime.value / currentInterval.value.duration) * 100
   }
 
@@ -179,12 +192,8 @@ const totalTimeDisplay = computed(() => {
     return `Total: ${formatTimeDetailed(currentTime.value)}`
   }
 
-  if (!config.value?.total_seconds) return ''
-  // Don't show "remaining" for countdown-style timers (they already show remaining time)
-  const countdownTypes = ['countdown', 'amrap']
-  if (countdownTypes.includes(config.value.type)) return ''
-  const remaining = config.value.total_seconds - currentTime.value
-  return `${formatTime(remaining)} remaining`
+  // Show total elapsed time for all timer types
+  return `Total: ${formatTimeDetailed(currentTime.value)}`
 })
 </script>
 

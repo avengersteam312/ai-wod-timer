@@ -9,35 +9,50 @@ CONCEPT:
 
 RULES:
 - Alternating work and rest intervals
-- Create separate interval for each work and rest period
+- Create separate interval object for each work and rest period
 - type: "work" for active periods, "rest" for recovery periods
+- NEVER multiply durations - create separate interval objects
 
 EXAMPLES:
 
-Basic work/rest:
+Basic work/rest (4 rounds = 8 intervals):
 "30/15 x 4 rounds"
-→ intervals: [{duration: 30, type: "work"}, {duration: 15, type: "rest"}] x4 = 8 intervals
+→ intervals: [
+    {duration: 30, type: "work"}, {duration: 15, type: "rest"},
+    {duration: 30, type: "work"}, {duration: 15, type: "rest"},
+    {duration: 30, type: "work"}, {duration: 15, type: "rest"},
+    {duration: 30, type: "work"}, {duration: 15, type: "rest"}
+]
 
-On/off format:
+On/off format (6 rounds = 12 intervals):
 "40 on 20 off x 6: Burpees"
-→ intervals: [{duration: 40, type: "work"}, {duration: 20, type: "rest"}] x6 = 12 intervals
+→ intervals: [
+    {duration: 40, type: "work"}, {duration: 20, type: "rest"},
+    {duration: 40, type: "work"}, {duration: 20, type: "rest"},
+    {duration: 40, type: "work"}, {duration: 20, type: "rest"},
+    {duration: 40, type: "work"}, {duration: 20, type: "rest"},
+    {duration: 40, type: "work"}, {duration: 20, type: "rest"},
+    {duration: 40, type: "work"}, {duration: 20, type: "rest"}
+]
 → movements: [{name: "Burpees"}]
 
-Seconds notation:
-"45 seconds work / 15 seconds rest x 8"
-→ intervals: [{duration: 45, type: "work"}, {duration: 15, type: "rest"}] x8 = 16 intervals
-
-Circuit with intervals:
-"30/15: Squats, Push-ups, Lunges x 3 rounds"
-→ intervals: [{duration: 30, type: "work"}, {duration: 15, type: "rest"}] x9 = 18 intervals
-→ movements: [{name: "Squats"}, {name: "Push-ups"}, {name: "Lunges"}]
-
-Long work periods:
+Long work periods (5 rounds = 10 intervals):
 "2 min work / 1 min rest x 5: 400m Run"
-→ intervals: [{duration: 120, type: "work"}, {duration: 60, type: "rest"}] x5 = 10 intervals
+→ intervals: [
+    {duration: 120, type: "work"}, {duration: 60, type: "rest"},
+    {duration: 120, type: "work"}, {duration: 60, type: "rest"},
+    {duration: 120, type: "work"}, {duration: 60, type: "rest"},
+    {duration: 120, type: "work"}, {duration: 60, type: "rest"},
+    {duration: 120, type: "work"}, {duration: 60, type: "rest"}
+]
 → movements: [{name: "Run", distance: "400m"}]
 
-Unequal work/rest:
+Unequal work/rest (4 rounds = 8 intervals):
 "60/30 x 4: KB Swings, Goblet Squats"
-→ intervals: [{duration: 60, type: "work"}, {duration: 30, type: "rest"}] x4 = 8 intervals
+→ intervals: [
+    {duration: 60, type: "work"}, {duration: 30, type: "rest"},
+    {duration: 60, type: "work"}, {duration: 30, type: "rest"},
+    {duration: 60, type: "work"}, {duration: 30, type: "rest"},
+    {duration: 60, type: "work"}, {duration: 30, type: "rest"}
+]
 → movements: [{name: "KB Swings"}, {name: "Goblet Squats"}]"""

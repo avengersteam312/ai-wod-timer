@@ -54,3 +54,38 @@ tests:
       - type: javascript
         value: 'JSON.parse(output).intervals.length >= 80'
 
+  # Tests from prompt examples
+  - description: "Tabata single exercise basic"
+    vars:
+      workout_text: "Tabata: Air Squats"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "tabata"'
+      # 8 rounds of 20s work + 10s rest = 16 intervals
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length === 16'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.filter(i => i.type === "work").length === 8'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.filter(i => i.type === "rest").length === 8'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.filter(i => i.type === "work").every(i => i.duration === 20)'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.filter(i => i.type === "rest").every(i => i.duration === 10)'
+
+  - description: "Tabata weighted KB Swings"
+    vars:
+      workout_text: "Tabata KB Swings 35#"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "tabata"'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length === 16'
+      - type: javascript
+        value: 'JSON.parse(output).movements.some(m => m.weight)'
+      # Total duration = 8 * 30 = 240s
+      - type: javascript
+        value: 'JSON.parse(output).intervals.reduce((sum, i) => sum + i.duration, 0) === 240'
+

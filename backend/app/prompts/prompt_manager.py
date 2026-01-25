@@ -15,6 +15,7 @@ from app.prompts.tabata import TABATA_PROMPT
 from app.prompts.intervals import INTERVALS_PROMPT
 from app.prompts.stopwatch import STOPWATCH_PROMPT
 from app.prompts.custom import CUSTOM_PROMPT
+from app.config import settings
 
 
 class PromptManager:
@@ -48,6 +49,9 @@ class PromptManager:
         Returns:
             The workout-specific prompt string.
         """
+        # Force using comprehensive custom prompt if configured
+        if settings.USE_CUSTOM_PROMPT_ONLY:
+            return CUSTOM_PROMPT
         return self._prompts.get(workout_type, CUSTOM_PROMPT)
 
     def get_system_prompt(self, workout_type: WorkoutType) -> str:

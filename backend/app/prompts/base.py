@@ -57,6 +57,7 @@ MOVEMENT STRUCTURE (USE AS-IS, DO NOT MODIFY):
 INTERVAL STRUCTURE (USE AS-IS, DO NOT MODIFY):
 - {{"duration": number, "type": "work"}}
 - {{"duration": number, "type": "rest"}}
+- {{"duration": number, "type": "work", "repeat": true}} (for "until failure" or infinite workouts)
 
 FIELD RULES:
 - duration: time in seconds (0 = stopwatch / count-up mode)

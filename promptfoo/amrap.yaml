@@ -63,3 +63,102 @@ tests:
       - type: javascript
         value: 'JSON.parse(output).movements.length === 3'
 
+  # Tests from prompt examples
+  - description: "AMRAP 12min KB Swings and Box Jumps"
+    vars:
+      workout_text: "AMRAP 12: 10 KB Swings, 15 Box Jumps"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "amrap"'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length === 1'
+      - type: javascript
+        value: 'JSON.parse(output).intervals[0].duration === 720'
+      - type: javascript
+        value: 'JSON.parse(output).movements.length === 2'
+
+  - description: "AMRAP 7min weighted"
+    vars:
+      workout_text: "AMRAP 7 - 3 Power Cleans 135#, 5 Burpees"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "amrap"'
+      - type: javascript
+        value: 'JSON.parse(output).intervals[0].duration === 420'
+      - type: javascript
+        value: 'JSON.parse(output).movements.some(m => m.weight)'
+
+  - description: "AMRAP with distance movement"
+    vars:
+      workout_text: "As many rounds as possible in 15 minutes: 200m Run, 10 Deadlifts"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "amrap"'
+      - type: javascript
+        value: 'JSON.parse(output).intervals[0].duration === 900'
+      - type: javascript
+        value: 'JSON.parse(output).movements.some(m => m.distance)'
+
+  - description: "AMRAP with calories"
+    vars:
+      workout_text: "AMRAP 10:00 - 12 Cal Row, 8 Push-ups"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "amrap"'
+      - type: javascript
+        value: 'JSON.parse(output).intervals[0].duration === 600'
+      - type: javascript
+        value: 'JSON.parse(output).movements.some(m => m.calories === 12)'
+
+  - description: "AMRAP max rounds with time-based movement"
+    vars:
+      workout_text: "Max rounds 8 min: 30 sec plank hold, 10 Squats"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "amrap"'
+      - type: javascript
+        value: 'JSON.parse(output).intervals[0].duration === 480'
+      - type: javascript
+        value: 'JSON.parse(output).movements.some(m => m.duration === 30)'
+
+  - description: "AMRAP 20min mixed movement types"
+    vars:
+      workout_text: "AMRAP 20: 400m Run, 15 Thrusters 95#, 12 Cal Bike"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "amrap"'
+      - type: javascript
+        value: 'JSON.parse(output).intervals[0].duration === 1200'
+      - type: javascript
+        value: 'JSON.parse(output).movements.length === 3'
+      - type: javascript
+        value: 'JSON.parse(output).movements.some(m => m.distance)'
+      - type: javascript
+        value: 'JSON.parse(output).movements.some(m => m.calories === 12)'
+
+  - description: "Multiple AMRAPs with rest"
+    vars:
+      workout_text: |
+        For Max Reps: AMRAP x5:00 500/400m row, in remainder time 10 toes to bar, 10 thrusters, rest 3:00, AMRAP x5:00 500/400m row, in remainder time 8 chest to bar pull ups, 8 thrusters, rest 3:00, AMRAP x5:00 500/400m row, in remainder time 6 bar muscle ups, 6 thrusters
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "amrap"'
+      # 3 work intervals (5:00 each) + 2 rest intervals (3:00 each)
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length === 5'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.filter(i => i.type === "work").length === 3'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.filter(i => i.type === "rest").length === 2'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.filter(i => i.type === "work").every(i => i.duration === 300)'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.filter(i => i.type === "rest").every(i => i.duration === 180)'
+
