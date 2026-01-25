@@ -56,3 +56,94 @@ tests:
       - type: javascript
         value: 'JSON.parse(output).intervals[0].duration === 0'
 
+  # Complex workout examples from custom.py
+  - description: "For Max Distance complex blocks"
+    vars:
+      workout_text: |
+        For Max Distance: At minute 0:00 Every 3:00 x 4 sets 100m dual KB farmers carry max distance row, At minute 15:00 Every 3:00 x 4 sets 10 shuttle runs max distance assault bike
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "custom"'
+      # 4 work + 1 rest (transition) + 4 work = 9 intervals
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length === 9'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.filter(i => i.type === "work").length === 8'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.filter(i => i.type === "rest").length === 1'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.filter(i => i.duration === 180).length === 9'
+
+  - description: "For Quality rotating cardio"
+    vars:
+      workout_text: |
+        For Quality: 8:00 bike every 2:00 perform 30 single unders, 8:00 row every 2:00 perform 30 double unders, 8:00 bike every 2:00 perform 30 single unders, 8:00 row every 2:00 perform 30 double unders
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "custom"'
+      # 4 blocks x 4 intervals (8:00 / 2:00) = 16 intervals
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length === 16'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.every(i => i.duration === 120)'
+      - type: javascript
+        value: 'JSON.parse(output).movements.length >= 4'
+
+  - description: "EMOM with repeat until failure"
+    vars:
+      workout_text: "Every minute until failure: strict HSPU, starting at 1 rep and adding 1 each minute"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "custom"'
+      # Single repeating interval
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length === 1'
+      - type: javascript
+        value: 'JSON.parse(output).intervals[0].duration === 60'
+      - type: javascript
+        value: 'JSON.parse(output).intervals[0].repeat === true'
+
+  - description: "Mixed AMRAP with intermediate rest"
+    vars:
+      workout_text: |
+        3 x 5:00 AMRAP with 2:00 rest between:
+        AMRAP 1: 10 Burpees, 15 Air Squats
+        AMRAP 2: 10 Push-ups, 15 Lunges
+        AMRAP 3: 10 Sit-ups, 15 Box Step-ups
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "custom"'
+      # 3 work intervals (5:00) + 2 rest intervals (2:00) = 5 intervals
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length === 5'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.filter(i => i.type === "work").length === 3'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.filter(i => i.type === "rest").length === 2'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.filter(i => i.type === "work").every(i => i.duration === 300)'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.filter(i => i.type === "rest").every(i => i.duration === 120)'
+
+  - description: "Timed strength work with rest"
+    vars:
+      workout_text: |
+        Every 2:00 x 5 sets: 3 Back Squats at 80%
+        Rest 3:00
+        Every 2:00 x 5 sets: 3 Front Squats at 70%
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "custom"'
+      # 5 work + 1 rest + 5 work = 11 intervals
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length === 11'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.filter(i => i.type === "work").length === 10'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.filter(i => i.type === "rest").length === 1'
+

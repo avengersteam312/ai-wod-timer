@@ -18,6 +18,7 @@ export interface Interval {
   duration: number
   label: string
   type: string
+  repeat?: boolean
 }
 
 export interface TimerConfig {

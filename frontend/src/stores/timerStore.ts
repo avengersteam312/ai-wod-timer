@@ -27,13 +27,16 @@ export const useTimerStore = defineStore('timer', () => {
   const workRestWorkDuration = ref(0) // Stores work duration to match for rest
   const workRestRestTime = ref(0) // Current rest countdown time
 
+  // Repeat interval state (for "until failure" workouts)
+  const repeatRound = ref(1) // Tracks rounds for repeating intervals
+
   const isRunning = computed(() => state.value === TimerState.RUNNING)
   const isPreparing = computed(() => state.value === TimerState.PREPARING)
   const isPaused = computed(() => state.value === TimerState.PAUSED)
   const isCompleted = computed(() => state.value === TimerState.COMPLETED)
 
   const isIntervalBased = computed(() => {
-    const intervalTypes = ['intervals', 'tabata', 'emom']
+    const intervalTypes = ['intervals', 'tabata', 'emom', 'custom']
     return intervalTypes.includes(config.value?.type || '') &&
       config.value?.intervals &&
       config.value.intervals.length > 0
@@ -53,6 +56,11 @@ export const useTimerStore = defineStore('timer', () => {
 
   const totalIntervals = computed(() => config.value?.intervals?.length || 0)
 
+  // Check if current interval is open-ended (duration: 0)
+  const isOpenEndedInterval = computed(() => {
+    return currentInterval.value?.duration === 0
+  })
+
   const setConfig = (timerConfig: TimerConfig, options?: { autoStart?: boolean; skipPreparation?: boolean; prepDuration?: number }) => {
     config.value = timerConfig
     currentTime.value = 0
@@ -68,6 +76,8 @@ export const useTimerStore = defineStore('timer', () => {
     workRestPhase.value = 'work'
     workRestWorkDuration.value = 0
     workRestRestTime.value = 0
+    // Reset repeat state
+    repeatRound.value = 1
   }
 
   const clearAutoStart = () => {
@@ -119,6 +129,8 @@ export const useTimerStore = defineStore('timer', () => {
     workRestPhase.value = 'work'
     workRestWorkDuration.value = 0
     workRestRestTime.value = 0
+    // Reset repeat state
+    repeatRound.value = 1
   }
 
   const incrementPrepTime = () => {
@@ -152,6 +164,10 @@ export const useTimerStore = defineStore('timer', () => {
       currentRound.value++
       currentIntervalIndex.value = 0
     }
+  }
+
+  const incrementRepeatRound = () => {
+    repeatRound.value++
   }
 
   // Work & Rest timer methods
@@ -199,6 +215,7 @@ export const useTimerStore = defineStore('timer', () => {
     progress,
     currentInterval,
     totalIntervals,
+    isOpenEndedInterval,
     // Work & Rest state
     workRestPhase,
     workRestWorkDuration,
@@ -220,5 +237,8 @@ export const useTimerStore = defineStore('timer', () => {
     startWorkRestRest,
     decrementWorkRestRestTime,
     startNextWorkRestRound,
+    // Repeat interval state
+    repeatRound,
+    incrementRepeatRound,
   }
 })

@@ -115,3 +115,84 @@ tests:
       - type: javascript
         value: 'JSON.parse(output).movements.some(m => m.reps === 200)'
 
+  # Tests from prompt examples
+  - description: "For Time chipper with cap"
+    vars:
+      workout_text: "For Time (15 min cap): 50 Wall Balls, 40 Box Jumps, 30 KB Swings"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "for_time"'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length === 1'
+      - type: javascript
+        value: 'JSON.parse(output).intervals[0].duration === 900'
+      - type: javascript
+        value: 'JSON.parse(output).movements.length === 3'
+
+  - description: "For Time no cap stopwatch"
+    vars:
+      workout_text: "For Time: 100 Burpees"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "for_time"'
+      - type: javascript
+        value: 'JSON.parse(output).intervals[0].duration === 0'
+      - type: javascript
+        value: 'JSON.parse(output).movements[0].reps === 100'
+
+  - description: "5 RFT rounds for time"
+    vars:
+      workout_text: "5 RFT: 10 Deadlifts 225#, 15 Box Jumps"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "for_time"'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length === 1'
+      - type: javascript
+        value: 'JSON.parse(output).intervals[0].duration === 0'
+      - type: javascript
+        value: 'JSON.parse(output).movements.length === 2'
+
+  - description: "21-15-9 descending rep scheme"
+    vars:
+      workout_text: "21-15-9 For Time: Thrusters 95#, Pull-ups"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "for_time"'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length === 1'
+      - type: javascript
+        value: 'JSON.parse(output).intervals[0].duration === 0'
+      - type: javascript
+        value: 'JSON.parse(output).movements.length === 2'
+
+  - description: "For Time with 20min cap and distance"
+    vars:
+      workout_text: "For Time (20 min cap): 1 mile Run, 100 Pull-ups, 200 Push-ups, 300 Squats, 1 mile Run"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "for_time"'
+      - type: javascript
+        value: 'JSON.parse(output).intervals[0].duration === 1200'
+      - type: javascript
+        value: 'JSON.parse(output).movements.some(m => m.distance)'
+
+  - description: "For Time chipper with calories"
+    vars:
+      workout_text: "For Time: 50 Cal Row, 40 Toes to Bar, 30 Wall Balls, 20 Clean & Jerks 135#, 10 Muscle-ups"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "for_time"'
+      - type: javascript
+        value: 'JSON.parse(output).intervals[0].duration === 0'
+      - type: javascript
+        value: 'JSON.parse(output).movements.length === 5'
+      - type: javascript
+        value: 'JSON.parse(output).movements.some(m => m.calories === 50)'
+

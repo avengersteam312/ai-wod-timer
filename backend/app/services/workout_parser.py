@@ -7,6 +7,7 @@ from app.schemas.workout import (
     Movement,
     Interval,
 )
+from app.config import settings
 from typing import Dict, Any, List
 
 
@@ -32,12 +33,16 @@ class WorkoutParser:
         """
         Main parsing method that uses AI to understand workout structure.
 
-        1. Classify workout type locally using keywords
+        1. Classify workout type locally using keywords (or use CUSTOM if configured)
         2. Send type-specific prompt to AI for detailed parsing
         3. Convert AI result to intervals-based schema
         """
-        # Classify workout type locally (fast, no AI)
-        detected_type = self.classify_workout_type(workout_text)
+        # Force CUSTOM type when using custom prompt only
+        if settings.USE_CUSTOM_PROMPT_ONLY:
+            detected_type = WorkoutType.CUSTOM
+        else:
+            # Classify workout type locally (fast, no AI)
+            detected_type = self.classify_workout_type(workout_text)
 
         # Get AI interpretation using type-specific prompt
         ai_result = await ai_service.parse_workout(workout_text, detected_type)

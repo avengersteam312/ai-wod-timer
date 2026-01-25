@@ -52,3 +52,70 @@ tests:
       - type: javascript
         value: 'JSON.parse(output).movements.length === 3'
 
+  # Tests from prompt examples
+  - description: "30/15 x 4 rounds exact"
+    vars:
+      workout_text: "30/15 x 4 rounds"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "intervals"'
+      # 4 rounds * (30s work + 15s rest) = 8 intervals
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length === 8'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.filter(i => i.type === "work").every(i => i.duration === 30)'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.filter(i => i.type === "rest").every(i => i.duration === 15)'
+
+  - description: "40 on 20 off x 6 with movement"
+    vars:
+      workout_text: "40 on 20 off x 6: Burpees"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "intervals"'
+      # 6 rounds * 2 intervals = 12 intervals
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length === 12'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.filter(i => i.type === "work").every(i => i.duration === 40)'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.filter(i => i.type === "rest").every(i => i.duration === 20)'
+      - type: javascript
+        value: 'JSON.parse(output).movements.length === 1'
+
+  - description: "Long work periods 2min/1min x 5"
+    vars:
+      workout_text: "2 min work / 1 min rest x 5: 400m Run"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "intervals"'
+      # 5 rounds * 2 intervals = 10 intervals
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length === 10'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.filter(i => i.type === "work").every(i => i.duration === 120)'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.filter(i => i.type === "rest").every(i => i.duration === 60)'
+      - type: javascript
+        value: 'JSON.parse(output).movements.some(m => m.distance)'
+
+  - description: "60/30 x 4 with multiple movements"
+    vars:
+      workout_text: "60/30 x 4: KB Swings, Goblet Squats"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "intervals"'
+      # 4 rounds * 2 intervals = 8 intervals
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length === 8'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.filter(i => i.type === "work").every(i => i.duration === 60)'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.filter(i => i.type === "rest").every(i => i.duration === 30)'
+      - type: javascript
+        value: 'JSON.parse(output).movements.length === 2'
+

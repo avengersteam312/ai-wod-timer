@@ -5,12 +5,24 @@ import { useAudio } from './useAudio'
 
 export function useTimer() {
   const timerStore = useTimerStore()
-  const { state, currentTime, config, prepTime, prepDuration, intervalTime, currentInterval, currentIntervalIndex, totalIntervals, isIntervalBased, isWorkRestTimer, workRestPhase, workRestRestTime, currentRound } = storeToRefs(timerStore)
+  const { state, currentTime, config, prepTime, prepDuration, intervalTime, currentInterval, currentIntervalIndex, totalIntervals, isIntervalBased, isWorkRestTimer, workRestPhase, workRestRestTime, currentRound, repeatRound, isOpenEndedInterval } = storeToRefs(timerStore)
   const { playBeep, playCountdown, speak } = useAudio()
 
   let intervalId: number | null = null
   const lastCueTime = ref(-1)
   const lastIntervalCue = ref(-1)
+
+  // Helper: Count work rounds up to and including given index
+  const countWorkRounds = (upToIndex: number): number => {
+    const intervals = config.value?.intervals || []
+    let count = 0
+    for (let i = 0; i <= upToIndex; i++) {
+      if (intervals[i]?.type === 'work') {
+        count++
+      }
+    }
+    return count
+  }
 
   const startTimer = (skipPreparation: boolean = false) => {
     if (intervalId) return
@@ -113,11 +125,49 @@ export function useTimer() {
     }
   }
 
+  // Trigger next interval for open-ended intervals (duration: 0)
+  const triggerNextInterval = () => {
+    if (!isOpenEndedInterval.value) return
+    if (state.value !== TimerState.RUNNING && state.value !== TimerState.PAUSED) return
+
+    const interval = currentInterval.value
+    if (!interval) return
+
+    timerStore.resetIntervalTime()
+    lastIntervalCue.value = -1
+
+    // Check if this was the last interval
+    if (currentIntervalIndex.value >= totalIntervals.value - 1) {
+      speak('Great work!')
+      playBeep()
+      timerStore.complete()
+      pauseTimer()
+    } else {
+      // Move to next interval
+      timerStore.nextInterval()
+      const nextInterval = currentInterval.value
+
+      if (nextInterval) {
+        if (nextInterval.type === 'rest') {
+          speak('Rest')
+        } else if (nextInterval.type === 'work') {
+          speak(`Round ${countWorkRounds(currentIntervalIndex.value)}`)
+        }
+        playBeep()
+      }
+    }
+  }
+
   const handleIntervalTimer = () => {
     timerStore.incrementIntervalTime()
 
     const interval = currentInterval.value
     if (!interval) return
+
+    // Open-ended interval (duration: 0) - just count up, don't auto-complete
+    if (interval.duration === 0) {
+      return
+    }
 
     const remaining = interval.duration - intervalTime.value
 
@@ -135,6 +185,15 @@ export function useTimer() {
       timerStore.resetIntervalTime()
       lastIntervalCue.value = -1
 
+      // Check if this is a repeating interval (until failure)
+      if (interval.repeat) {
+        // Increment repeat round and continue
+        timerStore.incrementRepeatRound()
+        speak(`Round ${repeatRound.value}`)
+        playBeep()
+        return
+      }
+
       // Check if this was the last interval
       if (currentIntervalIndex.value >= totalIntervals.value - 1) {
         // Workout complete
@@ -151,16 +210,10 @@ export function useTimer() {
           if (nextInterval.type === 'rest') {
             speak('Rest')
           } else if (nextInterval.type === 'work') {
-            // Count work rounds up to and including current index
-            const intervals = config.value?.intervals || []
-            let workRoundNum = 0
-            for (let i = 0; i <= currentIntervalIndex.value; i++) {
-              if (intervals[i]?.type === 'work') {
-                workRoundNum++
-              }
-            }
+            const workRoundNum = countWorkRounds(currentIntervalIndex.value)
 
             // Check if this is the last work interval
+            const intervals = config.value?.intervals || []
             const remainingWorkIntervals = intervals.slice(currentIntervalIndex.value + 1).filter(i => i.type === 'work').length
             if (remainingWorkIntervals === 0) {
               speak('Final round')
@@ -245,5 +298,6 @@ export function useTimer() {
     pauseTimer,
     resetTimer,
     triggerWorkRestRest,
+    triggerNextInterval,
   }
 }

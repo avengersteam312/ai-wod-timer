@@ -39,3 +39,76 @@ tests:
       - type: javascript
         value: 'JSON.parse(output).movements.length === 2'
 
+  # Tests from prompt examples
+  - description: "Stopwatch practice handstands"
+    vars:
+      workout_text: "Stopwatch: Practice handstands"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "stopwatch"'
+      - type: javascript
+        value: 'JSON.parse(output).intervals.length === 1'
+      - type: javascript
+        value: 'JSON.parse(output).intervals[0].duration === 0'
+
+  - description: "Track time 100 Burpees"
+    vars:
+      workout_text: "Track time: 100 Burpees"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "stopwatch"'
+      - type: javascript
+        value: 'JSON.parse(output).intervals[0].duration === 0'
+      - type: javascript
+        value: 'JSON.parse(output).movements[0].reps === 100'
+
+  - description: "Untimed strength work"
+    vars:
+      workout_text: "Untimed: 5x5 Back Squat"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "stopwatch"'
+      - type: javascript
+        value: 'JSON.parse(output).intervals[0].duration === 0'
+      - type: javascript
+        value: 'JSON.parse(output).movements.length === 1'
+
+  - description: "Record time 2000m Row"
+    vars:
+      workout_text: "Record time: 2000m Row"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "stopwatch"'
+      - type: javascript
+        value: 'JSON.parse(output).intervals[0].duration === 0'
+      - type: javascript
+        value: 'JSON.parse(output).movements.some(m => m.distance)'
+
+  - description: "Open timer mixed movements"
+    vars:
+      workout_text: "Open timer: 50 Double Unders, 40 Sit-ups, 30 KB Swings"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "stopwatch"'
+      - type: javascript
+        value: 'JSON.parse(output).intervals[0].duration === 0'
+      - type: javascript
+        value: 'JSON.parse(output).movements.length === 3'
+
+  - description: "Count up strength session"
+    vars:
+      workout_text: "Count up: 5x3 Deadlift 315#"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: 'JSON.parse(output).workout_type === "stopwatch"'
+      - type: javascript
+        value: 'JSON.parse(output).intervals[0].duration === 0'
+      - type: javascript
+        value: 'JSON.parse(output).movements.some(m => m.weight)'
+

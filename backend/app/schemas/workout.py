@@ -30,6 +30,7 @@ class AudioCue(BaseModel):
 class Interval(BaseModel):
     duration: int
     type: str = "work"
+    repeat: Optional[bool] = None
 
 
 class TimerConfig(BaseModel):
@@ -86,8 +87,17 @@ class ParsedWorkout(BaseModel):
     @property
     def timer_config(self) -> TimerConfig:
         """Build timer_config object for UI compatibility."""
+        from app.config import settings
+
+        # When using custom prompt only, treat all timers as custom
+        if settings.USE_CUSTOM_PROMPT_ONLY:
+            # Single interval with duration 0 = stopwatch mode
+            if len(self.intervals) == 1 and self.intervals[0].duration == 0:
+                timer_type = "stopwatch"
+            else:
+                timer_type = "custom"
         # Determine timer type based on workout type
-        if self.workout_type in [
+        elif self.workout_type in [
             WorkoutType.EMOM,
             WorkoutType.AMRAP,
             WorkoutType.TABATA,
@@ -96,6 +106,9 @@ class ParsedWorkout(BaseModel):
             timer_type = "intervals"
         elif self.workout_type == WorkoutType.STOPWATCH:
             timer_type = "stopwatch"
+        elif self.workout_type == WorkoutType.CUSTOM and len(self.intervals) > 1:
+            # Custom workouts with multiple intervals should use interval timer
+            timer_type = "custom"
         else:
             timer_type = "countdown"
 
