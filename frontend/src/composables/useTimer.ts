@@ -258,8 +258,13 @@ export function useTimer() {
 
       // Check if this is a repeating interval (until failure)
       if (interval.repeat) {
-        // Increment repeat round and continue
+        // Increment repeat round and type-specific round
         timerStore.incrementRepeatRound()
+        if (interval.type === 'work') {
+          timerStore.incrementRepeatWorkRound()
+        } else if (interval.type === 'rest') {
+          timerStore.incrementRepeatRestRound()
+        }
         speak(`Round ${repeatRound.value}`)
         playBeep()
         return

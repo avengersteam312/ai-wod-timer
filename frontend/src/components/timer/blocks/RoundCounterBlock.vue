@@ -7,10 +7,15 @@ import { storeToRefs } from 'pinia'
 const workoutStore = useWorkoutStore()
 const timerStore = useTimerStore()
 const { currentWorkout } = storeToRefs(workoutStore)
-const { currentInterval, isCompleted, isRunning, isPaused, isWorkRestTimer, workRestPhase, currentRound } = storeToRefs(timerStore)
+const { currentInterval, isCompleted, isRunning, isPaused, isWorkRestTimer, workRestPhase, currentRound, repeatWorkRound, repeatRestRound } = storeToRefs(timerStore)
 
 // Check if this is a work_rest timer
 const isWorkRest = computed(() => isWorkRestTimer.value)
+
+// Check if config has any repeating intervals
+const hasAnyRepeatInterval = computed(() => {
+  return currentWorkout.value?.timer_config?.intervals?.some(i => i.repeat) ?? false
+})
 
 // Count work and rest intervals from the workout config (for interval-based timers)
 const totalWorkRounds = computed(() => {
@@ -106,16 +111,40 @@ const currentRestRound = computed(() => {
   return isRestPhase.value ? completedRestRounds.value + 1 : completedRestRounds.value
 })
 
-// Show for interval-based (2+ intervals) or work_rest timers
+// Show for interval-based (2+ intervals), work_rest timers, or repeat intervals
 const shouldShow = computed(() => {
   if (isWorkRest.value) return true
+  if (hasAnyRepeatInterval.value) return true
   return (currentWorkout.value?.timer_config?.intervals?.length ?? 0) >= 2
 })
 </script>
 
 <template>
   <div v-if="shouldShow" class="bg-surface rounded-xl p-4">
-    <div class="flex justify-around">
+    <!-- Repeat intervals - always show both ROUND and REST -->
+    <div v-if="hasAnyRepeatInterval" class="flex justify-around">
+      <!-- Work Rounds -->
+      <div
+        class="text-xl font-bold font-athletic transition-colors"
+        :class="isWorkPhase ? 'text-timer-work' : 'text-foreground'"
+      >
+        ROUND {{ hasStarted && isWorkPhase ? repeatWorkRound + 1 : repeatWorkRound }}/∞
+      </div>
+
+      <!-- Divider -->
+      <div class="w-px bg-border"></div>
+
+      <!-- Rest Rounds -->
+      <div
+        class="text-xl font-bold font-athletic transition-colors"
+        :class="isRestPhase ? 'text-timer-rest' : 'text-foreground'"
+      >
+        REST {{ hasStarted && isRestPhase ? repeatRestRound + 1 : repeatRestRound }}/∞
+      </div>
+    </div>
+
+    <!-- Regular work/rest counters -->
+    <div v-else class="flex justify-around">
       <!-- Work Rounds -->
       <div
         class="text-xl font-bold font-athletic transition-colors"
