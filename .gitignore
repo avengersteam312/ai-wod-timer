@@ -72,3 +72,9 @@ firebase-service-account.json
 !tailwind.config.js
 !postcss.config.js
 !*.config.json
+
+# Ralph
+scripts/ralph/prd.json
+scripts/ralph/progress.txt
+scripts/ralph/archive/
+scripts/ralph/.last-branch
