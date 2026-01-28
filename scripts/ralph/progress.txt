@@ -1,0 +1,271 @@
+# Ralph Progress Log
+Started: Wed Jan 28 13:26:12 MST 2026
+---
+
+## Codebase Patterns
+- Frontend lives in `/frontend` directory, not at project root
+- Config files live in `src/config/` (e.g., firebase.ts, supabase.ts)
+- Environment variables use VITE_ prefix for Vite to expose them
+- Pre-existing TypeScript errors exist in the codebase (unrelated to new changes) - ignore when checking new file typechecks
+- Supabase migrations go in `/supabase/migrations/` with format `YYYYMMDDHHMMSS_description.sql`
+- Use `handle_updated_at()` trigger function for auto-updating timestamps (created in profiles migration)
+- Pinia stores live in `src/stores/` and use composition API style (setup function with refs/computed)
+- Supabase auth types come from `@supabase/supabase-js`: User, Session, AuthError, Subscription
+- Run typecheck with `npx vue-tsc --noEmit` (no npm script for typecheck)
+
+---
+
+## 2026-01-28 - US-001
+- What was implemented:
+  - Installed @supabase/supabase-js package (v2.93.2)
+  - Added VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env.example
+  - Created src/config/supabase.ts with typed client initialization
+  - Configured auth options: autoRefreshToken, persistSession, detectSessionInUrl
+- Files changed:
+  - frontend/package.json (added dependency)
+  - frontend/package-lock.json (updated)
+  - frontend/.env.example (added Supabase vars, marked Firebase as deprecated)
+  - frontend/src/config/supabase.ts (new file)
+- **Learnings for future iterations:**
+  - The codebase has pre-existing TypeScript errors that are unrelated to Supabase work
+  - Check `src/config/` for existing config patterns before creating new config files
+  - Firebase config is similar structure - can use as reference for Supabase config
+---
+
+## 2026-01-28 - US-002
+- What was implemented:
+  - Created `/supabase/migrations/` directory structure
+  - Created migration file `20260128000001_create_profiles_table.sql`
+  - Profiles table with columns: id (UUID, FK to auth.users), display_name, created_at, updated_at
+  - RLS policies for SELECT, INSERT, UPDATE - users can only access own profile
+  - `handle_updated_at()` trigger function for auto-updating timestamps
+  - `handle_new_user()` trigger function to auto-create profile on user signup
+  - Trigger on `auth.users` to auto-create profile for new signups
+- Files changed:
+  - supabase/migrations/20260128000001_create_profiles_table.sql (new file)
+- **Learnings for future iterations:**
+  - Supabase migrations use PostgreSQL SQL syntax
+  - `auth.uid()` is used in RLS policies to get current user's ID
+  - `SECURITY DEFINER` is needed for trigger functions that access auth schema
+  - Use `COALESCE` with fallback chain for display_name from user metadata (full_name, name, email prefix)
+  - Reuse `handle_updated_at()` function for other tables that need auto-updated timestamps
+---
+
+## 2026-01-28 - US-003
+- What was implemented:
+  - Created migration file `20260128000002_create_workouts_table.sql`
+  - Workouts table with columns: id (UUID), user_id (FK to auth.users), name, raw_input, parsed_config (JSONB), is_favorite, created_at, updated_at
+  - Indexes on user_id, updated_at, and partial index on is_favorite for filtering favorites
+  - RLS policies for SELECT, INSERT, UPDATE, DELETE - users can only access own workouts
+  - Reused `handle_updated_at()` trigger from profiles migration
+- Files changed:
+  - supabase/migrations/20260128000002_create_workouts_table.sql (new file)
+- **Learnings for future iterations:**
+  - RLS policies need all four operations (SELECT, INSERT, UPDATE, DELETE) for full CRUD
+  - Partial indexes (e.g., `WHERE is_favorite = TRUE`) are useful for filtered queries
+  - Use `gen_random_uuid()` for auto-generating UUIDs for primary keys
+---
+
+## 2026-01-28 - US-004
+- What was implemented:
+  - Created migration file `20260128000003_create_workout_sessions_table.sql`
+  - workout_sessions table with columns: id (UUID), user_id (FK), workout_id (nullable FK to workouts), workout_snapshot (JSONB), started_at, completed_at, duration_seconds, status
+  - CHECK constraint on status: only 'in_progress', 'completed', 'abandoned' allowed
+  - Indexes on user_id, started_at (for history sorting), and composite index on user_id + status
+  - RLS policies for SELECT, INSERT, UPDATE, DELETE - users can only access own sessions
+  - Used ON DELETE SET NULL for workout_id FK (workout can be deleted but session history preserved)
+- Files changed:
+  - supabase/migrations/20260128000003_create_workout_sessions_table.sql (new file)
+- **Learnings for future iterations:**
+  - Use CHECK constraints for enum-like status columns in PostgreSQL
+  - ON DELETE SET NULL preserves child records when parent is deleted (useful for history)
+  - Sessions don't need updated_at trigger since they're mostly immutable after creation
+---
+
+## 2026-01-28 - US-005
+- What was implemented:
+  - Created migration file `20260128000004_create_user_preferences_table.sql`
+  - user_preferences table with columns: user_id (PK, FK to auth.users), audio_enabled, voice_type, theme, default_rest_seconds, countdown_seconds, updated_at
+  - user_id is PK (one preferences row per user) with ON DELETE CASCADE
+  - RLS policies for SELECT, INSERT, UPDATE, DELETE - users can only access own preferences
+  - Reused `handle_updated_at()` trigger from profiles migration
+- Files changed:
+  - supabase/migrations/20260128000004_create_user_preferences_table.sql (new file)
+- **Learnings for future iterations:**
+  - For 1:1 relationships, use FK as PK (user_id as both PK and FK) instead of separate id column
+  - ON DELETE CASCADE is appropriate for preferences since they should be deleted when user is deleted
+---
+
+## 2026-01-28 - US-006
+- What was implemented:
+  - Created `src/stores/supabaseAuthStore.ts` - a new Pinia store for Supabase auth
+  - Defined core state: user, session, loading, error (as reactive refs)
+  - Used TypeScript types from `@supabase/supabase-js`: User, Session, AuthError
+  - Added computed properties: isAuthenticated, userEmail, userId, userDisplayName
+  - Added internal state setters: setAuth, setLoading, setError, clearError, clearAuth
+  - Exported store as `useSupabaseAuthStore`
+- Files changed:
+  - frontend/src/stores/supabaseAuthStore.ts (new file)
+- **Learnings for future iterations:**
+  - Supabase JS SDK provides User, Session, AuthError types - no need to define custom interfaces
+  - Use nullish coalescing (??) instead of || for default values (handles empty strings correctly)
+  - userDisplayName can be derived from user_metadata (full_name, name) or email prefix
+---
+
+## 2026-01-28 - US-007
+- What was implemented:
+  - Added `signUp(email, password)` method to supabaseAuthStore
+  - Method calls `supabase.auth.signUp` to create new users
+  - Returns success flag, requiresEmailConfirmation flag, and user-friendly error message
+  - Handles email confirmation flow: detects when session is null but user exists
+  - Maps Supabase errors to user-friendly messages:
+    - "already registered" → "An account with this email already exists"
+    - "valid email" → "Please enter a valid email address"
+    - Password too short → "Password must be at least 6 characters long"
+  - Stores user in Pinia state on success (when email confirmation not required)
+- Files changed:
+  - frontend/src/stores/supabaseAuthStore.ts (added signUp method)
+- **Learnings for future iterations:**
+  - supabase.auth.signUp returns { data: { user, session }, error }
+  - If email confirmation is required, session will be null but user will exist
+  - Error messages from Supabase can be mapped to user-friendly versions by checking includes() on message
+---
+
+## 2026-01-28 - US-008
+- What was implemented:
+  - Added `signIn(email, password)` method to supabaseAuthStore
+  - Method calls `supabase.auth.signInWithPassword` for authentication
+  - Returns success flag and optional user-friendly error message
+  - Maps Supabase errors to user-friendly messages:
+    - "Invalid login credentials" → "Invalid email or password"
+    - "Email not confirmed" → "Please confirm your email address before signing in"
+    - "valid email" → "Please enter a valid email address"
+    - Rate limit errors → "Too many login attempts. Please try again later"
+  - Updates Pinia state with user and session on success
+- Files changed:
+  - frontend/src/stores/supabaseAuthStore.ts (added signIn method)
+- **Learnings for future iterations:**
+  - supabase.auth.signInWithPassword returns { data: { user, session }, error }
+  - Different error codes: "invalid_credentials", "email_not_confirmed" - check both code and message
+  - Rate limiting messages may contain "rate limit" or "too many requests"
+---
+
+## 2026-01-28 - US-009
+- What was implemented:
+  - Added `signOut()` method to supabaseAuthStore
+  - Method calls `supabase.auth.signOut` to sign out current user
+  - Returns success flag and optional error message
+  - Clears user and session from Pinia state on success using existing `clearAuth()` helper
+- Files changed:
+  - frontend/src/stores/supabaseAuthStore.ts (added signOut method)
+- **Learnings for future iterations:**
+  - supabase.auth.signOut returns { error } - no data payload
+  - signOut is simpler than signIn/signUp - just call API and clear state
+  - Reuse existing clearAuth() helper for clearing state
+---
+
+## 2026-01-28 - US-010
+- What was implemented:
+  - Added `initialize()` method to supabaseAuthStore for session persistence
+  - Fetches current session using `supabase.auth.getSession()` on app startup
+  - Sets up `onAuthStateChange` listener to handle auth events:
+    - SIGNED_IN, TOKEN_REFRESHED, USER_UPDATED: update Pinia state with new session
+    - SIGNED_OUT: clear auth state
+    - PASSWORD_RECOVERY: update state for password reset flow
+  - Added `cleanup()` method to unsubscribe from auth state changes
+  - Added `initialized` state to prevent multiple initializations
+  - Token refresh is handled automatically by Supabase SDK (via autoRefreshToken option in config)
+- Files changed:
+  - frontend/src/stores/supabaseAuthStore.ts (added initialize, cleanup methods, initialized state)
+- **Learnings for future iterations:**
+  - `supabase.auth.onAuthStateChange` returns `{ data: { subscription } }` - subscription has `unsubscribe()` method
+  - Import `Subscription` type from `@supabase/supabase-js` for type safety
+  - AUTH events: SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED, USER_UPDATED, PASSWORD_RECOVERY, INITIAL_SESSION
+  - INITIAL_SESSION fires on first load - can be ignored if already handled via getSession()
+  - App should call `initialize()` once on startup (e.g., in App.vue or main.ts)
+---
+
+## 2026-01-28 - US-011
+- What was implemented:
+  - Added `resetPassword(email)` method to supabaseAuthStore
+  - Calls `supabase.auth.resetPasswordForEmail` with redirectTo URL pointing to `/reset-password`
+  - Returns success flag and user-friendly error messages
+  - Added `updatePassword(newPassword)` method for completing password reset
+  - Calls `supabase.auth.updateUser({ password })` to set new password
+  - Maps errors for: invalid email, rate limiting, password too short, same password
+  - PASSWORD_RECOVERY event already handled in initialize() from US-010
+- Files changed:
+  - frontend/src/stores/supabaseAuthStore.ts (added resetPassword, updatePassword methods)
+- **Learnings for future iterations:**
+  - `supabase.auth.resetPasswordForEmail(email, { redirectTo })` sends reset email
+  - User is auto-authenticated via PASSWORD_RECOVERY event when clicking reset link
+  - `supabase.auth.updateUser({ password })` updates the authenticated user's password
+  - The redirectTo URL should point to a page where user can enter new password
+---
+
+## 2026-01-28 - US-012
+- What was implemented:
+  - Added `signInWithGoogle()` method to supabaseAuthStore
+  - Calls `supabase.auth.signInWithOAuth` with provider: 'google'
+  - Configures redirectTo option to return user to app root after OAuth flow
+  - Returns success flag and user-friendly error messages
+  - Maps OAuth errors for: provider not enabled, popup blocked
+  - Actual authentication is handled by onAuthStateChange listener (from US-010)
+- Files changed:
+  - frontend/src/stores/supabaseAuthStore.ts (added signInWithGoogle method)
+- **Learnings for future iterations:**
+  - `supabase.auth.signInWithOAuth({ provider, options })` initiates OAuth redirect
+  - Success means redirect was initiated, not that auth completed
+  - Auth completion is handled by onAuthStateChange listener (SIGNED_IN event)
+  - Use `window.location.origin` for redirectTo to keep it dynamic
+---
+
+## 2026-01-28 - US-013
+- What was implemented:
+  - Updated LoginView.vue to use supabaseAuthStore instead of Firebase authStore
+  - Replaced `useAuthStore` import with `useSupabaseAuthStore`
+  - Removed `getAuthErrorMessage` import (no longer needed - Supabase methods return user-friendly errors)
+  - Updated `handleGoogleSignIn` to use `signInWithGoogle()` with result-based error handling
+  - Updated `handleSubmit` to use `signIn()` and `signUp()` with result-based error handling
+  - Updated `handlePasswordReset` to use `resetPassword()` with result-based error handling
+  - Added email confirmation handling for signup (shows success message when email confirmation is required)
+- Files changed:
+  - frontend/src/views/LoginView.vue (updated imports and auth method calls)
+- **Learnings for future iterations:**
+  - Supabase auth methods return `{ success, error }` objects instead of throwing errors
+  - Use result-based error handling instead of try/catch for cleaner code
+  - signUp returns `requiresEmailConfirmation` flag when email confirmation is enabled
+  - For OAuth, redirect is handled by Supabase - just need to wait for onAuthStateChange
+---
+
+## 2026-01-28 - US-014
+- What was implemented:
+  - Updated LoginView.vue to properly handle signup email confirmation
+  - Added dedicated `signUpSuccess` state (separate from resetSuccess) for email confirmation message
+  - Added proper email confirmation message: "Account created successfully! Please check your email to confirm your account before signing in."
+  - Disabled submit button after successful signup requiring confirmation to prevent duplicate submissions
+  - Reset signUpSuccess state when toggling between login/signup modes
+  - Note: SignUpView functionality is integrated into LoginView.vue via `isLogin` toggle - no separate SignUpView.vue exists
+- Files changed:
+  - frontend/src/views/LoginView.vue (added signUpSuccess state and UI message)
+- **Learnings for future iterations:**
+  - This app uses a combined Login/Signup view with toggle (common pattern) rather than separate views
+  - When showing different success messages (password reset vs email confirmation), use separate state variables
+  - Disable submit button after successful action requiring user action (email confirmation) to prevent confusion
+---
+
+## 2026-01-28 - US-015
+- What was implemented:
+  - Verified Google sign-in button already exists in LoginView.vue (implemented in US-013)
+  - Button calls `handleGoogleSignIn()` which uses `authStore.signInWithGoogle()`
+  - Shows Google icon with colored paths (official Google branding)
+  - Displays contextual text: "Sign in with Google" (login mode) vs "Sign up with Google" (signup mode)
+  - Button disabled during loading state (`isLoading`)
+  - No separate SignUpView.vue exists - signup is integrated into LoginView
+- Files changed:
+  - scripts/ralph/prd.json (marked US-015 as passes: true)
+- **Learnings for future iterations:**
+  - Google sign-in button was proactively added in US-013 as it's a common auth feature
+  - OAuth buttons should show loading state but note: redirect happens immediately, so loading may not be visible
+  - Use contextual button text based on isLogin state for better UX
+---
