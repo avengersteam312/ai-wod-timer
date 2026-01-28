@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/authStore'
+import { useSupabaseAuthStore } from '@/stores/supabaseAuthStore'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
-import { getAuthErrorMessage } from '@/utils/authErrors'
 import { validateCredentials, validateEmail } from '@/utils/validation'
 import { Eye, EyeOff } from 'lucide-vue-next'
 
@@ -12,7 +11,7 @@ const router = useRouter()
 
 // Reference icons for TypeScript
 void [Eye, EyeOff]
-const authStore = useAuthStore()
+const authStore = useSupabaseAuthStore()
 
 const email = ref('')
 const password = ref('')
@@ -31,16 +30,18 @@ const handleGoogleSignIn = async () => {
   isLoading.value = true
   error.value = null
 
-  try {
-    await authStore.loginWithGoogle()
-    // Redirect to the original destination or timer view
-    const redirect = router.currentRoute.value.query.redirect as string
-    router.push(redirect || '/')
-  } catch (err) {
-    error.value = getAuthErrorMessage(err)
-  } finally {
+  const result = await authStore.signInWithGoogle()
+
+  if (!result.success) {
+    error.value = result.error
     isLoading.value = false
+    return
   }
+
+  // Note: For OAuth, redirect is handled by Supabase.
+  // The actual auth completion is handled by onAuthStateChange
+  // which will redirect the user via the router guard.
+  isLoading.value = false
 }
 
 const handleSubmit = async () => {
@@ -51,7 +52,7 @@ const handleSubmit = async () => {
 
   // Validate credentials before submission
   const validation = validateCredentials(email.value, password.value, !isLogin.value)
-  
+
   if (!validation.isValid) {
     // Set field-specific errors
     if (validation.errors.email) {
@@ -70,21 +71,38 @@ const handleSubmit = async () => {
   isLoading.value = true
   error.value = null
 
-  try {
-    if (isLogin.value) {
-      await authStore.login(email.value, password.value)
-    } else {
-      await authStore.register(email.value, password.value)
+  if (isLogin.value) {
+    const result = await authStore.signIn(email.value, password.value)
+
+    if (!result.success) {
+      error.value = result.error
+      isLoading.value = false
+      return
     }
-    
-    // Redirect to the original destination or timer view
-    const redirect = router.currentRoute.value.query.redirect as string
-    router.push(redirect || '/')
-  } catch (err) {
-    error.value = getAuthErrorMessage(err)
-  } finally {
-    isLoading.value = false
+  } else {
+    const result = await authStore.signUp(email.value, password.value)
+
+    if (!result.success) {
+      error.value = result.error
+      isLoading.value = false
+      return
+    }
+
+    // Handle email confirmation requirement
+    if (result.requiresEmailConfirmation) {
+      error.value = null
+      isLoading.value = false
+      // Show success message for email confirmation
+      resetSuccess.value = true
+      showPasswordReset.value = true
+      return
+    }
   }
+
+  isLoading.value = false
+  // Redirect to the original destination or timer view
+  const redirect = router.currentRoute.value.query.redirect as string
+  router.push(redirect || '/')
 }
 
 const toggleMode = () => {
@@ -119,16 +137,17 @@ const handlePasswordReset = async () => {
   error.value = null
   resetSuccess.value = false
 
-  try {
-    await authStore.sendPasswordReset(resetEmail.value)
+  const result = await authStore.resetPassword(resetEmail.value)
+
+  if (!result.success) {
+    error.value = result.error
+    resetSuccess.value = false
+  } else {
     resetSuccess.value = true
     error.value = null
-  } catch (err) {
-    error.value = getAuthErrorMessage(err)
-    resetSuccess.value = false
-  } finally {
-    isLoading.value = false
   }
+
+  isLoading.value = false
 }
 
 const backToLogin = () => {
