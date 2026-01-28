@@ -143,6 +143,69 @@ export const useSupabaseAuthStore = defineStore('supabaseAuth', () => {
     }
   }
 
+  /**
+   * Sign in an existing user with email and password
+   * @param email - User's email address
+   * @param password - User's password
+   * @returns Object with success status and optional error message
+   */
+  const signIn = async (email: string, password: string): Promise<{
+    success: boolean
+    error: string | null
+  }> => {
+    clearError()
+    setLoading(true)
+
+    try {
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      })
+
+      if (signInError) {
+        setError(signInError)
+
+        // Map common error messages to user-friendly ones
+        let userFriendlyError = signInError.message
+
+        if (signInError.message.includes('Invalid login credentials') ||
+            signInError.message.includes('invalid_credentials')) {
+          userFriendlyError = 'Invalid email or password'
+        } else if (signInError.message.includes('Email not confirmed') ||
+                   signInError.message.includes('email_not_confirmed')) {
+          userFriendlyError = 'Please confirm your email address before signing in'
+        } else if (signInError.message.includes('valid email')) {
+          userFriendlyError = 'Please enter a valid email address'
+        } else if (signInError.message.includes('rate limit') ||
+                   signInError.message.includes('too many requests')) {
+          userFriendlyError = 'Too many login attempts. Please try again later'
+        }
+
+        return {
+          success: false,
+          error: userFriendlyError
+        }
+      }
+
+      if (data.session && data.user) {
+        setAuth(data.user, data.session)
+      }
+
+      return {
+        success: true,
+        error: null
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred'
+      return {
+        success: false,
+        error: errorMessage
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return {
     // State
     user,
@@ -164,6 +227,7 @@ export const useSupabaseAuthStore = defineStore('supabaseAuth', () => {
     clearAuth,
 
     // Auth actions
-    signUp
+    signUp,
+    signIn
   }
 })
