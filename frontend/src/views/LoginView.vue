@@ -25,6 +25,7 @@ const showPasswordReset = ref(false) // Show password reset form
 const resetEmail = ref('') // Email for password reset
 const resetEmailError = ref<string | null>(null)
 const resetSuccess = ref(false) // Success message for password reset
+const signUpSuccess = ref(false) // Success message for email confirmation after signup
 
 const handleGoogleSignIn = async () => {
   isLoading.value = true
@@ -93,8 +94,7 @@ const handleSubmit = async () => {
       error.value = null
       isLoading.value = false
       // Show success message for email confirmation
-      resetSuccess.value = true
-      showPasswordReset.value = true
+      signUpSuccess.value = true
       return
     }
   }
@@ -112,6 +112,7 @@ const toggleMode = () => {
   passwordError.value = null
   showPasswordReset.value = false
   resetSuccess.value = false
+  signUpSuccess.value = false
 }
 
 const handleForgotPassword = () => {
@@ -312,9 +313,15 @@ const clearResetEmailError = () => {
             <p class="text-sm text-destructive">{{ error }}</p>
           </div>
 
+          <div v-if="signUpSuccess" class="p-3 bg-green-500/10 border border-green-500/20 rounded-md">
+            <p class="text-sm text-green-400">
+              Account created successfully! Please check your email to confirm your account before signing in.
+            </p>
+          </div>
+
           <Button
             type="submit"
-            :disabled="isLoading"
+            :disabled="isLoading || signUpSuccess"
             class="w-full text-base font-semibold py-3"
           >
             {{ isLoading ? 'Loading...' : (isLogin ? 'Log In' : 'Sign Up') }}
