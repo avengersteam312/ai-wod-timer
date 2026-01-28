@@ -5,6 +5,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { User, Session, AuthError } from '@supabase/supabase-js'
+import { supabase } from '@/config/supabase'
 
 /**
  * Auth state interface for the store
@@ -71,6 +72,77 @@ export const useSupabaseAuthStore = defineStore('supabaseAuth', () => {
     error.value = null
   }
 
+  /**
+   * Sign up a new user with email and password
+   * @param email - User's email address
+   * @param password - User's password
+   * @returns Object with success status, requiresEmailConfirmation flag, and optional error
+   */
+  const signUp = async (email: string, password: string): Promise<{
+    success: boolean
+    requiresEmailConfirmation: boolean
+    error: string | null
+  }> => {
+    clearError()
+    setLoading(true)
+
+    try {
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password
+      })
+
+      if (signUpError) {
+        setError(signUpError)
+
+        // Map common error messages to user-friendly ones
+        let userFriendlyError = signUpError.message
+
+        if (signUpError.message.includes('already registered') ||
+            signUpError.message.includes('already been registered')) {
+          userFriendlyError = 'An account with this email already exists'
+        } else if (signUpError.message.includes('valid email')) {
+          userFriendlyError = 'Please enter a valid email address'
+        } else if (signUpError.message.includes('password') &&
+                   (signUpError.message.includes('short') ||
+                    signUpError.message.includes('least') ||
+                    signUpError.message.includes('characters'))) {
+          userFriendlyError = 'Password must be at least 6 characters long'
+        }
+
+        return {
+          success: false,
+          requiresEmailConfirmation: false,
+          error: userFriendlyError
+        }
+      }
+
+      // Check if email confirmation is required
+      // If session is null but user exists, email confirmation is pending
+      const requiresEmailConfirmation = data.user !== null && data.session === null
+
+      if (data.session && data.user) {
+        // User is automatically signed in (email confirmation not required)
+        setAuth(data.user, data.session)
+      }
+
+      return {
+        success: true,
+        requiresEmailConfirmation,
+        error: null
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred'
+      return {
+        success: false,
+        requiresEmailConfirmation: false,
+        error: errorMessage
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return {
     // State
     user,
@@ -89,6 +161,9 @@ export const useSupabaseAuthStore = defineStore('supabaseAuth', () => {
     setLoading,
     setError,
     clearError,
-    clearAuth
+    clearAuth,
+
+    // Auth actions
+    signUp
   }
 })
