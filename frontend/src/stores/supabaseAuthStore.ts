@@ -4,7 +4,7 @@
  */
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { User, Session, AuthError } from '@supabase/supabase-js'
+import type { User, Session, AuthError, Subscription } from '@supabase/supabase-js'
 import { supabase } from '@/config/supabase'
 
 /**
@@ -23,6 +23,10 @@ export const useSupabaseAuthStore = defineStore('supabaseAuth', () => {
   const session = ref<Session | null>(null)
   const loading = ref<boolean>(true)
   const error = ref<AuthError | null>(null)
+  const initialized = ref<boolean>(false)
+
+  // Auth state change subscription (stored to allow cleanup)
+  let authSubscription: Subscription | null = null
 
   // Computed properties
   const isAuthenticated = computed(() => !!user.value)
@@ -246,12 +250,87 @@ export const useSupabaseAuthStore = defineStore('supabaseAuth', () => {
     }
   }
 
+  /**
+   * Initialize the auth store by fetching the current session
+   * and setting up auth state change listeners.
+   * Should be called once when the app starts.
+   */
+  const initialize = async (): Promise<void> => {
+    // Prevent multiple initializations
+    if (initialized.value) {
+      return
+    }
+
+    setLoading(true)
+
+    try {
+      // Get the current session from Supabase (handles token refresh automatically)
+      const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession()
+
+      if (sessionError) {
+        console.error('Error getting session:', sessionError.message)
+        setError(sessionError)
+      } else if (currentSession) {
+        setAuth(currentSession.user, currentSession)
+      }
+
+      // Set up auth state change listener
+      // This handles: sign in, sign out, token refresh, password recovery, etc.
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        (event, newSession) => {
+          // Handle different auth events
+          switch (event) {
+            case 'SIGNED_IN':
+            case 'TOKEN_REFRESHED':
+            case 'USER_UPDATED':
+              if (newSession) {
+                setAuth(newSession.user, newSession)
+              }
+              break
+            case 'SIGNED_OUT':
+              clearAuth()
+              break
+            case 'PASSWORD_RECOVERY':
+              // User clicked password reset link - session may be partial
+              if (newSession) {
+                setAuth(newSession.user, newSession)
+              }
+              break
+            case 'INITIAL_SESSION':
+              // Initial session event (fired on first load) - already handled above
+              break
+          }
+        }
+      )
+
+      authSubscription = subscription
+      initialized.value = true
+    } catch (err) {
+      console.error('Error initializing auth:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  /**
+   * Clean up the auth state change listener.
+   * Should be called when the app is unmounted or during cleanup.
+   */
+  const cleanup = (): void => {
+    if (authSubscription) {
+      authSubscription.unsubscribe()
+      authSubscription = null
+    }
+    initialized.value = false
+  }
+
   return {
     // State
     user,
     session,
     loading,
     error,
+    initialized,
 
     // Computed
     isAuthenticated,
@@ -269,6 +348,10 @@ export const useSupabaseAuthStore = defineStore('supabaseAuth', () => {
     // Auth actions
     signUp,
     signIn,
-    signOut
+    signOut,
+
+    // Session persistence
+    initialize,
+    cleanup
   }
 })
