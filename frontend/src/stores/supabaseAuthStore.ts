@@ -206,6 +206,46 @@ export const useSupabaseAuthStore = defineStore('supabaseAuth', () => {
     }
   }
 
+  /**
+   * Sign out the current user
+   * @returns Object with success status and optional error message
+   */
+  const signOut = async (): Promise<{
+    success: boolean
+    error: string | null
+  }> => {
+    clearError()
+    setLoading(true)
+
+    try {
+      const { error: signOutError } = await supabase.auth.signOut()
+
+      if (signOutError) {
+        setError(signOutError)
+        return {
+          success: false,
+          error: signOutError.message
+        }
+      }
+
+      // Clear user and session from Pinia state
+      clearAuth()
+
+      return {
+        success: true,
+        error: null
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred'
+      return {
+        success: false,
+        error: errorMessage
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return {
     // State
     user,
@@ -228,6 +268,7 @@ export const useSupabaseAuthStore = defineStore('supabaseAuth', () => {
 
     // Auth actions
     signUp,
-    signIn
+    signIn,
+    signOut
   }
 })
