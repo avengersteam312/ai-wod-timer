@@ -324,6 +324,119 @@ export const useSupabaseAuthStore = defineStore('supabaseAuth', () => {
     initialized.value = false
   }
 
+  /**
+   * Send a password reset email to the specified email address
+   * @param email - User's email address
+   * @returns Object with success status and optional error message
+   */
+  const resetPassword = async (email: string): Promise<{
+    success: boolean
+    error: string | null
+  }> => {
+    clearError()
+    setLoading(true)
+
+    try {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        // Optional: redirect URL after clicking the reset link
+        // This should point to your password update page
+        redirectTo: `${window.location.origin}/reset-password`
+      })
+
+      if (resetError) {
+        setError(resetError)
+
+        // Map common error messages to user-friendly ones
+        let userFriendlyError = resetError.message
+
+        if (resetError.message.includes('valid email')) {
+          userFriendlyError = 'Please enter a valid email address'
+        } else if (resetError.message.includes('rate limit') ||
+                   resetError.message.includes('too many requests')) {
+          userFriendlyError = 'Too many reset attempts. Please try again later'
+        }
+
+        return {
+          success: false,
+          error: userFriendlyError
+        }
+      }
+
+      return {
+        success: true,
+        error: null
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred'
+      return {
+        success: false,
+        error: errorMessage
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  /**
+   * Update the user's password (used after clicking password reset link)
+   * The user must be authenticated via the PASSWORD_RECOVERY event before calling this
+   * @param newPassword - The new password to set
+   * @returns Object with success status and optional error message
+   */
+  const updatePassword = async (newPassword: string): Promise<{
+    success: boolean
+    error: string | null
+  }> => {
+    clearError()
+    setLoading(true)
+
+    try {
+      const { data, error: updateError } = await supabase.auth.updateUser({
+        password: newPassword
+      })
+
+      if (updateError) {
+        setError(updateError)
+
+        // Map common error messages to user-friendly ones
+        let userFriendlyError = updateError.message
+
+        if (updateError.message.includes('password') &&
+            (updateError.message.includes('short') ||
+             updateError.message.includes('least') ||
+             updateError.message.includes('characters'))) {
+          userFriendlyError = 'Password must be at least 6 characters long'
+        } else if (updateError.message.includes('same as') ||
+                   updateError.message.includes('different')) {
+          userFriendlyError = 'New password must be different from the old password'
+        }
+
+        return {
+          success: false,
+          error: userFriendlyError
+        }
+      }
+
+      // Update user in state if returned
+      if (data.user) {
+        setAuth(data.user, session.value)
+      }
+
+      return {
+        success: true,
+        error: null
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred'
+      return {
+        success: false,
+        error: errorMessage
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return {
     // State
     user,
@@ -349,6 +462,10 @@ export const useSupabaseAuthStore = defineStore('supabaseAuth', () => {
     signUp,
     signIn,
     signOut,
+
+    // Password reset
+    resetPassword,
+    updatePassword,
 
     // Session persistence
     initialize,
