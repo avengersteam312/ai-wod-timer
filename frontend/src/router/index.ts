@@ -30,33 +30,33 @@ const router = createRouter({
 })
 
 // Navigation guard to protect routes
-router.beforeEach(async (to, from, next) => {
+router.beforeEach(async (to, _from, next) => {
   const authStore = useSupabaseAuthStore()
-  
+
   // Wait for auth to initialize with timeout
-  if (authStore.isLoading) {
+  if (authStore.loading) {
     const timeout = 2000 // 2 seconds max wait
-    
+
     // Use Promise to wait for auth to load
     await new Promise<void>((resolve) => {
       // If already loaded, resolve immediately
-      if (!authStore.isLoading) {
+      if (!authStore.loading) {
         resolve()
         return
       }
-      
+
       // Watch for loading state to change
       const stopWatcher = watch(
-        () => authStore.isLoading,
-        (isLoading) => {
-          if (!isLoading) {
+        () => authStore.loading,
+        (loading) => {
+          if (!loading) {
             stopWatcher()
             resolve()
           }
         },
         { immediate: true }
       )
-      
+
       // Timeout fallback
       setTimeout(() => {
         stopWatcher()

@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/authStore'
+import { useSupabaseAuthStore } from '@/stores/supabaseAuthStore'
 import { User, LogOut, ChevronDown } from 'lucide-vue-next'
 import { onClickOutside } from '@vueuse/core'
 
 const router = useRouter()
-const authStore = useAuthStore()
+const authStore = useSupabaseAuthStore()
 const isOpen = ref(false)
 const menuRef = ref<HTMLElement | null>(null)
 
@@ -20,12 +20,12 @@ onClickOutside(menuRef, () => {
 const userEmail = computed(() => authStore.userEmail || 'User')
 
 const handleLogout = async () => {
-  try {
-    await authStore.logout()
-    isOpen.value = false
+  const result = await authStore.signOut()
+  isOpen.value = false
+  if (result.success) {
     router.push('/login')
-  } catch (error) {
-    console.error('Logout failed:', error)
+  } else {
+    console.error('Logout failed:', result.error)
   }
 }
 
