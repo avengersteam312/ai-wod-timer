@@ -437,6 +437,67 @@ export const useSupabaseAuthStore = defineStore('supabaseAuth', () => {
     }
   }
 
+  /**
+   * Sign in with Google OAuth
+   * Initiates OAuth flow that redirects to Google for authentication.
+   * After successful authentication, user is redirected back to the app
+   * and the onAuthStateChange listener handles the session.
+   * @returns Object with success status and optional error message
+   */
+  const signInWithGoogle = async (): Promise<{
+    success: boolean
+    error: string | null
+  }> => {
+    clearError()
+    setLoading(true)
+
+    try {
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          // Redirect back to the app after OAuth
+          redirectTo: `${window.location.origin}/`
+        }
+      })
+
+      if (oauthError) {
+        setError(oauthError)
+
+        // Map common error messages to user-friendly ones
+        let userFriendlyError = oauthError.message
+
+        if (oauthError.message.includes('provider') ||
+            oauthError.message.includes('not enabled')) {
+          userFriendlyError = 'Google sign-in is not configured. Please contact support.'
+        } else if (oauthError.message.includes('popup') ||
+                   oauthError.message.includes('blocked')) {
+          userFriendlyError = 'Pop-up was blocked. Please allow pop-ups for this site.'
+        }
+
+        return {
+          success: false,
+          error: userFriendlyError
+        }
+      }
+
+      // Note: success here means the redirect was initiated successfully.
+      // The actual authentication happens after the redirect back,
+      // and is handled by the onAuthStateChange listener in initialize().
+      return {
+        success: true,
+        error: null
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred'
+      return {
+        success: false,
+        error: errorMessage
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return {
     // State
     user,
@@ -466,6 +527,9 @@ export const useSupabaseAuthStore = defineStore('supabaseAuth', () => {
     // Password reset
     resetPassword,
     updatePassword,
+
+    // OAuth
+    signInWithGoogle,
 
     // Session persistence
     initialize,
