@@ -131,7 +131,7 @@ Only update AGENTS.md if you have **genuinely reusable knowledge** that would he
 
 ## Browser Testing (If Available)
 
-For any story that changes UI, verify it works in the browser if you have browser testing tools configured (e.g., via MCP or browser automation):
+For any story that changes UI, verify it works in the browser if you have browser testing tools configured (e.g., via MCP):
 
 1. Start the frontend dev server: `cd frontend && npm run dev`
 2. Navigate to the relevant page (usually http://localhost:5173)

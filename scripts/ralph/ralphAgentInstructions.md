@@ -137,7 +137,7 @@ For any story that changes UI, verify it works in the browser if you have browse
 4. Test on different screen sizes if responsive changes were made
 5. Take a screenshot if helpful for the progress log
 
-If no browser tools are available, note in your progress report that manual browser verification is needed.
+If no browser tools are available, note in your progress report that manual browser verification is needed. Frontend stories can still be marked complete if type checking passes and the code changes are correct, but browser verification should be performed manually when possible.
 
 ## Stop Condition
 
