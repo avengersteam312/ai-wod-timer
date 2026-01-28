@@ -116,10 +116,8 @@ const toggleMode = () => {
 }
 
 const handleForgotPassword = () => {
-  showPasswordReset.value = true
-  resetEmail.value = email.value // Pre-fill with current email if available
-  error.value = null
-  resetSuccess.value = false
+  // Navigate to dedicated forgot password page
+  router.push('/forgot-password')
 }
 
 const handlePasswordReset = async () => {

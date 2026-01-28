@@ -2,7 +2,8 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { watch } from 'vue'
 import TimerView from '@/views/TimerView.vue'
 import LoginView from '@/views/LoginView.vue'
-import { useAuthStore } from '@/stores/authStore'
+import ForgotPasswordView from '@/views/ForgotPasswordView.vue'
+import { useSupabaseAuthStore } from '@/stores/supabaseAuthStore'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -11,6 +12,12 @@ const router = createRouter({
       path: '/login',
       name: 'login',
       component: LoginView,
+      meta: { requiresGuest: true }, // Only accessible when not logged in
+    },
+    {
+      path: '/forgot-password',
+      name: 'forgot-password',
+      component: ForgotPasswordView,
       meta: { requiresGuest: true }, // Only accessible when not logged in
     },
     {
@@ -24,7 +31,7 @@ const router = createRouter({
 
 // Navigation guard to protect routes
 router.beforeEach(async (to, from, next) => {
-  const authStore = useAuthStore()
+  const authStore = useSupabaseAuthStore()
   
   // Wait for auth to initialize with timeout
   if (authStore.isLoading) {
