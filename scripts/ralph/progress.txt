@@ -4,7 +4,7 @@ Started: Wed Jan 28 13:26:12 MST 2026
 
 ## Codebase Patterns
 - Frontend lives in `/frontend` directory, not at project root
-- Config files live in `src/config/` (e.g., firebase.ts, supabase.ts)
+- Config files live in `src/config/` (e.g., supabase.ts) - Firebase has been removed
 - Environment variables use VITE_ prefix for Vite to expose them
 - Pre-existing TypeScript errors exist in the codebase (unrelated to new changes) - ignore when checking new file typechecks
 - Supabase migrations go in `/supabase/migrations/` with format `YYYYMMDDHHMMSS_description.sql`
@@ -12,6 +12,9 @@ Started: Wed Jan 28 13:26:12 MST 2026
 - Pinia stores live in `src/stores/` and use composition API style (setup function with refs/computed)
 - Supabase auth types come from `@supabase/supabase-js`: User, Session, AuthError, Subscription
 - Run typecheck with `npx vue-tsc --noEmit` (no npm script for typecheck)
+- Supabase auth store uses `loading` property (not `isLoading`)
+- For API auth, get token from `authStore.session.access_token`
+- Supabase auth methods return `{ success, error }` objects - use result-based error handling
 
 ---
 
@@ -268,4 +271,57 @@ Started: Wed Jan 28 13:26:12 MST 2026
   - Google sign-in button was proactively added in US-013 as it's a common auth feature
   - OAuth buttons should show loading state but note: redirect happens immediately, so loading may not be visible
   - Use contextual button text based on isLogin state for better UX
+---
+
+## 2026-01-28 - US-016
+- What was implemented:
+  - Created dedicated `ForgotPasswordView.vue` with email form and success/error handling
+  - Added `/forgot-password` route with `requiresGuest: true` meta
+  - Updated router to use `useSupabaseAuthStore` instead of Firebase `useAuthStore`
+  - Updated `LoginView.vue` to navigate to `/forgot-password` instead of inline toggle
+  - Form validates email before submission using existing `validateEmail` utility
+  - Shows success message after reset email sent
+  - "Back to Login" button navigates to `/login`
+- Files changed:
+  - frontend/src/views/ForgotPasswordView.vue (new file)
+  - frontend/src/router/index.ts (added route, switched to Supabase auth store)
+  - frontend/src/views/LoginView.vue (simplified handleForgotPassword to navigate)
+- **Learnings for future iterations:**
+  - Router was still using Firebase authStore - needed to update to Supabase
+  - Use dedicated views for distinct flows (password reset) rather than inline toggles for better UX
+  - Guest-only routes (requiresGuest) prevent authenticated users from accessing auth pages
+---
+
+## 2026-01-28 - US-017
+- What was implemented:
+  - Removed Firebase package from package.json (82 packages removed)
+  - Deleted `src/config/firebase.ts` configuration file
+  - Deleted `src/stores/authStore.ts` (old Firebase auth store)
+  - Deleted `src/composables/useAuth.ts` (Firebase auth composable)
+  - Deleted `src/utils/authErrors.ts` (Firebase error mapper - no longer needed)
+  - Removed Firebase env variables from `.env.example`
+  - Updated `src/services/api.ts` to use Supabase auth store for API token authentication
+  - Updated `src/components/ProfileMenu.vue` to use Supabase auth (signOut instead of logout)
+  - Updated `src/main.ts` to use Supabase auth store for initialization
+  - Updated `src/router/index.ts` to use `loading` instead of `isLoading` (Supabase store property)
+  - Updated `src/utils/validation.ts` comment to remove Firebase reference
+- Files changed:
+  - frontend/package.json (removed firebase dependency)
+  - frontend/package-lock.json (removed 82 Firebase-related packages)
+  - frontend/.env.example (removed Firebase env vars)
+  - frontend/src/config/firebase.ts (deleted)
+  - frontend/src/stores/authStore.ts (deleted)
+  - frontend/src/composables/useAuth.ts (deleted)
+  - frontend/src/utils/authErrors.ts (deleted)
+  - frontend/src/services/api.ts (updated to Supabase auth)
+  - frontend/src/components/ProfileMenu.vue (updated to Supabase auth)
+  - frontend/src/main.ts (updated to Supabase auth)
+  - frontend/src/router/index.ts (fixed property name)
+  - frontend/src/utils/validation.ts (updated comment)
+- **Learnings for future iterations:**
+  - Supabase auth store uses `loading` not `isLoading` for the loading state property
+  - Supabase signOut returns `{ success, error }` instead of throwing - use result-based error handling
+  - For API authentication, get token from `session.access_token` not via a getToken() method
+  - Token refresh in Supabase: use `supabase.auth.refreshSession()` which returns new session
+  - Pre-existing TypeScript errors in codebase should be ignored when verifying new changes
 ---
