@@ -17,6 +17,8 @@ Started: Wed Jan 28 13:26:12 MST 2026
 - Supabase auth methods return `{ success, error }` objects - use result-based error handling
 - Offline storage uses Dexie (IndexedDB wrapper) in `src/services/offlineDb.ts` - database name: `ai-wod-timer-offline`
 - Local tables mirror Supabase schema: workouts, sessions, preferences, syncQueue
+- Offline mutations use dual-write: save to IndexedDB AND queue for sync in `offlineMutationService.ts`
+- Use `isOnline()` from offlineMutationService to check `navigator.onLine` status
 
 ---
 
@@ -534,4 +536,27 @@ Started: Wed Jan 28 13:26:12 MST 2026
   - Use `.put()` for upsert, `.add()` for insert-only
   - Chain `.reverse().sortBy('field')` for descending order
   - Dexie Table generic types: `Table<RecordType, PrimaryKeyType>`
+---
+
+## 2026-01-28 - US-029
+- What was implemented:
+  - Created `src/services/offlineMutationService.ts` for offline-aware mutation handling
+  - Implemented `isOnline()` utility to check `navigator.onLine` status
+  - Implemented `queueMutation()` wrapper function to add entries to sync queue
+  - Created offline mutation functions for all entity types:
+    - Workouts: `createWorkoutOffline`, `updateWorkoutOffline`, `deleteWorkoutOffline`
+    - Sessions: `startSessionOffline`, `completeSessionOffline`, `abandonSessionOffline`
+    - Preferences: `updatePreferencesOffline`, `createDefaultPreferencesOffline`
+  - Each offline function saves to local IndexedDB AND queues for sync
+  - Installed `uuid` package for client-side UUID generation (offline-created records need IDs)
+- Files changed:
+  - frontend/src/services/offlineMutationService.ts (new file)
+  - frontend/package.json (added uuid dependency)
+  - frontend/package-lock.json (updated)
+- **Learnings for future iterations:**
+  - Use `uuid` package's `v4()` for generating UUIDs client-side when creating offline records
+  - Offline mutations need to both save locally AND queue for sync (dual-write pattern)
+  - `navigator.onLine` is the browser API for checking online status
+  - For preferences upsert, queue only the changed fields, not the full record
+  - Status fields should use `as const` assertion for type safety (e.g., `'completed' as const`)
 ---

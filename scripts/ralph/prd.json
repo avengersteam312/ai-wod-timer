@@ -447,8 +447,8 @@
         "Typecheck passes"
       ],
       "priority": 29,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Created offlineMutationService.ts with isOnline() check, queueMutation wrapper, and offline mutation functions for workouts, sessions, and preferences. Installed uuid package for client-side ID generation. All mutations save to local IndexedDB and queue for sync."
     },
     {
       "id": "US-030",
