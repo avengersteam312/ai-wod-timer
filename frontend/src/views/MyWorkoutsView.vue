@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, Dumbbell, Loader2, Star, Trash2 } from 'lucide-vue-next'
 import ProfileMenu from '@/components/ProfileMenu.vue'
+import BottomNav from '@/components/BottomNav.vue'
 import Card from '@/components/ui/Card.vue'
 import BottomSheet from '@/components/ui/BottomSheet.vue'
 import { getWorkouts, updateWorkout, deleteWorkout, type Workout } from '@/services/workoutService'
@@ -133,7 +134,7 @@ onMounted(() => {
       </header>
 
       <!-- Main Content -->
-      <main class="flex-1 flex flex-col px-4 pb-4">
+      <main class="flex-1 flex flex-col px-4 pb-20">
         <!-- Loading State -->
         <div v-if="isLoading" class="flex-1 flex items-center justify-center">
           <Loader2 class="h-8 w-8 text-muted-foreground animate-spin" />
@@ -265,5 +266,8 @@ onMounted(() => {
         </div>
       </template>
     </BottomSheet>
+
+    <!-- Bottom Navigation -->
+    <BottomNav />
   </div>
 </template>

@@ -11,6 +11,7 @@ import { useAudio } from '@/composables/useAudio'
 import { useTimer } from '@/composables/useTimer'
 import { useTimerLayout } from '@/composables/useTimerLayout'
 import ProfileMenu from '@/components/ProfileMenu.vue'
+import BottomNav from '@/components/BottomNav.vue'
 import BottomSheet from '@/components/ui/BottomSheet.vue'
 import { saveWorkout } from '@/services/workoutService'
 import {
@@ -149,7 +150,7 @@ const workoutTitle = () => {
       </header>
 
       <!-- Main Content -->
-      <main class="flex-1 p-4 md:p-8">
+      <main class="flex-1 p-4 md:p-8 pb-20">
         <!-- Mode Toggle - Centered above content -->
         <div class="flex justify-center mb-6">
           <div class="flex bg-surface rounded-full p-1">
@@ -254,7 +255,7 @@ const workoutTitle = () => {
       </Transition>
 
       <!-- Main Content -->
-      <main class="flex-1 flex flex-col px-4 pb-4 space-y-4">
+      <main class="flex-1 flex flex-col px-4 pb-20 space-y-4">
         <!-- Timer Display with Ring -->
         <TimerBlock v-if="showTimerBlock" />
 
@@ -342,5 +343,8 @@ const workoutTitle = () => {
         </div>
       </template>
     </BottomSheet>
+
+    <!-- Bottom Navigation -->
+    <BottomNav />
   </div>
 </template>

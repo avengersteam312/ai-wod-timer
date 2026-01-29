@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, History, Loader2, Clock, Trophy, Timer } from 'lucide-vue-next'
 import ProfileMenu from '@/components/ProfileMenu.vue'
+import BottomNav from '@/components/BottomNav.vue'
 import Card from '@/components/ui/Card.vue'
 import { getSessionHistory, type Session } from '@/services/sessionService'
 
@@ -124,7 +125,7 @@ onMounted(() => {
       </header>
 
       <!-- Main Content -->
-      <main class="flex-1 flex flex-col px-4 pb-4">
+      <main class="flex-1 flex flex-col px-4 pb-20">
         <!-- Loading State -->
         <div v-if="isLoading" class="flex-1 flex items-center justify-center">
           <Loader2 class="h-8 w-8 text-muted-foreground animate-spin" />
@@ -235,5 +236,8 @@ onMounted(() => {
         </div>
       </main>
     </div>
+
+    <!-- Bottom Navigation -->
+    <BottomNav />
   </div>
 </template>
