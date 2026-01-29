@@ -407,3 +407,22 @@ Started: Wed Jan 28 13:26:12 MST 2026
   - For 1:1 tables (user_id is PK), upsert is cleaner than checking existence first
   - Define DEFAULT_PREFERENCES constant matching DB defaults for consistency between code and database
 ---
+
+## 2026-01-28 - US-023
+- What was implemented:
+  - Added Save Workout functionality to TimerView.vue
+  - Save button (Save icon from lucide-vue-next) appears in timer header when authenticated and workout not yet saved
+  - BottomSheet modal for entering workout name with default generated name (WORKOUT_TYPE - Month Day format)
+  - Uses workoutService.saveWorkout to persist to Supabase
+  - Success toast notification with auto-dismiss after 3 seconds
+  - Saved indicator (Check icon in timer-complete color) replaces save button after successful save
+  - State resets when user navigates back to create new workout
+- Files changed:
+  - frontend/src/views/TimerView.vue (added save button, modal, toast, saved indicator)
+- **Learnings for future iterations:**
+  - Use existing BottomSheet component for mobile-friendly modals
+  - Use lucide-vue-next icons consistently (Save, Check)
+  - Generate sensible default names to reduce user friction (WORKOUT_TYPE - date)
+  - Use Transition component for toast animations
+  - Reset save state in handleBack to allow saving new workouts
+---
