@@ -7,6 +7,11 @@
  */
 import { supabase } from '@/config/supabase'
 import type { ParsedWorkout } from '@/types/workout'
+import type {
+  Workout,
+  WorkoutInsert,
+  WorkoutUpdate
+} from '@/types/supabase'
 import { isOnline } from '@/services/syncService'
 import {
   createWorkoutOffline,
@@ -18,38 +23,13 @@ import {
   getLocalWorkout
 } from '@/services/offlineDb'
 
-/**
- * Workout record as stored in Supabase
- */
-export interface Workout {
-  id: string
-  user_id: string
-  name: string
-  raw_input: string | null
-  parsed_config: ParsedWorkout
-  is_favorite: boolean
-  created_at: string
-  updated_at: string
-}
+// Re-export types for consumers of this service
+export type { Workout, WorkoutInsert, WorkoutUpdate }
 
 /**
- * Data required to insert a new workout
+ * Partial update type for workout (only name and is_favorite can be updated via this service)
  */
-interface WorkoutInsert {
-  user_id: string
-  name: string
-  raw_input: string | null
-  parsed_config: ParsedWorkout
-  is_favorite?: boolean
-}
-
-/**
- * Data that can be updated on an existing workout
- */
-interface WorkoutUpdate {
-  name?: string
-  is_favorite?: boolean
-}
+type WorkoutPartialUpdate = Pick<WorkoutUpdate, 'name' | 'is_favorite'>
 
 /**
  * Result of a save operation, includes whether it was saved offline
@@ -190,7 +170,7 @@ export async function getWorkouts(): Promise<Workout[]> {
  * @returns The updated workout record and whether it was updated offline
  * @throws Error if not found, not owned by user, or update fails
  */
-export async function updateWorkout(id: string, updates: WorkoutUpdate): Promise<{ workout: Workout; updatedOffline: boolean }> {
+export async function updateWorkout(id: string, updates: WorkoutPartialUpdate): Promise<{ workout: Workout; updatedOffline: boolean }> {
   // If offline, update locally and queue for sync
   if (!isOnline()) {
     await updateWorkoutOffline(id, updates)

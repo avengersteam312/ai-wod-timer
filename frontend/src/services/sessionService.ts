@@ -6,35 +6,21 @@
  */
 import { supabase } from '@/config/supabase'
 import type { ParsedWorkout } from '@/types/workout'
+import type {
+  WorkoutSession,
+  WorkoutSessionInsert,
+  SessionStatus
+} from '@/types/supabase'
+
+// Re-export types for consumers of this service
+// Use 'Session' as alias for backward compatibility
+export type Session = WorkoutSession
+export type { SessionStatus }
 
 /**
- * Session status values
+ * Data required to insert a new session via this service
  */
-export type SessionStatus = 'in_progress' | 'completed' | 'abandoned'
-
-/**
- * Workout session record as stored in Supabase
- */
-export interface Session {
-  id: string
-  user_id: string
-  workout_id: string | null
-  workout_snapshot: ParsedWorkout
-  started_at: string
-  completed_at: string | null
-  duration_seconds: number | null
-  status: SessionStatus
-}
-
-/**
- * Data required to insert a new session
- */
-interface SessionInsert {
-  user_id: string
-  workout_id: string | null
-  workout_snapshot: ParsedWorkout
-  status: SessionStatus
-}
+type SessionInsertData = Pick<WorkoutSessionInsert, 'user_id' | 'workout_id' | 'workout_snapshot' | 'status'>
 
 /**
  * Start a new workout session
@@ -55,7 +41,7 @@ export async function startSession(
     throw new Error('You must be logged in to start a session')
   }
 
-  const sessionData: SessionInsert = {
+  const sessionData: SessionInsertData = {
     user_id: user.id,
     workout_id: workoutId ?? null,
     workout_snapshot: workout,

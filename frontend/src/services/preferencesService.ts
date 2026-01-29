@@ -5,30 +5,15 @@
  * Preferences store user settings like audio preferences, theme, and timer defaults.
  */
 import { supabase } from '@/config/supabase'
+import type {
+  UserPreferences,
+  UserPreferencesUpdate
+} from '@/types/supabase'
 
-/**
- * User preferences record as stored in Supabase
- */
-export interface Preferences {
-  user_id: string
-  audio_enabled: boolean
-  voice_type: string
-  theme: string
-  default_rest_seconds: number
-  countdown_seconds: number
-  updated_at: string
-}
-
-/**
- * Fields that can be updated on preferences
- */
-export interface PreferencesUpdate {
-  audio_enabled?: boolean
-  voice_type?: string
-  theme?: string
-  default_rest_seconds?: number
-  countdown_seconds?: number
-}
+// Re-export types for consumers of this service
+// Use 'Preferences' as alias for backward compatibility
+export type Preferences = UserPreferences
+export type PreferencesUpdate = Omit<UserPreferencesUpdate, 'user_id' | 'updated_at'>
 
 /**
  * Default preference values matching database defaults
