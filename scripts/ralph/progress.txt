@@ -19,6 +19,7 @@ Started: Wed Jan 28 13:26:12 MST 2026
 - Local tables mirror Supabase schema: workouts, sessions, preferences, syncQueue
 - Offline mutations use dual-write: save to IndexedDB AND queue for sync in `offlineMutationService.ts`
 - Use `isOnline()` from offlineMutationService to check `navigator.onLine` status
+- Supabase Realtime: use `subscribeToAll(userId)`/`unsubscribeFromAll()` from `realtimeService.ts` for multi-device sync
 
 ---
 
@@ -589,4 +590,24 @@ Started: Wed Jan 28 13:26:12 MST 2026
   - Use `maybeSingle()` for optional single-row queries (no error if not found)
   - Process queue entries individually so one failure doesn't block others
   - Track sync status (idle/syncing/error/offline) for UI feedback
+---
+
+## 2026-01-28 - US-031
+- What was implemented:
+  - Created `src/services/realtimeService.ts` for Supabase Realtime subscriptions
+  - Subscribes to `workouts` table changes filtered by user_id using postgres_changes
+  - Subscribes to `user_preferences` table changes filtered by user_id
+  - Handles all event types: INSERT, UPDATE, DELETE
+  - Updates local IndexedDB when remote changes detected (saveLocalWorkout, deleteLocalWorkout, saveLocalPreferences)
+  - Provides `subscribeToAll(userId)` and `unsubscribeFromAll()` for easy lifecycle management
+  - Provides `onRealtimeEvent` callback for UI updates when remote changes arrive
+  - Logs subscription status for debugging
+- Files changed:
+  - frontend/src/services/realtimeService.ts (new file)
+- **Learnings for future iterations:**
+  - Supabase Realtime uses `supabase.channel(name).on('postgres_changes', {...}).subscribe()`
+  - Use `filter: 'user_id=eq.${userId}'` to filter changes for the current user
+  - RealtimePostgresChangesPayload provides eventType, new (INSERT/UPDATE), old (DELETE)
+  - Use `supabase.removeChannel(channel)` to unsubscribe from a channel
+  - Channel status callback receives status ('SUBSCRIBED', 'CHANNEL_ERROR') and optional error
 ---
