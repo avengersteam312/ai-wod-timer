@@ -4,6 +4,7 @@ import TimerView from '@/views/TimerView.vue'
 import LoginView from '@/views/LoginView.vue'
 import ForgotPasswordView from '@/views/ForgotPasswordView.vue'
 import MyWorkoutsView from '@/views/MyWorkoutsView.vue'
+import HistoryView from '@/views/HistoryView.vue'
 import { useSupabaseAuthStore } from '@/stores/supabaseAuthStore'
 
 const router = createRouter({
@@ -31,6 +32,12 @@ const router = createRouter({
       path: '/workouts',
       name: 'workouts',
       component: MyWorkoutsView,
+      meta: { requiresAuth: true }, // Requires authentication
+    },
+    {
+      path: '/history',
+      name: 'history',
+      component: HistoryView,
       meta: { requiresAuth: true }, // Requires authentication
     },
   ],

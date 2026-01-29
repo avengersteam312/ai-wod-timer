@@ -464,3 +464,22 @@ Started: Wed Jan 28 13:26:12 MST 2026
   - BottomSheet with #actions slot is good for confirmation dialogs
   - Use shrink-0 on action buttons to prevent them from shrinking in flex layouts
 ---
+
+## 2026-01-28 - US-026
+- What was implemented:
+  - Created `src/views/HistoryView.vue` for displaying workout session history
+  - Fetches sessions using `getSessionHistory()` from sessionService
+  - Stats cards showing: total completed workouts count, total time formatted as hours/minutes
+  - Session list showing: workout name (from snapshot), date, time, duration, workout type badge
+  - Status badges for completed (green), abandoned (red), in_progress (blue) sessions
+  - Loading state with spinner, error state with retry, empty state with helpful message
+  - Added `/history` route with `requiresAuth: true` meta
+- Files changed:
+  - frontend/src/views/HistoryView.vue (new file)
+  - frontend/src/router/index.ts (added /history route and HistoryView import)
+- **Learnings for future iterations:**
+  - Session's workout_snapshot contains the ParsedWorkout, use `session.workout_snapshot.name` for display
+  - Filter sessions by status for stats (only count 'completed' for totals)
+  - Use Trophy icon for achievements/counts, Timer icon for time-related stats
+  - Status badges with semantic colors: timer-complete for success, destructive for errors
+---

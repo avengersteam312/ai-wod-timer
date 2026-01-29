@@ -402,8 +402,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 26,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Created HistoryView.vue with stats cards (total workouts, total time) and session list. Sessions show workout name from snapshot, date/time, duration, workout type, and status badge (completed/abandoned/in_progress). Uses getSessionHistory() from sessionService."
     },
     {
       "id": "US-027",
