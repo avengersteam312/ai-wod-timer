@@ -321,8 +321,8 @@
         "Typecheck passes"
       ],
       "priority": 21,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added abandonSession() which sets status to 'abandoned' and completed_at timestamp. Added getSessionHistory(limit=50) with started_at desc ordering. Both use RLS for security. workout_snapshot is included via select('*')."
     },
     {
       "id": "US-022",

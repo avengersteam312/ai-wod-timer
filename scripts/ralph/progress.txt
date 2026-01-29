@@ -376,3 +376,17 @@ Started: Wed Jan 28 13:26:12 MST 2026
   - workout_snapshot stores full ParsedWorkout for historical reference (even if original workout deleted)
   - Use `new Date().toISOString()` for timestamp columns (Supabase auto-converts to TIMESTAMPTZ)
 ---
+
+## 2026-01-28 - US-021
+- What was implemented:
+  - Added `abandonSession(sessionId): Promise<void>` - sets status to 'abandoned' and completed_at timestamp
+  - Added `getSessionHistory(limit = 50): Promise<Session[]>` - returns sessions sorted by started_at desc
+  - Both functions use RLS automatically (user can only access own sessions)
+  - getSessionHistory includes full workout_snapshot via `select('*')` for display purposes
+- Files changed:
+  - frontend/src/services/sessionService.ts (added 2 functions)
+- **Learnings for future iterations:**
+  - abandonSession sets completed_at to record when session was abandoned (useful for analytics)
+  - getSessionHistory uses `(data ?? [])` fallback pattern for null-safe returns
+  - Unlike completeSession, abandonSession doesn't need to return the session (void is sufficient)
+---
