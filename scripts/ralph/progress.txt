@@ -483,3 +483,24 @@ Started: Wed Jan 28 13:26:12 MST 2026
   - Use Trophy icon for achievements/counts, Timer icon for time-related stats
   - Status badges with semantic colors: timer-complete for success, destructive for errors
 ---
+
+## 2026-01-28 - US-027
+- What was implemented:
+  - Created `src/components/BottomNav.vue` - fixed bottom navigation bar
+  - Navigation links: Timer (/), Workouts (/workouts), History (/history)
+  - Uses lucide-vue-next icons: Timer, Dumbbell, History
+  - Active page highlighted with primary color (both icon and label)
+  - Mobile-friendly with safe-area-inset-bottom padding for iOS
+  - Added BottomNav to all authenticated views: TimerView, MyWorkoutsView, HistoryView
+  - Added bottom padding (pb-20) to main content areas to prevent overlap with nav bar
+- Files changed:
+  - frontend/src/components/BottomNav.vue (new file)
+  - frontend/src/views/TimerView.vue (added import and component, updated padding)
+  - frontend/src/views/MyWorkoutsView.vue (added import and component, updated padding)
+  - frontend/src/views/HistoryView.vue (added import and component, updated padding)
+- **Learnings for future iterations:**
+  - Use `fixed bottom-0` for bottom navigation that stays visible during scroll
+  - Use `env(safe-area-inset-bottom)` for iOS home indicator padding
+  - Add sufficient bottom padding (pb-20) to main content to prevent overlap with fixed nav
+  - Use `aria-current="page"` for accessibility on active nav items
+---
