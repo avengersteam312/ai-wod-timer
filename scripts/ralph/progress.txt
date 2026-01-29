@@ -560,3 +560,33 @@ Started: Wed Jan 28 13:26:12 MST 2026
   - For preferences upsert, queue only the changed fields, not the full record
   - Status fields should use `as const` assertion for type safety (e.g., `'completed' as const`)
 ---
+
+## 2026-01-28 - US-030
+- What was implemented:
+  - Created `src/services/syncService.ts` for synchronization between IndexedDB and Supabase
+  - Online/offline detection with event listeners:
+    - `initSyncService()` - sets up window 'online'/'offline' event listeners
+    - `cleanupSyncService()` - removes event listeners on logout/unmount
+    - Auto-sync triggered when coming online
+  - Process sync queue:
+    - `processSyncQueue()` - iterates queue entries and applies to Supabase
+    - Separate handlers for workouts, sessions, preferences tables
+    - Each entry removed from queue after successful sync
+  - Server-wins conflict resolution:
+    - For inserts: check if record exists, skip if already exists on server
+    - For updates: apply the update (server version takes precedence on next pull)
+    - For preferences: use upsert with onConflict
+  - Additional sync functions:
+    - `pullFromServer(userId)` - fetch all user data and update local storage
+    - `fullSync(userId)` - push pending changes then pull from server
+    - `getPendingSyncCount()` / `hasPendingSync()` - check queue status
+  - Sync status events for UI feedback via `onSyncStatusChange` callback
+- Files changed:
+  - frontend/src/services/syncService.ts (new file)
+- **Learnings for future iterations:**
+  - Use `window.addEventListener('online'/'offline')` for network status detection
+  - Server-wins strategy: check before insert, let server overwrite on pull
+  - Use `maybeSingle()` for optional single-row queries (no error if not found)
+  - Process queue entries individually so one failure doesn't block others
+  - Track sync status (idle/syncing/error/offline) for UI feedback
+---

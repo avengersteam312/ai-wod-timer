@@ -463,8 +463,8 @@
         "Typecheck passes"
       ],
       "priority": 30,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Created syncService.ts with online/offline event listeners (initSyncService, cleanupSyncService), processSyncQueue to apply pending mutations to Supabase, server-wins conflict resolution (check before insert, apply updates), and queue item removal after successful sync. Also includes pullFromServer and fullSync for bidirectional sync."
     },
     {
       "id": "US-031",
