@@ -426,3 +426,23 @@ Started: Wed Jan 28 13:26:12 MST 2026
   - Use Transition component for toast animations
   - Reset save state in handleBack to allow saving new workouts
 ---
+
+## 2026-01-28 - US-024
+- What was implemented:
+  - Created `src/views/MyWorkoutsView.vue` for listing saved workouts
+  - Fetches workouts using `getWorkouts()` from workoutService
+  - Displays workout name, created date, and workout type badge (e.g., AMRAP, EMOM)
+  - Loading state with spinner animation
+  - Error state with retry button
+  - Empty state with icon, helpful message, and "Create a Workout" button
+  - Added `/workouts` route with `requiresAuth: true` meta
+  - Uses existing Card component for consistent styling
+- Files changed:
+  - frontend/src/views/MyWorkoutsView.vue (new file)
+  - frontend/src/router/index.ts (added /workouts route and MyWorkoutsView import)
+- **Learnings for future iterations:**
+  - Use Loader2 from lucide-vue-next with animate-spin for loading spinners
+  - Dumbbell icon is good for workout-related empty states
+  - truncate class helps with long workout names in cards
+  - Include workout type badge to help users identify workout types at a glance
+---
