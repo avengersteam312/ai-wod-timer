@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { ArrowLeft, Dumbbell, Loader2, Star, Trash2 } from 'lucide-vue-next'
 import ProfileMenu from '@/components/ProfileMenu.vue'
 import BottomNav from '@/components/BottomNav.vue'
+import OfflineIndicator from '@/components/OfflineIndicator.vue'
 import Card from '@/components/ui/Card.vue'
 import BottomSheet from '@/components/ui/BottomSheet.vue'
 import { getWorkouts, updateWorkout, deleteWorkout, type Workout } from '@/services/workoutService'
@@ -63,11 +64,11 @@ const handleToggleFavorite = async (workout: Workout, event: Event) => {
 
   favoriteLoading.value = workout.id
   try {
-    const updated = await updateWorkout(workout.id, { is_favorite: !workout.is_favorite })
+    const result = await updateWorkout(workout.id, { is_favorite: !workout.is_favorite })
     // Update local state
     const index = workouts.value.findIndex(w => w.id === workout.id)
     if (index !== -1) {
-      workouts.value[index] = updated
+      workouts.value[index] = result.workout
     }
   } catch (err) {
     // Silently fail - user can retry
@@ -126,9 +127,12 @@ onMounted(() => {
           <ArrowLeft class="h-6 w-6" />
         </button>
 
-        <h1 class="text-base font-semibold text-foreground font-athletic">
-          My Workouts
-        </h1>
+        <div class="flex items-center gap-2">
+          <h1 class="text-base font-semibold text-foreground font-athletic">
+            My Workouts
+          </h1>
+          <OfflineIndicator />
+        </div>
 
         <ProfileMenu />
       </header>

@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { ArrowLeft, History, Loader2, Clock, Trophy, Timer } from 'lucide-vue-next'
 import ProfileMenu from '@/components/ProfileMenu.vue'
 import BottomNav from '@/components/BottomNav.vue'
+import OfflineIndicator from '@/components/OfflineIndicator.vue'
 import Card from '@/components/ui/Card.vue'
 import { getSessionHistory, type Session } from '@/services/sessionService'
 
@@ -117,9 +118,12 @@ onMounted(() => {
           <ArrowLeft class="h-6 w-6" />
         </button>
 
-        <h1 class="text-base font-semibold text-foreground font-athletic">
-          Workout History
-        </h1>
+        <div class="flex items-center gap-2">
+          <h1 class="text-base font-semibold text-foreground font-athletic">
+            Workout History
+          </h1>
+          <OfflineIndicator />
+        </div>
 
         <ProfileMenu />
       </header>

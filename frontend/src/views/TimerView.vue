@@ -13,6 +13,8 @@ import { useTimerLayout } from '@/composables/useTimerLayout'
 import ProfileMenu from '@/components/ProfileMenu.vue'
 import BottomNav from '@/components/BottomNav.vue'
 import BottomSheet from '@/components/ui/BottomSheet.vue'
+import OfflineIndicator from '@/components/OfflineIndicator.vue'
+import OfflineSaveToast from '@/components/OfflineSaveToast.vue'
 import { saveWorkout } from '@/services/workoutService'
 import {
   TimerBlock,
@@ -56,6 +58,7 @@ const isSaved = ref(false)
 const savedWorkoutId = ref<string | null>(null)
 const saveError = ref<string | null>(null)
 const saveSuccess = ref(false)
+const savedOffline = ref(false)
 
 // Show save button only when authenticated and workout exists
 const canSave = computed(() => authStore.isAuthenticated && currentWorkout.value && !isSaved.value)
@@ -86,9 +89,10 @@ const handleSaveWorkout = async () => {
   saveError.value = null
 
   try {
-    const saved = await saveWorkout(currentWorkout.value, workoutName.value.trim())
-    savedWorkoutId.value = saved.id
+    const result = await saveWorkout(currentWorkout.value, workoutName.value.trim())
+    savedWorkoutId.value = result.workout.id
     isSaved.value = true
+    savedOffline.value = result.savedOffline
     saveSuccess.value = true
     showSaveModal.value = false
 
@@ -127,6 +131,7 @@ const handleBack = () => {
   isSaved.value = false
   savedWorkoutId.value = null
   saveSuccess.value = false
+  savedOffline.value = false
 }
 
 // Workout title for header
@@ -146,7 +151,10 @@ const workoutTitle = () => {
         <h1 class="text-sm font-semibold text-foreground font-athletic">
           AI Workout Timer
         </h1>
-        <ProfileMenu />
+        <div class="flex items-center gap-2">
+          <OfflineIndicator />
+          <ProfileMenu />
+        </div>
       </header>
 
       <!-- Main Content -->
@@ -203,9 +211,12 @@ const workoutTitle = () => {
           <ArrowLeft class="h-6 w-6" />
         </button>
 
-        <h1 class="text-base font-semibold text-foreground font-athletic">
-          {{ workoutTitle() }}
-        </h1>
+        <div class="flex items-center gap-2">
+          <h1 class="text-base font-semibold text-foreground font-athletic">
+            {{ workoutTitle() }}
+          </h1>
+          <OfflineIndicator />
+        </div>
 
         <div class="flex items-center gap-1">
           <!-- Save Workout Button -->
@@ -237,7 +248,10 @@ const workoutTitle = () => {
         </div>
       </header>
 
-      <!-- Save Success Toast -->
+      <!-- Offline Save Toast (shows when saved locally) -->
+      <OfflineSaveToast :show="saveSuccess && savedOffline" />
+
+      <!-- Online Save Success Toast -->
       <Transition
         enter-active-class="transition ease-out duration-200"
         enter-from-class="opacity-0 -translate-y-2"
@@ -247,7 +261,7 @@ const workoutTitle = () => {
         leave-to-class="opacity-0 -translate-y-2"
       >
         <div
-          v-if="saveSuccess"
+          v-if="saveSuccess && !savedOffline"
           class="mx-4 mb-2 px-4 py-2 bg-timer-complete/20 border border-timer-complete/30 text-timer-complete rounded-lg text-sm text-center"
         >
           Workout saved successfully!
