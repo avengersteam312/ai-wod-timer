@@ -361,3 +361,18 @@ Started: Wed Jan 28 13:26:12 MST 2026
   - Use `.order('column', { ascending: false })` for descending sort in Supabase
   - For list queries, use `(data ?? [])` as fallback since null is possible
 ---
+
+## 2026-01-28 - US-020
+- What was implemented:
+  - Created `src/services/sessionService.ts` for workout session tracking
+  - Defined `Session` interface with: id, user_id, workout_id, workout_snapshot, started_at, completed_at, duration_seconds, status
+  - Defined `SessionStatus` type: 'in_progress' | 'completed' | 'abandoned'
+  - Implemented `startSession(workout, workoutId?)` - creates session with status 'in_progress' and stores workout_snapshot
+  - Implemented `completeSession(sessionId, durationSeconds)` - updates status to 'completed', sets completed_at and duration
+- Files changed:
+  - frontend/src/services/sessionService.ts (new file)
+- **Learnings for future iterations:**
+  - Session workflow: startSession → (user does workout) → completeSession or abandonSession
+  - workout_snapshot stores full ParsedWorkout for historical reference (even if original workout deleted)
+  - Use `new Date().toISOString()` for timestamp columns (Supabase auto-converts to TIMESTAMPTZ)
+---
