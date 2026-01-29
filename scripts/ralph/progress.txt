@@ -20,6 +20,8 @@ Started: Wed Jan 28 13:26:12 MST 2026
 - Offline mutations use dual-write: save to IndexedDB AND queue for sync in `offlineMutationService.ts`
 - Use `isOnline()` from offlineMutationService to check `navigator.onLine` status
 - Supabase Realtime: use `subscribeToAll(userId)`/`unsubscribeFromAll()` from `realtimeService.ts` for multi-device sync
+- Database types live in `src/types/supabase.ts` - import Workout, Session, Preferences etc from there
+- Services re-export types with backward-compatible aliases (e.g., Session = WorkoutSession, Preferences = UserPreferences)
 
 ---
 
@@ -644,4 +646,31 @@ Started: Wed Jan 28 13:26:12 MST 2026
   - Service functions should return offline status alongside data so UI can show appropriate feedback
   - workoutService.getWorkouts() needs to get user before falling back to local storage (userId required)
   - OfflineIndicator uses Transition for smooth appear/disappear animations
+---
+
+## 2026-01-28 - US-033
+- What was implemented:
+  - Created `src/types/supabase.ts` with comprehensive TypeScript types following Supabase CLI format
+  - Defined `Database` type with public schema containing all tables (profiles, workouts, workout_sessions, user_preferences)
+  - Each table has Row, Insert, Update types with proper nullability and optional fields
+  - Added `session_status` enum type for workout session status values
+  - Exported helper types: Profile, Workout, WorkoutSession, UserPreferences and their Insert/Update variants
+  - Added Tables<T>, TablesInsert<T>, TablesUpdate<T>, Enums<T> generic helper types
+  - Documented type generation command in file header for future regeneration
+  - Updated workoutService.ts to import Workout, WorkoutInsert, WorkoutUpdate from supabase.ts
+  - Updated sessionService.ts to import WorkoutSession, WorkoutSessionInsert, SessionStatus from supabase.ts
+  - Updated preferencesService.ts to import UserPreferences, UserPreferencesUpdate from supabase.ts
+  - Services re-export types with backward-compatible aliases (Session, Preferences)
+- Files changed:
+  - frontend/src/types/supabase.ts (new file)
+  - frontend/src/services/workoutService.ts (updated imports to use centralized types)
+  - frontend/src/services/sessionService.ts (updated imports to use centralized types)
+  - frontend/src/services/preferencesService.ts (updated imports to use centralized types)
+- **Learnings for future iterations:**
+  - Supabase type generation: `npx supabase gen types typescript --project-id <id> > src/types/supabase.ts`
+  - For local Supabase: `npx supabase gen types typescript --local > src/types/supabase.ts`
+  - Database type structure: Database['public']['Tables'][tableName]['Row'|'Insert'|'Update']
+  - Use helper type exports (Profile, Workout, etc.) for cleaner imports in services
+  - Re-export types from services with backward-compatible aliases to avoid breaking existing consumers
+  - JSONB columns (parsed_config, workout_snapshot) can reference existing TypeScript types like ParsedWorkout
 ---
