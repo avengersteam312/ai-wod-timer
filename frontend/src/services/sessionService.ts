@@ -109,3 +109,46 @@ export async function completeSession(
 
   return data as Session
 }
+
+/**
+ * Abandon a workout session
+ *
+ * @param sessionId - The session UUID to abandon
+ * @throws Error if not found, not owned by user, or update fails
+ */
+export async function abandonSession(sessionId: string): Promise<void> {
+  const { error } = await supabase
+    .from('workout_sessions')
+    .update({
+      status: 'abandoned' as SessionStatus,
+      completed_at: new Date().toISOString()
+    })
+    .eq('id', sessionId)
+
+  if (error) {
+    console.error('Error abandoning session:', error)
+    throw new Error('Failed to abandon session. Please try again.')
+  }
+}
+
+/**
+ * Get session history for the current user
+ *
+ * @param limit - Maximum number of sessions to return (default: 50)
+ * @returns Array of sessions sorted by started_at desc, including workout_snapshot for display
+ * @throws Error if user is not authenticated or query fails
+ */
+export async function getSessionHistory(limit = 50): Promise<Session[]> {
+  const { data, error } = await supabase
+    .from('workout_sessions')
+    .select('*')
+    .order('started_at', { ascending: false })
+    .limit(limit)
+
+  if (error) {
+    console.error('Error fetching session history:', error)
+    throw new Error('Failed to load session history. Please try again.')
+  }
+
+  return (data ?? []) as Session[]
+}
