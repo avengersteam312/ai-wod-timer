@@ -446,3 +446,21 @@ Started: Wed Jan 28 13:26:12 MST 2026
   - truncate class helps with long workout names in cards
   - Include workout type badge to help users identify workout types at a glance
 ---
+
+## 2026-01-28 - US-025
+- What was implemented:
+  - Added click handler on workout cards to load workout via workoutStore.setManualWorkout and navigate to timer
+  - Added favorite toggle button with Star icon (filled yellow when favorited, muted when not)
+  - Calls updateWorkout to toggle is_favorite with local state update on success
+  - Added delete button with Trash2 icon that opens BottomSheet confirmation dialog
+  - Delete confirmation shows workout name and warning about permanent deletion
+  - Delete calls workoutService.deleteWorkout and removes workout from local list on success
+  - Used event.stopPropagation() on action buttons to prevent triggering card click
+- Files changed:
+  - frontend/src/views/MyWorkoutsView.vue (added workout actions and delete confirmation modal)
+- **Learnings for future iterations:**
+  - Use event.stopPropagation() on nested interactive elements to prevent parent click handlers
+  - Star icon with fill-current class creates a filled appearance for favorites
+  - BottomSheet with #actions slot is good for confirmation dialogs
+  - Use shrink-0 on action buttons to prevent them from shrinking in flex layouts
+---

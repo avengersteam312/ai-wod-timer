@@ -386,8 +386,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 25,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added click handler to load workout via workoutStore.setManualWorkout and navigate to timer. Star icon toggles is_favorite with optimistic UI update. Trash icon opens BottomSheet confirmation dialog before calling deleteWorkout."
     },
     {
       "id": "US-026",
