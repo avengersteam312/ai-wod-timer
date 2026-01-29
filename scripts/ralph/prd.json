@@ -292,8 +292,8 @@
         "Typecheck passes"
       ],
       "priority": 19,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added getWorkouts() with updated_at desc sorting, updateWorkout() with WorkoutUpdate interface for name/is_favorite, deleteWorkout() returning void. All use RLS for security. Note: delete returns no error if row doesn't exist (Supabase behavior with RLS)."
     },
     {
       "id": "US-020",

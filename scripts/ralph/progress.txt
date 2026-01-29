@@ -346,3 +346,18 @@ Started: Wed Jan 28 13:26:12 MST 2026
   - Use `.select().single()` after `.insert()` to get the inserted row back
   - Define Workout interface locally in service rather than in types/ since it's Supabase-specific
 ---
+
+## 2026-01-28 - US-019
+- What was implemented:
+  - Added `getWorkouts(): Promise<Workout[]>` - returns all user workouts sorted by updated_at desc
+  - Added `updateWorkout(id, updates): Promise<Workout>` - updates name and/or is_favorite fields
+  - Added `deleteWorkout(id): Promise<void>` - deletes workout by ID
+  - Created `WorkoutUpdate` interface for type-safe partial updates
+  - All functions use RLS for security (user can only access own workouts)
+- Files changed:
+  - frontend/src/services/workoutService.ts (added 3 functions + 1 interface)
+- **Learnings for future iterations:**
+  - Supabase `.delete()` returns no error if row doesn't exist with RLS (just silently does nothing)
+  - Use `.order('column', { ascending: false })` for descending sort in Supabase
+  - For list queries, use `(data ?? [])` as fallback since null is possible
+---
