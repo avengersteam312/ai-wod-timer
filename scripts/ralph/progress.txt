@@ -325,3 +325,24 @@ Started: Wed Jan 28 13:26:12 MST 2026
   - Token refresh in Supabase: use `supabase.auth.refreshSession()` which returns new session
   - Pre-existing TypeScript errors in codebase should be ignored when verifying new changes
 ---
+
+## 2026-01-28 - US-018
+- What was implemented:
+  - Created `src/services/workoutService.ts` with Workout interface and CRUD functions
+  - Implemented `saveWorkout(workout: ParsedWorkout, name: string): Promise<Workout>`
+    - Gets current user via `supabase.auth.getUser()` to set user_id
+    - Stores workout.raw_text in raw_input column
+    - Stores full ParsedWorkout object in parsed_config JSONB column
+    - Sets is_favorite to false by default
+  - Implemented `getWorkout(id: string): Promise<Workout>`
+    - Fetches by ID with `.single()` for type safety
+    - Handles PGRST116 error code (row not found) with user-friendly message
+    - RLS automatically filters out workouts not owned by user
+- Files changed:
+  - frontend/src/services/workoutService.ts (new file)
+- **Learnings for future iterations:**
+  - Use `supabase.auth.getUser()` to get current user in services (not authStore to avoid circular deps)
+  - Supabase error code `PGRST116` = row not found (also returned when RLS hides data)
+  - Use `.select().single()` after `.insert()` to get the inserted row back
+  - Define Workout interface locally in service rather than in types/ since it's Supabase-specific
+---
