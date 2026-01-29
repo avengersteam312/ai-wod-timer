@@ -390,3 +390,20 @@ Started: Wed Jan 28 13:26:12 MST 2026
   - getSessionHistory uses `(data ?? [])` fallback pattern for null-safe returns
   - Unlike completeSession, abandonSession doesn't need to return the session (void is sufficient)
 ---
+
+## 2026-01-28 - US-022
+- What was implemented:
+  - Created `src/services/preferencesService.ts` for user preferences CRUD
+  - Defined `Preferences` interface with: user_id, audio_enabled, voice_type, theme, default_rest_seconds, countdown_seconds, updated_at
+  - Defined `PreferencesUpdate` interface for partial updates
+  - Defined `DEFAULT_PREFERENCES` constant matching database defaults
+  - Implemented `getPreferences()` - fetches user preferences, auto-creates defaults if none exist (PGRST116 handling)
+  - Implemented `updatePreferences(updates)` - uses upsert to create or update preferences in a single operation
+  - Private `createDefaultPreferences(userId)` helper for creating initial preferences
+- Files changed:
+  - frontend/src/services/preferencesService.ts (new file)
+- **Learnings for future iterations:**
+  - Use upsert with `onConflict: 'primary_key_column'` for "create or update" patterns
+  - For 1:1 tables (user_id is PK), upsert is cleaner than checking existence first
+  - Define DEFAULT_PREFERENCES constant matching DB defaults for consistency between code and database
+---
