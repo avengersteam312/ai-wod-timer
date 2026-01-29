@@ -33,6 +33,14 @@ interface WorkoutInsert {
 }
 
 /**
+ * Data that can be updated on an existing workout
+ */
+interface WorkoutUpdate {
+  name?: string
+  is_favorite?: boolean
+}
+
+/**
  * Save a parsed workout to Supabase
  *
  * @param workout - The parsed workout configuration to save
@@ -94,4 +102,72 @@ export async function getWorkout(id: string): Promise<Workout> {
   }
 
   return data as Workout
+}
+
+/**
+ * Get all workouts for the current user
+ *
+ * @returns Array of workouts sorted by updated_at descending (most recent first)
+ * @throws Error if user is not authenticated or fetch fails
+ */
+export async function getWorkouts(): Promise<Workout[]> {
+  const { data, error } = await supabase
+    .from('workouts')
+    .select('*')
+    .order('updated_at', { ascending: false })
+
+  if (error) {
+    console.error('Error fetching workouts:', error)
+    throw new Error('Failed to load workouts. Please try again.')
+  }
+
+  return (data ?? []) as Workout[]
+}
+
+/**
+ * Update an existing workout
+ *
+ * @param id - The workout UUID to update
+ * @param updates - Fields to update (name and/or is_favorite)
+ * @returns The updated workout record
+ * @throws Error if not found, not owned by user, or update fails
+ */
+export async function updateWorkout(id: string, updates: WorkoutUpdate): Promise<Workout> {
+  const { data, error } = await supabase
+    .from('workouts')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) {
+    if (error.code === 'PGRST116') {
+      throw new Error('Workout not found')
+    }
+    console.error('Error updating workout:', error)
+    throw new Error('Failed to update workout. Please try again.')
+  }
+
+  return data as Workout
+}
+
+/**
+ * Delete a workout by ID
+ *
+ * @param id - The workout UUID to delete
+ * @throws Error if not found, not owned by user, or delete fails
+ */
+export async function deleteWorkout(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('workouts')
+    .delete()
+    .eq('id', id)
+
+  if (error) {
+    if (error.code === 'PGRST116') {
+      throw new Error('Workout not found')
+    }
+    console.error('Error deleting workout:', error)
+    throw new Error('Failed to delete workout. Please try again.')
+  }
 }
