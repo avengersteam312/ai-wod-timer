@@ -15,6 +15,8 @@ Started: Wed Jan 28 13:26:12 MST 2026
 - Supabase auth store uses `loading` property (not `isLoading`)
 - For API auth, get token from `authStore.session.access_token`
 - Supabase auth methods return `{ success, error }` objects - use result-based error handling
+- Offline storage uses Dexie (IndexedDB wrapper) in `src/services/offlineDb.ts` - database name: `ai-wod-timer-offline`
+- Local tables mirror Supabase schema: workouts, sessions, preferences, syncQueue
 
 ---
 
@@ -503,4 +505,33 @@ Started: Wed Jan 28 13:26:12 MST 2026
   - Use `env(safe-area-inset-bottom)` for iOS home indicator padding
   - Add sufficient bottom padding (pb-20) to main content to prevent overlap with fixed nav
   - Use `aria-current="page"` for accessibility on active nav items
+---
+
+## 2026-01-28 - US-028
+- What was implemented:
+  - Installed `dexie` package (IndexedDB wrapper library)
+  - Created `src/services/offlineDb.ts` with Dexie database class
+  - Database name: `ai-wod-timer-offline`
+  - Defined four local tables mirroring Supabase schema:
+    - `workouts`: id, user_id, updated_at, is_favorite indexes
+    - `sessions`: id, user_id, started_at, status indexes
+    - `preferences`: user_id as primary key (1:1 with user)
+    - `syncQueue`: auto-increment id, table and created_at indexes
+  - Created full CRUD methods for each table:
+    - Workouts: save, get, getAll, update, delete, bulkSave, clear
+    - Sessions: save, get, getHistory, update, delete, bulkSave, clear
+    - Preferences: save, get, update, delete
+    - SyncQueue: add, getAll, remove, clear, getCount
+  - Added utility functions: clearAllLocalData, isDatabaseReady
+  - Exported TypeScript interfaces matching Supabase types
+- Files changed:
+  - frontend/package.json (added dexie dependency)
+  - frontend/package-lock.json (updated)
+  - frontend/src/services/offlineDb.ts (new file)
+- **Learnings for future iterations:**
+  - Dexie uses string schema syntax: `'id, user_id, updated_at'` for indexes
+  - Use `++id` for auto-increment primary keys
+  - Use `.put()` for upsert, `.add()` for insert-only
+  - Chain `.reverse().sortBy('field')` for descending order
+  - Dexie Table generic types: `Table<RecordType, PrimaryKeyType>`
 ---
