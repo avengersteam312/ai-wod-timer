@@ -611,3 +611,37 @@ Started: Wed Jan 28 13:26:12 MST 2026
   - Use `supabase.removeChannel(channel)` to unsubscribe from a channel
   - Channel status callback receives status ('SUBSCRIBED', 'CHANNEL_ERROR') and optional error
 ---
+
+## 2026-01-28 - US-032
+- What was implemented:
+  - Created `src/composables/useOfflineStatus.ts` for reactive online/offline and sync status
+  - Integrates with syncService to track sync status (idle, syncing, error, offline)
+  - Tracks pending sync queue items for UI indicator
+  - Created `src/components/OfflineIndicator.vue` component showing status in headers
+    - Shows "Offline" with WifiOff icon (amber) when disconnected
+    - Shows "Syncing..." with animated RefreshCw icon (blue) during sync
+    - Shows "Sync failed" with AlertCircle icon (red) on errors
+    - Shows "Pending changes" with CloudOff icon (muted) when queue has items
+  - Created `src/components/OfflineSaveToast.vue` for "Saved locally" confirmation
+  - Updated `workoutService.ts` for offline-first support:
+    - saveWorkout returns `{ workout, savedOffline }` to indicate offline save
+    - getWorkouts falls back to local storage when offline or on error
+    - updateWorkout returns `{ workout, updatedOffline }` for offline updates
+    - deleteWorkout returns `{ deletedOffline }` for offline deletes
+  - Added OfflineIndicator to TimerView, MyWorkoutsView, HistoryView headers
+  - Updated TimerView to show OfflineSaveToast when saving offline
+- Files changed:
+  - frontend/src/composables/useOfflineStatus.ts (new file)
+  - frontend/src/components/OfflineIndicator.vue (new file)
+  - frontend/src/components/OfflineSaveToast.vue (new file)
+  - frontend/src/services/workoutService.ts (added offline support)
+  - frontend/src/views/TimerView.vue (added offline indicator and save toast)
+  - frontend/src/views/MyWorkoutsView.vue (added offline indicator)
+  - frontend/src/views/HistoryView.vue (added offline indicator)
+- **Learnings for future iterations:**
+  - Use composables to encapsulate reactive online/offline state across components
+  - useOfflineStatus initializes syncService and subscribes to status changes in onMounted
+  - Service functions should return offline status alongside data so UI can show appropriate feedback
+  - workoutService.getWorkouts() needs to get user before falling back to local storage (userId required)
+  - OfflineIndicator uses Transition for smooth appear/disappear animations
+---
