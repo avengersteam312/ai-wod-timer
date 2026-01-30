@@ -11,8 +11,12 @@ RUN npm install
 # Copy source code
 COPY . .
 
+# Make entrypoint executable
+RUN chmod +x docker-entrypoint.sh
+
 # Expose port
 EXPOSE 5173
 
-# Run dev server
+# Sync packages on startup, then run dev server
+ENTRYPOINT ["./docker-entrypoint.sh"]
 CMD ["npm", "run", "dev", "--", "--host"]
