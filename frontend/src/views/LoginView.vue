@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/authStore'
+import { useSupabaseAuthStore } from '@/stores/supabaseAuthStore'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
-import { getAuthErrorMessage } from '@/utils/authErrors'
 import { validateCredentials, validateEmail } from '@/utils/validation'
 import { Eye, EyeOff } from 'lucide-vue-next'
 
@@ -12,7 +11,7 @@ const router = useRouter()
 
 // Reference icons for TypeScript
 void [Eye, EyeOff]
-const authStore = useAuthStore()
+const authStore = useSupabaseAuthStore()
 
 const email = ref('')
 const password = ref('')
@@ -26,21 +25,24 @@ const showPasswordReset = ref(false) // Show password reset form
 const resetEmail = ref('') // Email for password reset
 const resetEmailError = ref<string | null>(null)
 const resetSuccess = ref(false) // Success message for password reset
+const signUpSuccess = ref(false) // Success message for email confirmation after signup
 
 const handleGoogleSignIn = async () => {
   isLoading.value = true
   error.value = null
 
-  try {
-    await authStore.loginWithGoogle()
-    // Redirect to the original destination or timer view
-    const redirect = router.currentRoute.value.query.redirect as string
-    router.push(redirect || '/')
-  } catch (err) {
-    error.value = getAuthErrorMessage(err)
-  } finally {
+  const result = await authStore.signInWithGoogle()
+
+  if (!result.success) {
+    error.value = result.error
     isLoading.value = false
+    return
   }
+
+  // Note: For OAuth, redirect is handled by Supabase.
+  // The actual auth completion is handled by onAuthStateChange
+  // which will redirect the user via the router guard.
+  isLoading.value = false
 }
 
 const handleSubmit = async () => {
@@ -51,7 +53,7 @@ const handleSubmit = async () => {
 
   // Validate credentials before submission
   const validation = validateCredentials(email.value, password.value, !isLogin.value)
-  
+
   if (!validation.isValid) {
     // Set field-specific errors
     if (validation.errors.email) {
@@ -70,21 +72,37 @@ const handleSubmit = async () => {
   isLoading.value = true
   error.value = null
 
-  try {
-    if (isLogin.value) {
-      await authStore.login(email.value, password.value)
-    } else {
-      await authStore.register(email.value, password.value)
+  if (isLogin.value) {
+    const result = await authStore.signIn(email.value, password.value)
+
+    if (!result.success) {
+      error.value = result.error
+      isLoading.value = false
+      return
     }
-    
-    // Redirect to the original destination or timer view
-    const redirect = router.currentRoute.value.query.redirect as string
-    router.push(redirect || '/')
-  } catch (err) {
-    error.value = getAuthErrorMessage(err)
-  } finally {
-    isLoading.value = false
+  } else {
+    const result = await authStore.signUp(email.value, password.value)
+
+    if (!result.success) {
+      error.value = result.error
+      isLoading.value = false
+      return
+    }
+
+    // Handle email confirmation requirement
+    if (result.requiresEmailConfirmation) {
+      error.value = null
+      isLoading.value = false
+      // Show success message for email confirmation
+      signUpSuccess.value = true
+      return
+    }
   }
+
+  isLoading.value = false
+  // Redirect to the original destination or timer view
+  const redirect = router.currentRoute.value.query.redirect as string
+  router.push(redirect || '/')
 }
 
 const toggleMode = () => {
@@ -94,13 +112,12 @@ const toggleMode = () => {
   passwordError.value = null
   showPasswordReset.value = false
   resetSuccess.value = false
+  signUpSuccess.value = false
 }
 
 const handleForgotPassword = () => {
-  showPasswordReset.value = true
-  resetEmail.value = email.value // Pre-fill with current email if available
-  error.value = null
-  resetSuccess.value = false
+  // Navigate to dedicated forgot password page
+  router.push('/forgot-password')
 }
 
 const handlePasswordReset = async () => {
@@ -119,16 +136,17 @@ const handlePasswordReset = async () => {
   error.value = null
   resetSuccess.value = false
 
-  try {
-    await authStore.sendPasswordReset(resetEmail.value)
+  const result = await authStore.resetPassword(resetEmail.value)
+
+  if (!result.success) {
+    error.value = result.error
+    resetSuccess.value = false
+  } else {
     resetSuccess.value = true
     error.value = null
-  } catch (err) {
-    error.value = getAuthErrorMessage(err)
-    resetSuccess.value = false
-  } finally {
-    isLoading.value = false
   }
+
+  isLoading.value = false
 }
 
 const backToLogin = () => {
@@ -293,9 +311,15 @@ const clearResetEmailError = () => {
             <p class="text-sm text-destructive">{{ error }}</p>
           </div>
 
+          <div v-if="signUpSuccess" class="p-3 bg-green-500/10 border border-green-500/20 rounded-md">
+            <p class="text-sm text-green-400">
+              Account created successfully! Please check your email to confirm your account before signing in.
+            </p>
+          </div>
+
           <Button
             type="submit"
-            :disabled="isLoading"
+            :disabled="isLoading || signUpSuccess"
             class="w-full text-base font-semibold py-3"
           >
             {{ isLoading ? 'Loading...' : (isLogin ? 'Log In' : 'Sign Up') }}
