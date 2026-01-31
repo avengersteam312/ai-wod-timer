@@ -78,3 +78,9 @@ scripts/ralph/prd.json
 scripts/ralph/progress.txt
 scripts/ralph/archive/
 scripts/ralph/.last-branch
+
+# Tasks
+tasks/
+
+# Supabase
+supabase/.temp/

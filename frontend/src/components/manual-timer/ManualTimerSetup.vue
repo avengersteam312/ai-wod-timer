@@ -26,9 +26,6 @@ import {
 const timerStore = useTimerStore()
 const workoutStore = useWorkoutStore()
 
-defineEmits<{
-  switchToAI: []
-}>()
 
 // Navigation state
 const step = ref<'select' | 'customize'>('select')
@@ -176,7 +173,6 @@ const handleStart = () => {
     <TimerTypeSelector
       v-if="step === 'select'"
       @select="selectType"
-      @switch-to-a-i="$emit('switchToAI')"
     />
 
     <!-- Step 2: Configure Timer -->

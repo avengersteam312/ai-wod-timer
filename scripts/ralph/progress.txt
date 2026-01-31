@@ -1,0 +1,676 @@
+# Ralph Progress Log
+Started: Wed Jan 28 13:26:12 MST 2026
+---
+
+## Codebase Patterns
+- Frontend lives in `/frontend` directory, not at project root
+- Config files live in `src/config/` (e.g., supabase.ts) - Firebase has been removed
+- Environment variables use VITE_ prefix for Vite to expose them
+- Pre-existing TypeScript errors exist in the codebase (unrelated to new changes) - ignore when checking new file typechecks
+- Supabase migrations go in `/supabase/migrations/` with format `YYYYMMDDHHMMSS_description.sql`
+- Use `handle_updated_at()` trigger function for auto-updating timestamps (created in profiles migration)
+- Pinia stores live in `src/stores/` and use composition API style (setup function with refs/computed)
+- Supabase auth types come from `@supabase/supabase-js`: User, Session, AuthError, Subscription
+- Run typecheck with `npx vue-tsc --noEmit` (no npm script for typecheck)
+- Supabase auth store uses `loading` property (not `isLoading`)
+- For API auth, get token from `authStore.session.access_token`
+- Supabase auth methods return `{ success, error }` objects - use result-based error handling
+- Offline storage uses Dexie (IndexedDB wrapper) in `src/services/offlineDb.ts` - database name: `ai-wod-timer-offline`
+- Local tables mirror Supabase schema: workouts, sessions, preferences, syncQueue
+- Offline mutations use dual-write: save to IndexedDB AND queue for sync in `offlineMutationService.ts`
+- Use `isOnline()` from offlineMutationService to check `navigator.onLine` status
+- Supabase Realtime: use `subscribeToAll(userId)`/`unsubscribeFromAll()` from `realtimeService.ts` for multi-device sync
+- Database types live in `src/types/supabase.ts` - import Workout, Session, Preferences etc from there
+- Services re-export types with backward-compatible aliases (e.g., Session = WorkoutSession, Preferences = UserPreferences)
+
+---
+
+## 2026-01-28 - US-001
+- What was implemented:
+  - Installed @supabase/supabase-js package (v2.93.2)
+  - Added VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env.example
+  - Created src/config/supabase.ts with typed client initialization
+  - Configured auth options: autoRefreshToken, persistSession, detectSessionInUrl
+- Files changed:
+  - frontend/package.json (added dependency)
+  - frontend/package-lock.json (updated)
+  - frontend/.env.example (added Supabase vars, marked Firebase as deprecated)
+  - frontend/src/config/supabase.ts (new file)
+- **Learnings for future iterations:**
+  - The codebase has pre-existing TypeScript errors that are unrelated to Supabase work
+  - Check `src/config/` for existing config patterns before creating new config files
+  - Firebase config is similar structure - can use as reference for Supabase config
+---
+
+## 2026-01-28 - US-002
+- What was implemented:
+  - Created `/supabase/migrations/` directory structure
+  - Created migration file `20260128000001_create_profiles_table.sql`
+  - Profiles table with columns: id (UUID, FK to auth.users), display_name, created_at, updated_at
+  - RLS policies for SELECT, INSERT, UPDATE - users can only access own profile
+  - `handle_updated_at()` trigger function for auto-updating timestamps
+  - `handle_new_user()` trigger function to auto-create profile on user signup
+  - Trigger on `auth.users` to auto-create profile for new signups
+- Files changed:
+  - supabase/migrations/20260128000001_create_profiles_table.sql (new file)
+- **Learnings for future iterations:**
+  - Supabase migrations use PostgreSQL SQL syntax
+  - `auth.uid()` is used in RLS policies to get current user's ID
+  - `SECURITY DEFINER` is needed for trigger functions that access auth schema
+  - Use `COALESCE` with fallback chain for display_name from user metadata (full_name, name, email prefix)
+  - Reuse `handle_updated_at()` function for other tables that need auto-updated timestamps
+---
+
+## 2026-01-28 - US-003
+- What was implemented:
+  - Created migration file `20260128000002_create_workouts_table.sql`
+  - Workouts table with columns: id (UUID), user_id (FK to auth.users), name, raw_input, parsed_config (JSONB), is_favorite, created_at, updated_at
+  - Indexes on user_id, updated_at, and partial index on is_favorite for filtering favorites
+  - RLS policies for SELECT, INSERT, UPDATE, DELETE - users can only access own workouts
+  - Reused `handle_updated_at()` trigger from profiles migration
+- Files changed:
+  - supabase/migrations/20260128000002_create_workouts_table.sql (new file)
+- **Learnings for future iterations:**
+  - RLS policies need all four operations (SELECT, INSERT, UPDATE, DELETE) for full CRUD
+  - Partial indexes (e.g., `WHERE is_favorite = TRUE`) are useful for filtered queries
+  - Use `gen_random_uuid()` for auto-generating UUIDs for primary keys
+---
+
+## 2026-01-28 - US-004
+- What was implemented:
+  - Created migration file `20260128000003_create_workout_sessions_table.sql`
+  - workout_sessions table with columns: id (UUID), user_id (FK), workout_id (nullable FK to workouts), workout_snapshot (JSONB), started_at, completed_at, duration_seconds, status
+  - CHECK constraint on status: only 'in_progress', 'completed', 'abandoned' allowed
+  - Indexes on user_id, started_at (for history sorting), and composite index on user_id + status
+  - RLS policies for SELECT, INSERT, UPDATE, DELETE - users can only access own sessions
+  - Used ON DELETE SET NULL for workout_id FK (workout can be deleted but session history preserved)
+- Files changed:
+  - supabase/migrations/20260128000003_create_workout_sessions_table.sql (new file)
+- **Learnings for future iterations:**
+  - Use CHECK constraints for enum-like status columns in PostgreSQL
+  - ON DELETE SET NULL preserves child records when parent is deleted (useful for history)
+  - Sessions don't need updated_at trigger since they're mostly immutable after creation
+---
+
+## 2026-01-28 - US-005
+- What was implemented:
+  - Created migration file `20260128000004_create_user_preferences_table.sql`
+  - user_preferences table with columns: user_id (PK, FK to auth.users), audio_enabled, voice_type, theme, default_rest_seconds, countdown_seconds, updated_at
+  - user_id is PK (one preferences row per user) with ON DELETE CASCADE
+  - RLS policies for SELECT, INSERT, UPDATE, DELETE - users can only access own preferences
+  - Reused `handle_updated_at()` trigger from profiles migration
+- Files changed:
+  - supabase/migrations/20260128000004_create_user_preferences_table.sql (new file)
+- **Learnings for future iterations:**
+  - For 1:1 relationships, use FK as PK (user_id as both PK and FK) instead of separate id column
+  - ON DELETE CASCADE is appropriate for preferences since they should be deleted when user is deleted
+---
+
+## 2026-01-28 - US-006
+- What was implemented:
+  - Created `src/stores/supabaseAuthStore.ts` - a new Pinia store for Supabase auth
+  - Defined core state: user, session, loading, error (as reactive refs)
+  - Used TypeScript types from `@supabase/supabase-js`: User, Session, AuthError
+  - Added computed properties: isAuthenticated, userEmail, userId, userDisplayName
+  - Added internal state setters: setAuth, setLoading, setError, clearError, clearAuth
+  - Exported store as `useSupabaseAuthStore`
+- Files changed:
+  - frontend/src/stores/supabaseAuthStore.ts (new file)
+- **Learnings for future iterations:**
+  - Supabase JS SDK provides User, Session, AuthError types - no need to define custom interfaces
+  - Use nullish coalescing (??) instead of || for default values (handles empty strings correctly)
+  - userDisplayName can be derived from user_metadata (full_name, name) or email prefix
+---
+
+## 2026-01-28 - US-007
+- What was implemented:
+  - Added `signUp(email, password)` method to supabaseAuthStore
+  - Method calls `supabase.auth.signUp` to create new users
+  - Returns success flag, requiresEmailConfirmation flag, and user-friendly error message
+  - Handles email confirmation flow: detects when session is null but user exists
+  - Maps Supabase errors to user-friendly messages:
+    - "already registered" → "An account with this email already exists"
+    - "valid email" → "Please enter a valid email address"
+    - Password too short → "Password must be at least 6 characters long"
+  - Stores user in Pinia state on success (when email confirmation not required)
+- Files changed:
+  - frontend/src/stores/supabaseAuthStore.ts (added signUp method)
+- **Learnings for future iterations:**
+  - supabase.auth.signUp returns { data: { user, session }, error }
+  - If email confirmation is required, session will be null but user will exist
+  - Error messages from Supabase can be mapped to user-friendly versions by checking includes() on message
+---
+
+## 2026-01-28 - US-008
+- What was implemented:
+  - Added `signIn(email, password)` method to supabaseAuthStore
+  - Method calls `supabase.auth.signInWithPassword` for authentication
+  - Returns success flag and optional user-friendly error message
+  - Maps Supabase errors to user-friendly messages:
+    - "Invalid login credentials" → "Invalid email or password"
+    - "Email not confirmed" → "Please confirm your email address before signing in"
+    - "valid email" → "Please enter a valid email address"
+    - Rate limit errors → "Too many login attempts. Please try again later"
+  - Updates Pinia state with user and session on success
+- Files changed:
+  - frontend/src/stores/supabaseAuthStore.ts (added signIn method)
+- **Learnings for future iterations:**
+  - supabase.auth.signInWithPassword returns { data: { user, session }, error }
+  - Different error codes: "invalid_credentials", "email_not_confirmed" - check both code and message
+  - Rate limiting messages may contain "rate limit" or "too many requests"
+---
+
+## 2026-01-28 - US-009
+- What was implemented:
+  - Added `signOut()` method to supabaseAuthStore
+  - Method calls `supabase.auth.signOut` to sign out current user
+  - Returns success flag and optional error message
+  - Clears user and session from Pinia state on success using existing `clearAuth()` helper
+- Files changed:
+  - frontend/src/stores/supabaseAuthStore.ts (added signOut method)
+- **Learnings for future iterations:**
+  - supabase.auth.signOut returns { error } - no data payload
+  - signOut is simpler than signIn/signUp - just call API and clear state
+  - Reuse existing clearAuth() helper for clearing state
+---
+
+## 2026-01-28 - US-010
+- What was implemented:
+  - Added `initialize()` method to supabaseAuthStore for session persistence
+  - Fetches current session using `supabase.auth.getSession()` on app startup
+  - Sets up `onAuthStateChange` listener to handle auth events:
+    - SIGNED_IN, TOKEN_REFRESHED, USER_UPDATED: update Pinia state with new session
+    - SIGNED_OUT: clear auth state
+    - PASSWORD_RECOVERY: update state for password reset flow
+  - Added `cleanup()` method to unsubscribe from auth state changes
+  - Added `initialized` state to prevent multiple initializations
+  - Token refresh is handled automatically by Supabase SDK (via autoRefreshToken option in config)
+- Files changed:
+  - frontend/src/stores/supabaseAuthStore.ts (added initialize, cleanup methods, initialized state)
+- **Learnings for future iterations:**
+  - `supabase.auth.onAuthStateChange` returns `{ data: { subscription } }` - subscription has `unsubscribe()` method
+  - Import `Subscription` type from `@supabase/supabase-js` for type safety
+  - AUTH events: SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED, USER_UPDATED, PASSWORD_RECOVERY, INITIAL_SESSION
+  - INITIAL_SESSION fires on first load - can be ignored if already handled via getSession()
+  - App should call `initialize()` once on startup (e.g., in App.vue or main.ts)
+---
+
+## 2026-01-28 - US-011
+- What was implemented:
+  - Added `resetPassword(email)` method to supabaseAuthStore
+  - Calls `supabase.auth.resetPasswordForEmail` with redirectTo URL pointing to `/reset-password`
+  - Returns success flag and user-friendly error messages
+  - Added `updatePassword(newPassword)` method for completing password reset
+  - Calls `supabase.auth.updateUser({ password })` to set new password
+  - Maps errors for: invalid email, rate limiting, password too short, same password
+  - PASSWORD_RECOVERY event already handled in initialize() from US-010
+- Files changed:
+  - frontend/src/stores/supabaseAuthStore.ts (added resetPassword, updatePassword methods)
+- **Learnings for future iterations:**
+  - `supabase.auth.resetPasswordForEmail(email, { redirectTo })` sends reset email
+  - User is auto-authenticated via PASSWORD_RECOVERY event when clicking reset link
+  - `supabase.auth.updateUser({ password })` updates the authenticated user's password
+  - The redirectTo URL should point to a page where user can enter new password
+---
+
+## 2026-01-28 - US-012
+- What was implemented:
+  - Added `signInWithGoogle()` method to supabaseAuthStore
+  - Calls `supabase.auth.signInWithOAuth` with provider: 'google'
+  - Configures redirectTo option to return user to app root after OAuth flow
+  - Returns success flag and user-friendly error messages
+  - Maps OAuth errors for: provider not enabled, popup blocked
+  - Actual authentication is handled by onAuthStateChange listener (from US-010)
+- Files changed:
+  - frontend/src/stores/supabaseAuthStore.ts (added signInWithGoogle method)
+- **Learnings for future iterations:**
+  - `supabase.auth.signInWithOAuth({ provider, options })` initiates OAuth redirect
+  - Success means redirect was initiated, not that auth completed
+  - Auth completion is handled by onAuthStateChange listener (SIGNED_IN event)
+  - Use `window.location.origin` for redirectTo to keep it dynamic
+---
+
+## 2026-01-28 - US-013
+- What was implemented:
+  - Updated LoginView.vue to use supabaseAuthStore instead of Firebase authStore
+  - Replaced `useAuthStore` import with `useSupabaseAuthStore`
+  - Removed `getAuthErrorMessage` import (no longer needed - Supabase methods return user-friendly errors)
+  - Updated `handleGoogleSignIn` to use `signInWithGoogle()` with result-based error handling
+  - Updated `handleSubmit` to use `signIn()` and `signUp()` with result-based error handling
+  - Updated `handlePasswordReset` to use `resetPassword()` with result-based error handling
+  - Added email confirmation handling for signup (shows success message when email confirmation is required)
+- Files changed:
+  - frontend/src/views/LoginView.vue (updated imports and auth method calls)
+- **Learnings for future iterations:**
+  - Supabase auth methods return `{ success, error }` objects instead of throwing errors
+  - Use result-based error handling instead of try/catch for cleaner code
+  - signUp returns `requiresEmailConfirmation` flag when email confirmation is enabled
+  - For OAuth, redirect is handled by Supabase - just need to wait for onAuthStateChange
+---
+
+## 2026-01-28 - US-014
+- What was implemented:
+  - Updated LoginView.vue to properly handle signup email confirmation
+  - Added dedicated `signUpSuccess` state (separate from resetSuccess) for email confirmation message
+  - Added proper email confirmation message: "Account created successfully! Please check your email to confirm your account before signing in."
+  - Disabled submit button after successful signup requiring confirmation to prevent duplicate submissions
+  - Reset signUpSuccess state when toggling between login/signup modes
+  - Note: SignUpView functionality is integrated into LoginView.vue via `isLogin` toggle - no separate SignUpView.vue exists
+- Files changed:
+  - frontend/src/views/LoginView.vue (added signUpSuccess state and UI message)
+- **Learnings for future iterations:**
+  - This app uses a combined Login/Signup view with toggle (common pattern) rather than separate views
+  - When showing different success messages (password reset vs email confirmation), use separate state variables
+  - Disable submit button after successful action requiring user action (email confirmation) to prevent confusion
+---
+
+## 2026-01-28 - US-015
+- What was implemented:
+  - Verified Google sign-in button already exists in LoginView.vue (implemented in US-013)
+  - Button calls `handleGoogleSignIn()` which uses `authStore.signInWithGoogle()`
+  - Shows Google icon with colored paths (official Google branding)
+  - Displays contextual text: "Sign in with Google" (login mode) vs "Sign up with Google" (signup mode)
+  - Button disabled during loading state (`isLoading`)
+  - No separate SignUpView.vue exists - signup is integrated into LoginView
+- Files changed:
+  - scripts/ralph/prd.json (marked US-015 as passes: true)
+- **Learnings for future iterations:**
+  - Google sign-in button was proactively added in US-013 as it's a common auth feature
+  - OAuth buttons should show loading state but note: redirect happens immediately, so loading may not be visible
+  - Use contextual button text based on isLogin state for better UX
+---
+
+## 2026-01-28 - US-016
+- What was implemented:
+  - Created dedicated `ForgotPasswordView.vue` with email form and success/error handling
+  - Added `/forgot-password` route with `requiresGuest: true` meta
+  - Updated router to use `useSupabaseAuthStore` instead of Firebase `useAuthStore`
+  - Updated `LoginView.vue` to navigate to `/forgot-password` instead of inline toggle
+  - Form validates email before submission using existing `validateEmail` utility
+  - Shows success message after reset email sent
+  - "Back to Login" button navigates to `/login`
+- Files changed:
+  - frontend/src/views/ForgotPasswordView.vue (new file)
+  - frontend/src/router/index.ts (added route, switched to Supabase auth store)
+  - frontend/src/views/LoginView.vue (simplified handleForgotPassword to navigate)
+- **Learnings for future iterations:**
+  - Router was still using Firebase authStore - needed to update to Supabase
+  - Use dedicated views for distinct flows (password reset) rather than inline toggles for better UX
+  - Guest-only routes (requiresGuest) prevent authenticated users from accessing auth pages
+---
+
+## 2026-01-28 - US-017
+- What was implemented:
+  - Removed Firebase package from package.json (82 packages removed)
+  - Deleted `src/config/firebase.ts` configuration file
+  - Deleted `src/stores/authStore.ts` (old Firebase auth store)
+  - Deleted `src/composables/useAuth.ts` (Firebase auth composable)
+  - Deleted `src/utils/authErrors.ts` (Firebase error mapper - no longer needed)
+  - Removed Firebase env variables from `.env.example`
+  - Updated `src/services/api.ts` to use Supabase auth store for API token authentication
+  - Updated `src/components/ProfileMenu.vue` to use Supabase auth (signOut instead of logout)
+  - Updated `src/main.ts` to use Supabase auth store for initialization
+  - Updated `src/router/index.ts` to use `loading` instead of `isLoading` (Supabase store property)
+  - Updated `src/utils/validation.ts` comment to remove Firebase reference
+- Files changed:
+  - frontend/package.json (removed firebase dependency)
+  - frontend/package-lock.json (removed 82 Firebase-related packages)
+  - frontend/.env.example (removed Firebase env vars)
+  - frontend/src/config/firebase.ts (deleted)
+  - frontend/src/stores/authStore.ts (deleted)
+  - frontend/src/composables/useAuth.ts (deleted)
+  - frontend/src/utils/authErrors.ts (deleted)
+  - frontend/src/services/api.ts (updated to Supabase auth)
+  - frontend/src/components/ProfileMenu.vue (updated to Supabase auth)
+  - frontend/src/main.ts (updated to Supabase auth)
+  - frontend/src/router/index.ts (fixed property name)
+  - frontend/src/utils/validation.ts (updated comment)
+- **Learnings for future iterations:**
+  - Supabase auth store uses `loading` not `isLoading` for the loading state property
+  - Supabase signOut returns `{ success, error }` instead of throwing - use result-based error handling
+  - For API authentication, get token from `session.access_token` not via a getToken() method
+  - Token refresh in Supabase: use `supabase.auth.refreshSession()` which returns new session
+  - Pre-existing TypeScript errors in codebase should be ignored when verifying new changes
+---
+
+## 2026-01-28 - US-018
+- What was implemented:
+  - Created `src/services/workoutService.ts` with Workout interface and CRUD functions
+  - Implemented `saveWorkout(workout: ParsedWorkout, name: string): Promise<Workout>`
+    - Gets current user via `supabase.auth.getUser()` to set user_id
+    - Stores workout.raw_text in raw_input column
+    - Stores full ParsedWorkout object in parsed_config JSONB column
+    - Sets is_favorite to false by default
+  - Implemented `getWorkout(id: string): Promise<Workout>`
+    - Fetches by ID with `.single()` for type safety
+    - Handles PGRST116 error code (row not found) with user-friendly message
+    - RLS automatically filters out workouts not owned by user
+- Files changed:
+  - frontend/src/services/workoutService.ts (new file)
+- **Learnings for future iterations:**
+  - Use `supabase.auth.getUser()` to get current user in services (not authStore to avoid circular deps)
+  - Supabase error code `PGRST116` = row not found (also returned when RLS hides data)
+  - Use `.select().single()` after `.insert()` to get the inserted row back
+  - Define Workout interface locally in service rather than in types/ since it's Supabase-specific
+---
+
+## 2026-01-28 - US-019
+- What was implemented:
+  - Added `getWorkouts(): Promise<Workout[]>` - returns all user workouts sorted by updated_at desc
+  - Added `updateWorkout(id, updates): Promise<Workout>` - updates name and/or is_favorite fields
+  - Added `deleteWorkout(id): Promise<void>` - deletes workout by ID
+  - Created `WorkoutUpdate` interface for type-safe partial updates
+  - All functions use RLS for security (user can only access own workouts)
+- Files changed:
+  - frontend/src/services/workoutService.ts (added 3 functions + 1 interface)
+- **Learnings for future iterations:**
+  - Supabase `.delete()` returns no error if row doesn't exist with RLS (just silently does nothing)
+  - Use `.order('column', { ascending: false })` for descending sort in Supabase
+  - For list queries, use `(data ?? [])` as fallback since null is possible
+---
+
+## 2026-01-28 - US-020
+- What was implemented:
+  - Created `src/services/sessionService.ts` for workout session tracking
+  - Defined `Session` interface with: id, user_id, workout_id, workout_snapshot, started_at, completed_at, duration_seconds, status
+  - Defined `SessionStatus` type: 'in_progress' | 'completed' | 'abandoned'
+  - Implemented `startSession(workout, workoutId?)` - creates session with status 'in_progress' and stores workout_snapshot
+  - Implemented `completeSession(sessionId, durationSeconds)` - updates status to 'completed', sets completed_at and duration
+- Files changed:
+  - frontend/src/services/sessionService.ts (new file)
+- **Learnings for future iterations:**
+  - Session workflow: startSession → (user does workout) → completeSession or abandonSession
+  - workout_snapshot stores full ParsedWorkout for historical reference (even if original workout deleted)
+  - Use `new Date().toISOString()` for timestamp columns (Supabase auto-converts to TIMESTAMPTZ)
+---
+
+## 2026-01-28 - US-021
+- What was implemented:
+  - Added `abandonSession(sessionId): Promise<void>` - sets status to 'abandoned' and completed_at timestamp
+  - Added `getSessionHistory(limit = 50): Promise<Session[]>` - returns sessions sorted by started_at desc
+  - Both functions use RLS automatically (user can only access own sessions)
+  - getSessionHistory includes full workout_snapshot via `select('*')` for display purposes
+- Files changed:
+  - frontend/src/services/sessionService.ts (added 2 functions)
+- **Learnings for future iterations:**
+  - abandonSession sets completed_at to record when session was abandoned (useful for analytics)
+  - getSessionHistory uses `(data ?? [])` fallback pattern for null-safe returns
+  - Unlike completeSession, abandonSession doesn't need to return the session (void is sufficient)
+---
+
+## 2026-01-28 - US-022
+- What was implemented:
+  - Created `src/services/preferencesService.ts` for user preferences CRUD
+  - Defined `Preferences` interface with: user_id, audio_enabled, voice_type, theme, default_rest_seconds, countdown_seconds, updated_at
+  - Defined `PreferencesUpdate` interface for partial updates
+  - Defined `DEFAULT_PREFERENCES` constant matching database defaults
+  - Implemented `getPreferences()` - fetches user preferences, auto-creates defaults if none exist (PGRST116 handling)
+  - Implemented `updatePreferences(updates)` - uses upsert to create or update preferences in a single operation
+  - Private `createDefaultPreferences(userId)` helper for creating initial preferences
+- Files changed:
+  - frontend/src/services/preferencesService.ts (new file)
+- **Learnings for future iterations:**
+  - Use upsert with `onConflict: 'primary_key_column'` for "create or update" patterns
+  - For 1:1 tables (user_id is PK), upsert is cleaner than checking existence first
+  - Define DEFAULT_PREFERENCES constant matching DB defaults for consistency between code and database
+---
+
+## 2026-01-28 - US-023
+- What was implemented:
+  - Added Save Workout functionality to TimerView.vue
+  - Save button (Save icon from lucide-vue-next) appears in timer header when authenticated and workout not yet saved
+  - BottomSheet modal for entering workout name with default generated name (WORKOUT_TYPE - Month Day format)
+  - Uses workoutService.saveWorkout to persist to Supabase
+  - Success toast notification with auto-dismiss after 3 seconds
+  - Saved indicator (Check icon in timer-complete color) replaces save button after successful save
+  - State resets when user navigates back to create new workout
+- Files changed:
+  - frontend/src/views/TimerView.vue (added save button, modal, toast, saved indicator)
+- **Learnings for future iterations:**
+  - Use existing BottomSheet component for mobile-friendly modals
+  - Use lucide-vue-next icons consistently (Save, Check)
+  - Generate sensible default names to reduce user friction (WORKOUT_TYPE - date)
+  - Use Transition component for toast animations
+  - Reset save state in handleBack to allow saving new workouts
+---
+
+## 2026-01-28 - US-024
+- What was implemented:
+  - Created `src/views/MyWorkoutsView.vue` for listing saved workouts
+  - Fetches workouts using `getWorkouts()` from workoutService
+  - Displays workout name, created date, and workout type badge (e.g., AMRAP, EMOM)
+  - Loading state with spinner animation
+  - Error state with retry button
+  - Empty state with icon, helpful message, and "Create a Workout" button
+  - Added `/workouts` route with `requiresAuth: true` meta
+  - Uses existing Card component for consistent styling
+- Files changed:
+  - frontend/src/views/MyWorkoutsView.vue (new file)
+  - frontend/src/router/index.ts (added /workouts route and MyWorkoutsView import)
+- **Learnings for future iterations:**
+  - Use Loader2 from lucide-vue-next with animate-spin for loading spinners
+  - Dumbbell icon is good for workout-related empty states
+  - truncate class helps with long workout names in cards
+  - Include workout type badge to help users identify workout types at a glance
+---
+
+## 2026-01-28 - US-025
+- What was implemented:
+  - Added click handler on workout cards to load workout via workoutStore.setManualWorkout and navigate to timer
+  - Added favorite toggle button with Star icon (filled yellow when favorited, muted when not)
+  - Calls updateWorkout to toggle is_favorite with local state update on success
+  - Added delete button with Trash2 icon that opens BottomSheet confirmation dialog
+  - Delete confirmation shows workout name and warning about permanent deletion
+  - Delete calls workoutService.deleteWorkout and removes workout from local list on success
+  - Used event.stopPropagation() on action buttons to prevent triggering card click
+- Files changed:
+  - frontend/src/views/MyWorkoutsView.vue (added workout actions and delete confirmation modal)
+- **Learnings for future iterations:**
+  - Use event.stopPropagation() on nested interactive elements to prevent parent click handlers
+  - Star icon with fill-current class creates a filled appearance for favorites
+  - BottomSheet with #actions slot is good for confirmation dialogs
+  - Use shrink-0 on action buttons to prevent them from shrinking in flex layouts
+---
+
+## 2026-01-28 - US-026
+- What was implemented:
+  - Created `src/views/HistoryView.vue` for displaying workout session history
+  - Fetches sessions using `getSessionHistory()` from sessionService
+  - Stats cards showing: total completed workouts count, total time formatted as hours/minutes
+  - Session list showing: workout name (from snapshot), date, time, duration, workout type badge
+  - Status badges for completed (green), abandoned (red), in_progress (blue) sessions
+  - Loading state with spinner, error state with retry, empty state with helpful message
+  - Added `/history` route with `requiresAuth: true` meta
+- Files changed:
+  - frontend/src/views/HistoryView.vue (new file)
+  - frontend/src/router/index.ts (added /history route and HistoryView import)
+- **Learnings for future iterations:**
+  - Session's workout_snapshot contains the ParsedWorkout, use `session.workout_snapshot.name` for display
+  - Filter sessions by status for stats (only count 'completed' for totals)
+  - Use Trophy icon for achievements/counts, Timer icon for time-related stats
+  - Status badges with semantic colors: timer-complete for success, destructive for errors
+---
+
+## 2026-01-28 - US-027
+- What was implemented:
+  - Created `src/components/BottomNav.vue` - fixed bottom navigation bar
+  - Navigation links: Timer (/), Workouts (/workouts), History (/history)
+  - Uses lucide-vue-next icons: Timer, Dumbbell, History
+  - Active page highlighted with primary color (both icon and label)
+  - Mobile-friendly with safe-area-inset-bottom padding for iOS
+  - Added BottomNav to all authenticated views: TimerView, MyWorkoutsView, HistoryView
+  - Added bottom padding (pb-20) to main content areas to prevent overlap with nav bar
+- Files changed:
+  - frontend/src/components/BottomNav.vue (new file)
+  - frontend/src/views/TimerView.vue (added import and component, updated padding)
+  - frontend/src/views/MyWorkoutsView.vue (added import and component, updated padding)
+  - frontend/src/views/HistoryView.vue (added import and component, updated padding)
+- **Learnings for future iterations:**
+  - Use `fixed bottom-0` for bottom navigation that stays visible during scroll
+  - Use `env(safe-area-inset-bottom)` for iOS home indicator padding
+  - Add sufficient bottom padding (pb-20) to main content to prevent overlap with fixed nav
+  - Use `aria-current="page"` for accessibility on active nav items
+---
+
+## 2026-01-28 - US-028
+- What was implemented:
+  - Installed `dexie` package (IndexedDB wrapper library)
+  - Created `src/services/offlineDb.ts` with Dexie database class
+  - Database name: `ai-wod-timer-offline`
+  - Defined four local tables mirroring Supabase schema:
+    - `workouts`: id, user_id, updated_at, is_favorite indexes
+    - `sessions`: id, user_id, started_at, status indexes
+    - `preferences`: user_id as primary key (1:1 with user)
+    - `syncQueue`: auto-increment id, table and created_at indexes
+  - Created full CRUD methods for each table:
+    - Workouts: save, get, getAll, update, delete, bulkSave, clear
+    - Sessions: save, get, getHistory, update, delete, bulkSave, clear
+    - Preferences: save, get, update, delete
+    - SyncQueue: add, getAll, remove, clear, getCount
+  - Added utility functions: clearAllLocalData, isDatabaseReady
+  - Exported TypeScript interfaces matching Supabase types
+- Files changed:
+  - frontend/package.json (added dexie dependency)
+  - frontend/package-lock.json (updated)
+  - frontend/src/services/offlineDb.ts (new file)
+- **Learnings for future iterations:**
+  - Dexie uses string schema syntax: `'id, user_id, updated_at'` for indexes
+  - Use `++id` for auto-increment primary keys
+  - Use `.put()` for upsert, `.add()` for insert-only
+  - Chain `.reverse().sortBy('field')` for descending order
+  - Dexie Table generic types: `Table<RecordType, PrimaryKeyType>`
+---
+
+## 2026-01-28 - US-029
+- What was implemented:
+  - Created `src/services/offlineMutationService.ts` for offline-aware mutation handling
+  - Implemented `isOnline()` utility to check `navigator.onLine` status
+  - Implemented `queueMutation()` wrapper function to add entries to sync queue
+  - Created offline mutation functions for all entity types:
+    - Workouts: `createWorkoutOffline`, `updateWorkoutOffline`, `deleteWorkoutOffline`
+    - Sessions: `startSessionOffline`, `completeSessionOffline`, `abandonSessionOffline`
+    - Preferences: `updatePreferencesOffline`, `createDefaultPreferencesOffline`
+  - Each offline function saves to local IndexedDB AND queues for sync
+  - Installed `uuid` package for client-side UUID generation (offline-created records need IDs)
+- Files changed:
+  - frontend/src/services/offlineMutationService.ts (new file)
+  - frontend/package.json (added uuid dependency)
+  - frontend/package-lock.json (updated)
+- **Learnings for future iterations:**
+  - Use `uuid` package's `v4()` for generating UUIDs client-side when creating offline records
+  - Offline mutations need to both save locally AND queue for sync (dual-write pattern)
+  - `navigator.onLine` is the browser API for checking online status
+  - For preferences upsert, queue only the changed fields, not the full record
+  - Status fields should use `as const` assertion for type safety (e.g., `'completed' as const`)
+---
+
+## 2026-01-28 - US-030
+- What was implemented:
+  - Created `src/services/syncService.ts` for synchronization between IndexedDB and Supabase
+  - Online/offline detection with event listeners:
+    - `initSyncService()` - sets up window 'online'/'offline' event listeners
+    - `cleanupSyncService()` - removes event listeners on logout/unmount
+    - Auto-sync triggered when coming online
+  - Process sync queue:
+    - `processSyncQueue()` - iterates queue entries and applies to Supabase
+    - Separate handlers for workouts, sessions, preferences tables
+    - Each entry removed from queue after successful sync
+  - Server-wins conflict resolution:
+    - For inserts: check if record exists, skip if already exists on server
+    - For updates: apply the update (server version takes precedence on next pull)
+    - For preferences: use upsert with onConflict
+  - Additional sync functions:
+    - `pullFromServer(userId)` - fetch all user data and update local storage
+    - `fullSync(userId)` - push pending changes then pull from server
+    - `getPendingSyncCount()` / `hasPendingSync()` - check queue status
+  - Sync status events for UI feedback via `onSyncStatusChange` callback
+- Files changed:
+  - frontend/src/services/syncService.ts (new file)
+- **Learnings for future iterations:**
+  - Use `window.addEventListener('online'/'offline')` for network status detection
+  - Server-wins strategy: check before insert, let server overwrite on pull
+  - Use `maybeSingle()` for optional single-row queries (no error if not found)
+  - Process queue entries individually so one failure doesn't block others
+  - Track sync status (idle/syncing/error/offline) for UI feedback
+---
+
+## 2026-01-28 - US-031
+- What was implemented:
+  - Created `src/services/realtimeService.ts` for Supabase Realtime subscriptions
+  - Subscribes to `workouts` table changes filtered by user_id using postgres_changes
+  - Subscribes to `user_preferences` table changes filtered by user_id
+  - Handles all event types: INSERT, UPDATE, DELETE
+  - Updates local IndexedDB when remote changes detected (saveLocalWorkout, deleteLocalWorkout, saveLocalPreferences)
+  - Provides `subscribeToAll(userId)` and `unsubscribeFromAll()` for easy lifecycle management
+  - Provides `onRealtimeEvent` callback for UI updates when remote changes arrive
+  - Logs subscription status for debugging
+- Files changed:
+  - frontend/src/services/realtimeService.ts (new file)
+- **Learnings for future iterations:**
+  - Supabase Realtime uses `supabase.channel(name).on('postgres_changes', {...}).subscribe()`
+  - Use `filter: 'user_id=eq.${userId}'` to filter changes for the current user
+  - RealtimePostgresChangesPayload provides eventType, new (INSERT/UPDATE), old (DELETE)
+  - Use `supabase.removeChannel(channel)` to unsubscribe from a channel
+  - Channel status callback receives status ('SUBSCRIBED', 'CHANNEL_ERROR') and optional error
+---
+
+## 2026-01-28 - US-032
+- What was implemented:
+  - Created `src/composables/useOfflineStatus.ts` for reactive online/offline and sync status
+  - Integrates with syncService to track sync status (idle, syncing, error, offline)
+  - Tracks pending sync queue items for UI indicator
+  - Created `src/components/OfflineIndicator.vue` component showing status in headers
+    - Shows "Offline" with WifiOff icon (amber) when disconnected
+    - Shows "Syncing..." with animated RefreshCw icon (blue) during sync
+    - Shows "Sync failed" with AlertCircle icon (red) on errors
+    - Shows "Pending changes" with CloudOff icon (muted) when queue has items
+  - Created `src/components/OfflineSaveToast.vue` for "Saved locally" confirmation
+  - Updated `workoutService.ts` for offline-first support:
+    - saveWorkout returns `{ workout, savedOffline }` to indicate offline save
+    - getWorkouts falls back to local storage when offline or on error
+    - updateWorkout returns `{ workout, updatedOffline }` for offline updates
+    - deleteWorkout returns `{ deletedOffline }` for offline deletes
+  - Added OfflineIndicator to TimerView, MyWorkoutsView, HistoryView headers
+  - Updated TimerView to show OfflineSaveToast when saving offline
+- Files changed:
+  - frontend/src/composables/useOfflineStatus.ts (new file)
+  - frontend/src/components/OfflineIndicator.vue (new file)
+  - frontend/src/components/OfflineSaveToast.vue (new file)
+  - frontend/src/services/workoutService.ts (added offline support)
+  - frontend/src/views/TimerView.vue (added offline indicator and save toast)
+  - frontend/src/views/MyWorkoutsView.vue (added offline indicator)
+  - frontend/src/views/HistoryView.vue (added offline indicator)
+- **Learnings for future iterations:**
+  - Use composables to encapsulate reactive online/offline state across components
+  - useOfflineStatus initializes syncService and subscribes to status changes in onMounted
+  - Service functions should return offline status alongside data so UI can show appropriate feedback
+  - workoutService.getWorkouts() needs to get user before falling back to local storage (userId required)
+  - OfflineIndicator uses Transition for smooth appear/disappear animations
+---
+
+## 2026-01-28 - US-033
+- What was implemented:
+  - Created `src/types/supabase.ts` with comprehensive TypeScript types following Supabase CLI format
+  - Defined `Database` type with public schema containing all tables (profiles, workouts, workout_sessions, user_preferences)
+  - Each table has Row, Insert, Update types with proper nullability and optional fields
+  - Added `session_status` enum type for workout session status values
+  - Exported helper types: Profile, Workout, WorkoutSession, UserPreferences and their Insert/Update variants
+  - Added Tables<T>, TablesInsert<T>, TablesUpdate<T>, Enums<T> generic helper types
+  - Documented type generation command in file header for future regeneration
+  - Updated workoutService.ts to import Workout, WorkoutInsert, WorkoutUpdate from supabase.ts
+  - Updated sessionService.ts to import WorkoutSession, WorkoutSessionInsert, SessionStatus from supabase.ts
+  - Updated preferencesService.ts to import UserPreferences, UserPreferencesUpdate from supabase.ts
+  - Services re-export types with backward-compatible aliases (Session, Preferences)
+- Files changed:
+  - frontend/src/types/supabase.ts (new file)
+  - frontend/src/services/workoutService.ts (updated imports to use centralized types)
+  - frontend/src/services/sessionService.ts (updated imports to use centralized types)
+  - frontend/src/services/preferencesService.ts (updated imports to use centralized types)
+- **Learnings for future iterations:**
+  - Supabase type generation: `npx supabase gen types typescript --project-id <id> > src/types/supabase.ts`
+  - For local Supabase: `npx supabase gen types typescript --local > src/types/supabase.ts`
+  - Database type structure: Database['public']['Tables'][tableName]['Row'|'Insert'|'Update']
+  - Use helper type exports (Profile, Workout, etc.) for cleaner imports in services
+  - Re-export types from services with backward-compatible aliases to avoid breaking existing consumers
+  - JSONB columns (parsed_config, workout_snapshot) can reference existing TypeScript types like ParsedWorkout
+---

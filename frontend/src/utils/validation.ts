@@ -43,7 +43,7 @@ export function validatePassword(password: string, isRegistration: boolean = fal
     return { isValid: false, error: 'Password is required' }
   }
 
-  // Minimum length check (Firebase requires at least 6 characters)
+  // Minimum length check (at least 6 characters)
   if (password.length < 6) {
     return { isValid: false, error: 'Password must be at least 6 characters long' }
   }

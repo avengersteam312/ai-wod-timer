@@ -4,7 +4,7 @@ import { useWorkoutStore } from '@/stores/workoutStore'
 import { useTimerStore } from '@/stores/timerStore'
 import { useSupabaseAuthStore } from '@/stores/supabaseAuthStore'
 import { storeToRefs } from 'pinia'
-import WorkoutInput from '@/components/WorkoutInput.vue'
+import ManualTimer from '@/components/ManualTimer.vue'
 import { ArrowLeft, Volume2, VolumeX, Save, Check } from 'lucide-vue-next'
 import { useAudio } from '@/composables/useAudio'
 import { useTimer } from '@/composables/useTimer'
@@ -114,6 +114,13 @@ watch(currentWorkout, (workout) => {
   }
 }, { immediate: true })
 
+// Watch for rest timer completion - redirect back to manual timer list immediately
+watch(isCompleted, (completed) => {
+  if (completed && currentWorkout.value?.workout_type === 'custom' && currentWorkout.value?.raw_text?.includes('Rest')) {
+    workoutStore.clearWorkout()
+    timerStore.reset()
+  }
+})
 
 const handleBack = () => {
   workoutStore.clearWorkout()
@@ -134,13 +141,12 @@ const workoutTitle = () => {
 
 <template>
   <div class="min-h-screen bg-background">
-    <!-- Workout Input Screen -->
+    <!-- Manual Timer Selection Screen -->
     <div v-if="!currentWorkout" class="min-h-screen flex flex-col max-w-md mx-auto">
       <!-- Header -->
       <header class="flex items-center justify-between px-4 py-3">
-        <!-- App Title -->
         <h1 class="text-sm font-semibold text-foreground font-athletic">
-          AI Workout Timer
+          Manual Timer
         </h1>
         <div class="flex items-center gap-2">
           <OfflineIndicator />
@@ -150,7 +156,7 @@ const workoutTitle = () => {
 
       <!-- Main Content -->
       <main class="flex-1 p-4 md:p-8 pb-20">
-        <WorkoutInput @workout-parsed="() => {}" />
+        <ManualTimer />
       </main>
     </div>
 
