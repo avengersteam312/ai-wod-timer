@@ -36,7 +36,7 @@ Migration files are in `supabase/migrations/`. Apply them using one of these met
 ```bash
 # Login to Supabase (choose one method)
 npx supabase login                      # Opens browser
-npx supabase login --token <token>      # Use access token (get from supabase.com/dashboard/account/tokens)
+npx supabase login --token <token>      # Use access token (Check shared API key in Apple Passwords or get from supabase.com/dashboard/account/tokens)
 
 # Link to project (no global install needed - uses npx)
 npx supabase link --project-ref gcqzvyopslwixvgaynwk
