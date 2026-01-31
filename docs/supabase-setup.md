@@ -34,17 +34,18 @@ Migration files are in `supabase/migrations/`. Apply them using one of these met
 ### Option A: Supabase CLI (Recommended)
 
 ```bash
-# Install CLI
-npm install -g supabase
-
-# Login
-supabase login
-
-# Link to your project
-supabase link --project-ref [project-id]
+# Link to project (no global install needed - uses npx)
+npx supabase link --project-ref gcqzvyopslwixvgaynwk
 
 # Push migrations
-supabase db push
+npx supabase db push
+```
+
+Other useful commands:
+```bash
+npx supabase migration list          # Check migration status
+npx supabase migration new my_change # Create new migration
+npx supabase db pull                 # Pull remote schema changes
 ```
 
 ### Option B: SQL Editor (Manual)
