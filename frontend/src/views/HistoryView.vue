@@ -76,7 +76,24 @@ const formatDuration = (seconds: number | null): string => {
 }
 
 const getWorkoutName = (session: Session): string => {
-  return session.workout_snapshot.name || 'Untitled Workout'
+  const snapshot = session.workout_snapshot
+  // First try explicit name, then generate from workout type
+  if (snapshot.name) return snapshot.name
+
+  // Generate name from workout type
+  const type = snapshot.workout_type
+  const typeNames: Record<string, string> = {
+    amrap: 'AMRAP Workout',
+    emom: 'EMOM Workout',
+    for_time: 'For Time Workout',
+    tabata: 'Tabata Workout',
+    intervals: 'Interval Training',
+    stopwatch: 'Stopwatch Session',
+    work_rest: 'Work & Rest',
+    rest: 'Rest Timer',
+    custom: 'Custom Workout'
+  }
+  return typeNames[type] || 'Workout'
 }
 
 const getWorkoutType = (session: Session): string => {
