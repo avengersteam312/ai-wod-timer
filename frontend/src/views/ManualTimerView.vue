@@ -9,6 +9,7 @@ import { ArrowLeft, Volume2, VolumeX, Save, Check } from 'lucide-vue-next'
 import { useAudio } from '@/composables/useAudio'
 import { useTimer } from '@/composables/useTimer'
 import { useTimerLayout } from '@/composables/useTimerLayout'
+import { useSessionTracking } from '@/composables/useSessionTracking'
 import ProfileMenu from '@/components/ProfileMenu.vue'
 import BottomNav from '@/components/BottomNav.vue'
 import BottomSheet from '@/components/ui/BottomSheet.vue'
@@ -43,6 +44,9 @@ const {
   showWorkoutSummary,
   showRoundCounter
 } = useTimerLayout()
+
+// Session tracking - automatically tracks workout sessions in database
+useSessionTracking()
 
 // Save workout state
 const showSaveModal = ref(false)
@@ -120,6 +124,7 @@ watch(isCompleted, (completed) => {
 
 const handleBack = () => {
   workoutStore.clearWorkout()
+  timerStore.reset()
   // Reset saved state for new workout
   isSaved.value = false
   savedWorkoutId.value = null
@@ -236,7 +241,7 @@ const workoutTitle = () => {
         <ManualRoundCounterBlock />
 
         <!-- Timer Controls -->
-        <ControlsBlock v-if="showControls" />
+        <ControlsBlock v-if="showControls" @done="handleBack" />
 
         <!-- Workout Summary -->
         <WorkoutSummaryBlock v-if="showWorkoutSummary" />

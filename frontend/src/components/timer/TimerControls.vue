@@ -5,18 +5,28 @@ import { storeToRefs } from 'pinia'
 import { useTimer } from '@/composables/useTimer'
 import { Play, Pause, RotateCcw, Check, Coffee, Dumbbell, Square } from 'lucide-vue-next'
 
+const emit = defineEmits<{
+  done: []
+}>()
+
 const timerStore = useTimerStore()
 const { state, isCompleted, currentInterval, currentIntervalIndex, config, skipPreparation, isWorkRestTimer, workRestPhase, isIntervalBased } = storeToRefs(timerStore)
 const { startTimer, pauseTimer, resetTimer, triggerWorkRestRest, skipToNextInterval } = useTimer()
 
 const handleStartPause = () => {
+  // When completed, emit done event to go back to input
+  if (state.value === TimerState.COMPLETED) {
+    emit('done')
+    return
+  }
+
   // Disable pause during countdown - use reset instead
   if (state.value === TimerState.PREPARING) {
     // During countdown, reset instead of pause for better UX
     resetTimer()
     return
   }
-  
+
   if (state.value === TimerState.RUNNING) {
     pauseTimer()
   } else {
