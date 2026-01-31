@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Timer, Dumbbell, History } from 'lucide-vue-next'
+import { Timer, Sparkles, History } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -14,8 +14,8 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { name: 'timer', path: '/', icon: Timer, label: 'Timer' },
-  { name: 'workouts', path: '/workouts', icon: Dumbbell, label: 'Workouts' },
+  { name: 'manual', path: '/manual', icon: Timer, label: 'Manual' },
+  { name: 'timer', path: '/', icon: Sparkles, label: 'AI Timer' },
   { name: 'history', path: '/history', icon: History, label: 'History' },
 ]
 

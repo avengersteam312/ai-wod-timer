@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { watch } from 'vue'
 import TimerView from '@/views/TimerView.vue'
+import ManualTimerView from '@/views/ManualTimerView.vue'
 import LoginView from '@/views/LoginView.vue'
 import ForgotPasswordView from '@/views/ForgotPasswordView.vue'
 import MyWorkoutsView from '@/views/MyWorkoutsView.vue'
@@ -26,6 +27,12 @@ const router = createRouter({
       path: '/',
       name: 'timer',
       component: TimerView,
+      meta: { requiresAuth: true }, // Requires authentication
+    },
+    {
+      path: '/manual',
+      name: 'manual',
+      component: ManualTimerView,
       meta: { requiresAuth: true }, // Requires authentication
     },
     {

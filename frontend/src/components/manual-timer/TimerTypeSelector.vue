@@ -12,7 +12,6 @@ interface TimerTypeOption {
 
 defineEmits<{
   select: [type: TimerType]
-  switchToAI: []
 }>()
 
 const timerTypes: TimerTypeOption[] = [
@@ -50,14 +49,5 @@ const timerTypes: TimerTypeOption[] = [
       </button>
     </div>
 
-    <!-- Switch to AI mode link -->
-    <div class="text-center pt-4">
-      <button
-        @click="$emit('switchToAI')"
-        class="text-muted-foreground hover:text-foreground text-sm transition-colors"
-      >
-        Or parse from text →
-      </button>
-    </div>
   </div>
 </template>
