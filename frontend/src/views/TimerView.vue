@@ -137,7 +137,7 @@ const workoutTitle = () => {
     <!-- Workout Input Screen -->
     <div v-if="!currentWorkout" class="min-h-screen flex flex-col max-w-md mx-auto">
       <!-- Header -->
-      <header class="flex items-center justify-between px-4 py-3">
+      <header class="flex items-center justify-between px-4 py-3 safe-area-pt">
         <!-- App Title -->
         <h1 class="text-sm font-semibold text-foreground font-athletic">
           AI Workout Timer
@@ -157,7 +157,7 @@ const workoutTitle = () => {
     <!-- Timer Screen (Mobile-optimized layout) -->
     <div v-else class="min-h-screen flex flex-col max-w-md mx-auto">
       <!-- Header -->
-      <header class="flex items-center justify-between px-4 py-3">
+      <header class="flex items-center justify-between px-4 py-3 safe-area-pt">
         <button
           @click="handleBack"
           class="p-2 -ml-2 text-foreground hover:text-muted-foreground transition-colors"

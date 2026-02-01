@@ -1,17 +1,15 @@
 {
   "project": "AI WOD Timer",
-  "branchName": "ralph/supabase-integration",
-  "description": "Replace Firebase with Supabase as the complete backend solution including authentication, database, and real-time features with offline-first support",
+  "branchName": "ralph/capacitor-integration",
+  "description": "Add Capacitor to enable native iOS and Android builds with offline support, native audio, and app store distribution",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Setup Supabase client and configuration",
-      "description": "As a developer, I need Supabase configured in the project so I can build features on top of it.",
+      "title": "Install Capacitor core packages",
+      "description": "As a developer, I need Capacitor installed in the project to enable native mobile builds.",
       "acceptanceCriteria": [
-        "Install @supabase/supabase-js in frontend",
-        "Add environment variables to .env.example: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY",
-        "Create src/config/supabase.ts with client initialization",
-        "Export typed supabase client",
+        "Install @capacitor/core and @capacitor/cli as dependencies in frontend",
+        "Install @capacitor/ios and @capacitor/android as dependencies",
         "Typecheck passes"
       ],
       "priority": 1,
@@ -20,13 +18,13 @@
     },
     {
       "id": "US-002",
-      "title": "Create profiles table migration",
-      "description": "As a developer, I need a profiles table to store user display names and metadata.",
+      "title": "Initialize Capacitor configuration",
+      "description": "As a developer, I need Capacitor configured with proper app metadata.",
       "acceptanceCriteria": [
-        "Create supabase/migrations/ directory if not exists",
-        "Create migration file for profiles table with columns: id (UUID, FK to auth.users), display_name, created_at, updated_at",
-        "Enable RLS - users can only read/write own profile",
-        "Create trigger to auto-create profile on user signup",
+        "Run npx cap init with appId 'com.wodtimer.app' and appName 'AI WOD Timer'",
+        "Create capacitor.config.ts in frontend root",
+        "Set webDir to 'dist' (Vite build output)",
+        "Configure server.url for dev mode with proper localhost handling",
         "Typecheck passes"
       ],
       "priority": 2,
@@ -35,13 +33,12 @@
     },
     {
       "id": "US-003",
-      "title": "Create workouts table migration",
-      "description": "As a developer, I need a workouts table to store parsed workout configurations.",
+      "title": "Add iOS platform",
+      "description": "As a developer, I need the iOS native project scaffolded.",
       "acceptanceCriteria": [
-        "Create migration file for workouts table",
-        "Columns: id (UUID), user_id (FK), name, raw_input, parsed_config (JSONB), is_favorite, created_at, updated_at",
-        "Create index on user_id",
-        "Enable RLS - users can only access own workouts",
+        "Run npx cap add ios to create ios/ directory",
+        "Verify ios/App folder structure exists",
+        "Add ios/ to .gitignore with exceptions for config files",
         "Typecheck passes"
       ],
       "priority": 3,
@@ -50,14 +47,12 @@
     },
     {
       "id": "US-004",
-      "title": "Create workout_sessions table migration",
-      "description": "As a developer, I need a sessions table to track completed workout history.",
+      "title": "Add Android platform",
+      "description": "As a developer, I need the Android native project scaffolded.",
       "acceptanceCriteria": [
-        "Create migration file for workout_sessions table",
-        "Columns: id, user_id, workout_id (nullable FK), workout_snapshot (JSONB), started_at, completed_at, duration_seconds, status",
-        "Status check constraint: 'in_progress', 'completed', 'abandoned'",
-        "Create index on user_id",
-        "Enable RLS - users can only access own sessions",
+        "Run npx cap add android to create android/ directory",
+        "Verify android/app folder structure exists",
+        "Add android/ to .gitignore with exceptions for config files",
         "Typecheck passes"
       ],
       "priority": 4,
@@ -66,12 +61,12 @@
     },
     {
       "id": "US-005",
-      "title": "Create user_preferences table migration",
-      "description": "As a developer, I need a preferences table to store user settings.",
+      "title": "Update Vite config for Capacitor compatibility",
+      "description": "As a developer, I need Vite configured to work properly with Capacitor.",
       "acceptanceCriteria": [
-        "Create migration file for user_preferences table",
-        "Columns: user_id (PK, FK), audio_enabled, voice_type, theme, default_rest_seconds, countdown_seconds, updated_at",
-        "Enable RLS - users can only access own preferences",
+        "Update vite.config.ts base to './' for relative asset paths",
+        "Ensure build output is compatible with Capacitor webview",
+        "Add build script that runs vite build && cap sync",
         "Typecheck passes"
       ],
       "priority": 5,
@@ -80,13 +75,13 @@
     },
     {
       "id": "US-006",
-      "title": "Create Supabase Auth store - core state",
-      "description": "As a developer, I need a Pinia store to manage Supabase auth state.",
+      "title": "Install and configure Capacitor Preferences plugin",
+      "description": "As a user, I want my preferences persisted natively on mobile devices.",
       "acceptanceCriteria": [
-        "Create src/stores/supabaseAuthStore.ts",
-        "Define state: user, session, loading, error",
-        "Define TypeScript interfaces for User and Session",
-        "Export store with useSupabaseAuthStore",
+        "Install @capacitor/preferences plugin",
+        "Create src/services/capacitorStorage.ts wrapper",
+        "Implement get, set, remove methods matching localStorage API",
+        "Detect Capacitor native vs web and use appropriate storage",
         "Typecheck passes"
       ],
       "priority": 6,
@@ -95,14 +90,13 @@
     },
     {
       "id": "US-007",
-      "title": "Implement auth store - signUp method",
-      "description": "As a new user, I want to create an account with email and password.",
+      "title": "Install and configure Capacitor Haptics plugin",
+      "description": "As a user, I want haptic feedback during workouts for better awareness.",
       "acceptanceCriteria": [
-        "Implement signUp(email, password) method in supabaseAuthStore",
-        "Call supabase.auth.signUp",
-        "Handle email confirmation flow (check for email_confirm requirement)",
-        "Store user in Pinia state on success",
-        "Handle errors: email taken, weak password, invalid email",
+        "Install @capacitor/haptics plugin",
+        "Create src/composables/useHaptics.ts wrapper",
+        "Implement vibrate functions: light, medium, heavy, success, warning, error",
+        "Gracefully degrade on web (no-op)",
         "Typecheck passes"
       ],
       "priority": 7,
@@ -111,14 +105,13 @@
     },
     {
       "id": "US-008",
-      "title": "Implement auth store - signIn method",
-      "description": "As a returning user, I want to sign in with my email and password.",
+      "title": "Install and configure Capacitor KeepAwake plugin",
+      "description": "As a user, I want the screen to stay on during active workouts.",
       "acceptanceCriteria": [
-        "Implement signIn(email, password) method",
-        "Call supabase.auth.signInWithPassword",
-        "Handle 'email not confirmed' error gracefully",
-        "Update Pinia state on success",
-        "Return appropriate error messages for invalid credentials",
+        "Install @capacitor-community/keep-awake plugin",
+        "Create src/composables/useKeepAwake.ts wrapper",
+        "Implement keepAwake and allowSleep functions",
+        "Enable keep awake when timer is running, disable when paused/stopped",
         "Typecheck passes"
       ],
       "priority": 8,
@@ -127,13 +120,15 @@
     },
     {
       "id": "US-009",
-      "title": "Implement auth store - signOut method",
-      "description": "As a user, I want to sign out of my account.",
+      "title": "Integrate haptics into timer controls",
+      "description": "As a user, I want haptic feedback when interacting with timer controls.",
       "acceptanceCriteria": [
-        "Implement signOut() method",
-        "Call supabase.auth.signOut",
-        "Clear user and session from Pinia state",
-        "Typecheck passes"
+        "Add light haptic on play/pause button press",
+        "Add medium haptic on timer reset",
+        "Add success haptic on workout completion",
+        "Add warning haptic on final countdown (10, 5, 3, 2, 1)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 9,
       "passes": true,
@@ -141,13 +136,12 @@
     },
     {
       "id": "US-010",
-      "title": "Implement auth store - session persistence",
-      "description": "As a user, I want to stay logged in when I refresh or reopen the app.",
+      "title": "Integrate keep awake into timer",
+      "description": "As a user, I want my screen to stay on while workout is active.",
       "acceptanceCriteria": [
-        "Implement initialize() method that calls supabase.auth.getSession",
-        "Listen to onAuthStateChange events",
-        "Handle token refresh automatically",
-        "Update Pinia store on auth state changes",
+        "Call keepAwake when timer starts playing",
+        "Call allowSleep when timer is paused, reset, or completed",
+        "Handle component unmount to ensure screen sleep is restored",
         "Typecheck passes"
       ],
       "priority": 10,
@@ -156,12 +150,13 @@
     },
     {
       "id": "US-011",
-      "title": "Implement auth store - password reset",
-      "description": "As a user, I want to reset my password if I forget it.",
+      "title": "Create Capacitor platform detection utility",
+      "description": "As a developer, I need to detect the current platform for conditional logic.",
       "acceptanceCriteria": [
-        "Implement resetPassword(email) method using supabase.auth.resetPasswordForEmail",
-        "Implement updatePassword(newPassword) for the reset flow",
-        "Handle reset link callback (RECOVERY event in onAuthStateChange)",
+        "Create src/utils/platform.ts with platform detection functions",
+        "Implement isNative(), isIOS(), isAndroid(), isWeb()",
+        "Use Capacitor.isNativePlatform() for detection",
+        "Export platform constant for reactive usage",
         "Typecheck passes"
       ],
       "priority": 11,
@@ -170,13 +165,15 @@
     },
     {
       "id": "US-012",
-      "title": "Implement auth store - Google OAuth",
-      "description": "As a user, I want to sign in with my Google account.",
+      "title": "Configure iOS safe area handling",
+      "description": "As a user, I want the app to respect iOS notch and home indicator.",
       "acceptanceCriteria": [
-        "Implement signInWithGoogle() method",
-        "Call supabase.auth.signInWithOAuth with provider: 'google'",
-        "Handle OAuth redirect flow",
-        "Typecheck passes"
+        "Update index.html with viewport-fit=cover meta tag",
+        "Apply env(safe-area-inset-*) CSS variables to layout components",
+        "Ensure header respects safe-area-inset-top",
+        "Ensure bottom nav respects safe-area-inset-bottom",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 12,
       "passes": true,
@@ -184,16 +181,14 @@
     },
     {
       "id": "US-013",
-      "title": "Update LoginView for Supabase",
-      "description": "As a developer, I need to update LoginView to use Supabase auth store.",
+      "title": "Configure Android back button handling",
+      "description": "As a user, I want the Android back button to work correctly.",
       "acceptanceCriteria": [
-        "Update LoginView.vue to import and use supabaseAuthStore",
-        "Replace Firebase auth calls with Supabase methods",
-        "Handle sign in with email/password",
-        "Show appropriate error messages",
-        "Redirect to home/timer page on success",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Install @capacitor/app plugin",
+        "Listen for backButton event in App.vue",
+        "Navigate back in router if history exists",
+        "Show exit confirmation if on root route",
+        "Typecheck passes"
       ],
       "priority": 13,
       "passes": true,
@@ -201,314 +196,34 @@
     },
     {
       "id": "US-014",
-      "title": "Update SignUpView for Supabase",
-      "description": "As a developer, I need to update SignUpView to use Supabase auth store.",
+      "title": "Add Capacitor npm scripts",
+      "description": "As a developer, I want convenient scripts to build and sync the app.",
       "acceptanceCriteria": [
-        "Update SignUpView.vue to import and use supabaseAuthStore",
-        "Replace Firebase auth calls with Supabase signUp method",
-        "Handle email confirmation message if required",
-        "Show appropriate error messages",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Add 'cap:sync' script: 'cap sync'",
+        "Add 'cap:ios' script: 'cap open ios'",
+        "Add 'cap:android' script: 'cap open android'",
+        "Add 'build:mobile' script: 'npm run build && cap sync'",
+        "Typecheck passes"
       ],
       "priority": 14,
       "passes": true,
-      "notes": "SignUp functionality is integrated into LoginView.vue via isLogin toggle. Added dedicated signUpSuccess state and proper email confirmation message."
+      "notes": ""
     },
     {
       "id": "US-015",
-      "title": "Add Google sign-in button to auth views",
-      "description": "As a user, I want to see and use Google sign-in option.",
+      "title": "Document Capacitor build and deployment process",
+      "description": "As a developer, I need documentation for building and deploying the mobile apps.",
       "acceptanceCriteria": [
-        "Add Google sign-in button to LoginView.vue",
-        "Add Google sign-in button to SignUpView.vue",
-        "Button calls supabaseAuthStore.signInWithGoogle",
-        "Show loading state while OAuth is processing",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Create docs/capacitor-setup.md with prerequisites",
+        "Document iOS build process (requires Xcode)",
+        "Document Android build process (requires Android Studio)",
+        "Document signing and release build instructions",
+        "Include troubleshooting section for common issues",
+        "Typecheck passes"
       ],
       "priority": 15,
       "passes": true,
-      "notes": "Google sign-in button was already implemented in LoginView.vue as part of US-013/US-014. The combined login/signup view shows contextual text ('Sign in with Google' vs 'Sign up with Google') based on isLogin state."
-    },
-    {
-      "id": "US-016",
-      "title": "Create or update ForgotPasswordView",
-      "description": "As a user, I want a page to request password reset.",
-      "acceptanceCriteria": [
-        "Create or update ForgotPasswordView.vue",
-        "Form with email input and submit button",
-        "Call supabaseAuthStore.resetPassword on submit",
-        "Show success message after email sent",
-        "Add route /forgot-password if not exists",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 16,
-      "passes": true,
-      "notes": "Created dedicated ForgotPasswordView.vue with email form and success/error handling. Added /forgot-password route. Also updated router to use supabaseAuthStore."
-    },
-    {
-      "id": "US-017",
-      "title": "Remove Firebase dependencies",
-      "description": "As a developer, I want to remove Firebase to reduce bundle size and complexity.",
-      "acceptanceCriteria": [
-        "Remove firebase package from package.json",
-        "Delete src/config/firebase.ts if exists",
-        "Delete src/stores/authStore.ts (old Firebase store)",
-        "Remove Firebase env variables from .env.example",
-        "Update any remaining Firebase imports throughout codebase",
-        "Verify app builds without Firebase",
-        "Typecheck passes"
-      ],
-      "priority": 17,
-      "passes": true,
-      "notes": "Removed Firebase package and 82 dependencies. Deleted firebase.ts, authStore.ts, useAuth.ts, authErrors.ts. Updated api.ts, ProfileMenu.vue, main.ts, router/index.ts to use Supabase auth. Vite build passes. Pre-existing TS errors remain but are unrelated to Firebase removal."
-    },
-    {
-      "id": "US-018",
-      "title": "Create workout service - save and get single",
-      "description": "As a user, I want to save my parsed workout and retrieve it by ID.",
-      "acceptanceCriteria": [
-        "Create src/services/workoutService.ts",
-        "Implement saveWorkout(workout: ParsedWorkout, name: string): Promise<Workout>",
-        "Save includes raw input and parsed config to Supabase",
-        "Implement getWorkout(id: string): Promise<Workout>",
-        "Throws error if not found or not owned",
-        "Typecheck passes"
-      ],
-      "priority": 18,
-      "passes": true,
-      "notes": "Created workoutService.ts with Workout interface, saveWorkout and getWorkout functions. Uses supabase.auth.getUser() to get current user, stores raw_text in raw_input field."
-    },
-    {
-      "id": "US-019",
-      "title": "Create workout service - list, update, delete",
-      "description": "As a user, I want to list, update, and delete my workouts.",
-      "acceptanceCriteria": [
-        "Implement getWorkouts(): Promise<Workout[]> returning workouts sorted by updated_at desc",
-        "Implement updateWorkout(id, updates) for name and is_favorite",
-        "Implement deleteWorkout(id): Promise<void>",
-        "Typecheck passes"
-      ],
-      "priority": 19,
-      "passes": true,
-      "notes": "Added getWorkouts() with updated_at desc sorting, updateWorkout() with WorkoutUpdate interface for name/is_favorite, deleteWorkout() returning void. All use RLS for security. Note: delete returns no error if row doesn't exist (Supabase behavior with RLS)."
-    },
-    {
-      "id": "US-020",
-      "title": "Create session service - start and complete",
-      "description": "As a user, I want my workout session tracked when I start and complete the timer.",
-      "acceptanceCriteria": [
-        "Create src/services/sessionService.ts",
-        "Implement startSession(workout, workoutId?): Promise<Session> with status 'in_progress'",
-        "Store workout_snapshot (copy of workout config)",
-        "Implement completeSession(sessionId, durationSeconds) setting status to 'completed'",
-        "Typecheck passes"
-      ],
-      "priority": 20,
-      "passes": true,
-      "notes": "Created sessionService.ts with Session interface and SessionStatus type. startSession stores workout_snapshot and sets status to 'in_progress'. completeSession updates status, completed_at timestamp, and duration_seconds."
-    },
-    {
-      "id": "US-021",
-      "title": "Create session service - abandon and history",
-      "description": "As a user, I want incomplete sessions marked as abandoned and to see my history.",
-      "acceptanceCriteria": [
-        "Implement abandonSession(sessionId): Promise<void> setting status to 'abandoned'",
-        "Implement getSessionHistory(limit = 50): Promise<Session[]> sorted by started_at desc",
-        "Includes workout_snapshot for display",
-        "Typecheck passes"
-      ],
-      "priority": 21,
-      "passes": true,
-      "notes": "Added abandonSession() which sets status to 'abandoned' and completed_at timestamp. Added getSessionHistory(limit=50) with started_at desc ordering. Both use RLS for security. workout_snapshot is included via select('*')."
-    },
-    {
-      "id": "US-022",
-      "title": "Create preferences service",
-      "description": "As a user, I want my preferences saved and loaded automatically.",
-      "acceptanceCriteria": [
-        "Create src/services/preferencesService.ts",
-        "Implement getPreferences(): Promise<Preferences>",
-        "Implement updatePreferences(prefs: Partial<Preferences>): Promise<Preferences>",
-        "Auto-create default preferences if none exist (upsert)",
-        "Typecheck passes"
-      ],
-      "priority": 22,
-      "passes": true,
-      "notes": "Created preferencesService.ts with Preferences interface, getPreferences (auto-creates defaults if none exist), and updatePreferences (uses upsert). Default values match database defaults."
-    },
-    {
-      "id": "US-023",
-      "title": "Add Save Workout button to Timer View",
-      "description": "As a user, I want to save my workout after parsing it.",
-      "acceptanceCriteria": [
-        "Add 'Save Workout' button to timer header/view",
-        "Shows modal or input to enter workout name",
-        "Calls workoutService.saveWorkout on confirm",
-        "Shows success toast after saving",
-        "Button disabled or shows 'Saved' indicator if already saved",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 23,
-      "passes": true,
-      "notes": "Added Save button (Save icon) to timer header, BottomSheet modal for workout name input with default name (WORKOUT_TYPE - date), success toast with auto-dismiss, Check icon indicator when saved. State resets on back navigation."
-    },
-    {
-      "id": "US-024",
-      "title": "Create My Workouts page - list view",
-      "description": "As a user, I want a page to see my saved workouts.",
-      "acceptanceCriteria": [
-        "Create src/views/MyWorkoutsView.vue",
-        "Fetch and list saved workouts using workoutService.getWorkouts",
-        "Display workout name and created date",
-        "Show empty state when no workouts saved",
-        "Add route /workouts",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 24,
-      "passes": true,
-      "notes": "Created MyWorkoutsView.vue with loading state, error state, empty state (with icon and helpful message), and workout list cards showing name, created date, and workout type badge."
-    },
-    {
-      "id": "US-025",
-      "title": "Add workout actions to My Workouts page",
-      "description": "As a user, I want to load, favorite, and delete workouts from the list.",
-      "acceptanceCriteria": [
-        "Click workout to load and navigate to timer",
-        "Add favorite toggle (star icon) calling updateWorkout",
-        "Add delete button with confirmation dialog",
-        "Delete calls workoutService.deleteWorkout",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 25,
-      "passes": true,
-      "notes": "Added click handler to load workout via workoutStore.setManualWorkout and navigate to timer. Star icon toggles is_favorite with optimistic UI update. Trash icon opens BottomSheet confirmation dialog before calling deleteWorkout."
-    },
-    {
-      "id": "US-026",
-      "title": "Create Workout History page",
-      "description": "As a user, I want to see my workout history and stats.",
-      "acceptanceCriteria": [
-        "Create src/views/HistoryView.vue",
-        "List completed sessions with date, workout name (from snapshot), duration",
-        "Show basic stats: total workouts completed, total time",
-        "Add route /history",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 26,
-      "passes": true,
-      "notes": "Created HistoryView.vue with stats cards (total workouts, total time) and session list. Sessions show workout name from snapshot, date/time, duration, workout type, and status badge (completed/abandoned/in_progress). Uses getSessionHistory() from sessionService."
-    },
-    {
-      "id": "US-027",
-      "title": "Add navigation to new pages",
-      "description": "As a user, I want to navigate to My Workouts and History pages.",
-      "acceptanceCriteria": [
-        "Add navigation links/buttons to main layout or header",
-        "Include: My Workouts, History links",
-        "Highlight active page",
-        "Mobile-friendly navigation",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 27,
-      "passes": true,
-      "notes": "Created BottomNav.vue component with fixed bottom navigation bar. Links to Timer (/), Workouts (/workouts), History (/history) with icons and labels. Active page highlighted in primary color. Added to all authenticated views with proper bottom padding."
-    },
-    {
-      "id": "US-028",
-      "title": "Setup offline storage with Dexie",
-      "description": "As a developer, I need local IndexedDB storage for offline-first support.",
-      "acceptanceCriteria": [
-        "Install dexie package",
-        "Create src/services/offlineDb.ts",
-        "Define local tables: workouts, sessions, preferences, syncQueue",
-        "Create CRUD methods for local storage operations",
-        "Typecheck passes"
-      ],
-      "priority": 28,
-      "passes": true,
-      "notes": "Created offlineDb.ts with Dexie database (ai-wod-timer-offline). Tables mirror Supabase schema: workouts, sessions, preferences, syncQueue. Full CRUD methods for each table plus bulk operations and clear functions for sync support."
-    },
-    {
-      "id": "US-029",
-      "title": "Implement offline mutation queue",
-      "description": "As a user, I want changes made offline to be queued for sync.",
-      "acceptanceCriteria": [
-        "Create sync queue table structure: id, table, operation, data, createdAt",
-        "Implement addToSyncQueue(table, operation, data) method",
-        "Save mutations to queue when offline (check navigator.onLine)",
-        "Typecheck passes"
-      ],
-      "priority": 29,
-      "passes": true,
-      "notes": "Created offlineMutationService.ts with isOnline() check, queueMutation wrapper, and offline mutation functions for workouts, sessions, and preferences. Installed uuid package for client-side ID generation. All mutations save to local IndexedDB and queue for sync."
-    },
-    {
-      "id": "US-030",
-      "title": "Implement sync service",
-      "description": "As a user, I want my offline changes synced automatically when online.",
-      "acceptanceCriteria": [
-        "Create src/services/syncService.ts",
-        "Detect online/offline status with event listeners",
-        "Process sync queue when online (iterate and apply to Supabase)",
-        "Handle conflicts with server-wins strategy",
-        "Clear queue items after successful sync",
-        "Typecheck passes"
-      ],
-      "priority": 30,
-      "passes": true,
-      "notes": "Created syncService.ts with online/offline event listeners (initSyncService, cleanupSyncService), processSyncQueue to apply pending mutations to Supabase, server-wins conflict resolution (check before insert, apply updates), and queue item removal after successful sync. Also includes pullFromServer and fullSync for bidirectional sync."
-    },
-    {
-      "id": "US-031",
-      "title": "Enable real-time subscriptions",
-      "description": "As a user, I want changes on other devices to appear in real-time.",
-      "acceptanceCriteria": [
-        "Subscribe to workouts table changes using Supabase Realtime",
-        "Subscribe to preferences changes",
-        "Update local state/IndexedDB when remote changes detected",
-        "Unsubscribe on logout/unmount",
-        "Typecheck passes"
-      ],
-      "priority": 31,
-      "passes": true,
-      "notes": "Created realtimeService.ts with Supabase Realtime subscriptions for workouts and user_preferences tables. Handles INSERT, UPDATE, DELETE events and updates local IndexedDB. Provides subscribeToAll/unsubscribeFromAll for easy lifecycle management."
-    },
-    {
-      "id": "US-032",
-      "title": "Handle offline state in UI",
-      "description": "As a user, I want to know when I'm offline and that my data is safe.",
-      "acceptanceCriteria": [
-        "Show offline indicator in header when disconnected",
-        "Show 'Syncing...' indicator when processing queue",
-        "Show 'Saved locally' confirmation for offline saves",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 32,
-      "passes": true,
-      "notes": "Created useOfflineStatus composable, OfflineIndicator component, and OfflineSaveToast component. Added offline indicator to all authenticated view headers. Updated workoutService for offline-first saves with savedOffline flag. Toast shows 'Saved locally' for offline saves."
-    },
-    {
-      "id": "US-033",
-      "title": "Generate TypeScript types from Supabase schema",
-      "description": "As a developer, I need TypeScript types for the database schema.",
-      "acceptanceCriteria": [
-        "Document command: npx supabase gen types typescript --project-id <id> > src/types/supabase.ts",
-        "Create src/types/supabase.ts with Database type",
-        "Update services to use generated types",
-        "Typecheck passes"
-      ],
-      "priority": 33,
-      "passes": true,
-      "notes": "Created comprehensive supabase.ts with Database type, Row/Insert/Update types for all tables, helper type exports, and generation command documentation. Updated workoutService, sessionService, preferencesService to import and use centralized types."
+      "notes": ""
     }
   ]
 }

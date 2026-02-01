@@ -118,7 +118,7 @@ onMounted(() => {
   <div class="min-h-screen bg-background">
     <div class="min-h-screen flex flex-col max-w-md mx-auto">
       <!-- Header -->
-      <header class="flex items-center justify-between px-4 py-3">
+      <header class="flex items-center justify-between px-4 py-3 safe-area-pt">
         <button
           @click="handleBack"
           class="p-2 -ml-2 text-foreground hover:text-muted-foreground transition-colors"

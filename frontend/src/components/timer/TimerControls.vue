@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useTimerStore, TimerState } from '@/stores/timerStore'
 import { storeToRefs } from 'pinia'
 import { useTimer } from '@/composables/useTimer'
+import { useHaptics } from '@/composables/useHaptics'
 import { Play, Pause, RotateCcw, Check, Coffee, Dumbbell, Square } from 'lucide-vue-next'
 
 const emit = defineEmits<{
@@ -12,10 +13,12 @@ const emit = defineEmits<{
 const timerStore = useTimerStore()
 const { state, isCompleted, currentInterval, currentIntervalIndex, config, skipPreparation, isWorkRestTimer, workRestPhase, isIntervalBased } = storeToRefs(timerStore)
 const { startTimer, pauseTimer, resetTimer, triggerWorkRestRest, skipToNextInterval } = useTimer()
+const { vibrateLight, vibrateMedium } = useHaptics()
 
 const handleStartPause = () => {
   // When completed, emit done event to go back to input
   if (state.value === TimerState.COMPLETED) {
+    vibrateLight()
     emit('done')
     return
   }
@@ -23,10 +26,13 @@ const handleStartPause = () => {
   // Disable pause during countdown - use reset instead
   if (state.value === TimerState.PREPARING) {
     // During countdown, reset instead of pause for better UX
+    vibrateMedium()
     resetTimer()
     return
   }
 
+  // Light haptic for play/pause
+  vibrateLight()
   if (state.value === TimerState.RUNNING) {
     pauseTimer()
   } else {
@@ -91,7 +97,28 @@ const endButtonEnabled = computed(() =>
 // End the timer manually
 const endTimer = () => {
   if (!endButtonEnabled.value) return
+  vibrateMedium()
   timerStore.complete()
+}
+
+// Reset with haptic feedback
+const handleReset = () => {
+  if (!resetButtonEnabled.value) return
+  vibrateMedium()
+  resetTimer()
+}
+
+// Done button with haptic feedback
+const handleDone = () => {
+  vibrateLight()
+  triggerWorkRestRest()
+}
+
+// Skip button with haptic feedback
+const handleSkip = () => {
+  if (!skipButtonEnabled.value) return
+  vibrateLight()
+  skipToNextInterval()
 }
 
 // Determine primary button color based on state
@@ -107,7 +134,7 @@ const primaryButtonClass = computed(() => {
   <div class="flex items-center justify-center gap-6">
     <!-- Reset Button (Secondary - 48px) -->
     <button
-      @click="resetTimer"
+      @click="handleReset"
       :disabled="!resetButtonEnabled"
       :class="[
         'w-12 h-12 rounded-full bg-surface-elevated border border-muted-foreground/40 flex items-center justify-center transition-colors',
@@ -138,7 +165,7 @@ const primaryButtonClass = computed(() => {
     <!-- Done Button for Work & Rest timer (during work phase) -->
     <button
       v-if="showDoneButton"
-      @click="triggerWorkRestRest"
+      @click="handleDone"
       class="w-12 h-12 rounded-full bg-surface-elevated border border-timer-rest/60 hover:border-timer-rest flex items-center justify-center transition-colors"
       aria-label="Done - Start Rest"
     >
@@ -148,7 +175,7 @@ const primaryButtonClass = computed(() => {
     <!-- Skip to Next Interval Button for interval-based timers -->
     <button
       v-else-if="showSkipButton"
-      @click="skipToNextInterval"
+      @click="handleSkip"
       :disabled="!skipButtonEnabled"
       :class="[
         'w-12 h-12 rounded-full bg-surface-elevated flex items-center justify-center transition-colors',
