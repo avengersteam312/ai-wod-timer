@@ -6,16 +6,14 @@
  * and falls back to localStorage on web.
  */
 
-// Lazy-loaded Capacitor modules
-let Capacitor: typeof import('@capacitor/core').Capacitor | null = null
+// Lazy-loaded Capacitor modules (only on native builds)
 let Preferences: typeof import('@capacitor/preferences').Preferences | null = null
 
 async function isNativePlatform(): Promise<boolean> {
+  if (!__CAPACITOR_ENABLED__) return false
+
   try {
-    if (!Capacitor) {
-      const mod = await import('@capacitor/core')
-      Capacitor = mod.Capacitor
-    }
+    const { Capacitor } = await import('@capacitor/core')
     return Capacitor.isNativePlatform()
   } catch {
     return false
@@ -23,6 +21,8 @@ async function isNativePlatform(): Promise<boolean> {
 }
 
 async function loadPreferences() {
+  if (!__CAPACITOR_ENABLED__) return null
+
   if (!Preferences) {
     try {
       const mod = await import('@capacitor/preferences')
@@ -36,12 +36,9 @@ async function loadPreferences() {
 
 /**
  * Get a value from storage
- *
- * @param key - The key to retrieve
- * @returns The stored value, or null if not found
  */
 export async function get(key: string): Promise<string | null> {
-  if (await isNativePlatform()) {
+  if (__CAPACITOR_ENABLED__ && (await isNativePlatform())) {
     const prefs = await loadPreferences()
     if (prefs) {
       const { value } = await prefs.get({ key })
@@ -53,12 +50,9 @@ export async function get(key: string): Promise<string | null> {
 
 /**
  * Set a value in storage
- *
- * @param key - The key to store
- * @param value - The value to store
  */
 export async function set(key: string, value: string): Promise<void> {
-  if (await isNativePlatform()) {
+  if (__CAPACITOR_ENABLED__ && (await isNativePlatform())) {
     const prefs = await loadPreferences()
     if (prefs) {
       await prefs.set({ key, value })
@@ -70,11 +64,9 @@ export async function set(key: string, value: string): Promise<void> {
 
 /**
  * Remove a value from storage
- *
- * @param key - The key to remove
  */
 export async function remove(key: string): Promise<void> {
-  if (await isNativePlatform()) {
+  if (__CAPACITOR_ENABLED__ && (await isNativePlatform())) {
     const prefs = await loadPreferences()
     if (prefs) {
       await prefs.remove({ key })
@@ -88,7 +80,7 @@ export async function remove(key: string): Promise<void> {
  * Clear all values from storage
  */
 export async function clear(): Promise<void> {
-  if (await isNativePlatform()) {
+  if (__CAPACITOR_ENABLED__ && (await isNativePlatform())) {
     const prefs = await loadPreferences()
     if (prefs) {
       await prefs.clear()
@@ -100,11 +92,9 @@ export async function clear(): Promise<void> {
 
 /**
  * Get all keys from storage
- *
- * @returns Array of all stored keys
  */
 export async function keys(): Promise<string[]> {
-  if (await isNativePlatform()) {
+  if (__CAPACITOR_ENABLED__ && (await isNativePlatform())) {
     const prefs = await loadPreferences()
     if (prefs) {
       const { keys: storedKeys } = await prefs.keys()

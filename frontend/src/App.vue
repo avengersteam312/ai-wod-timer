@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
 import { RouterView, useRouter } from 'vue-router'
-import { Capacitor } from '@capacitor/core'
 
 const router = useRouter()
 const showExitConfirm = ref(false)
@@ -9,18 +8,23 @@ let backButtonListener: { remove: () => Promise<void> } | null = null
 let CapacitorApp: typeof import('@capacitor/app').App | null = null
 
 onMounted(async () => {
-  if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') {
-    // Dynamic import to avoid build errors on web
-    const { App } = await import('@capacitor/app')
-    CapacitorApp = App
-    backButtonListener = await App.addListener('backButton', ({ canGoBack }) => {
-      if (canGoBack) {
-        router.back()
-      } else {
-        // On root route, show exit confirmation
-        showExitConfirm.value = true
-      }
-    })
+  if (!__CAPACITOR_ENABLED__) return
+
+  try {
+    const { Capacitor } = await import('@capacitor/core')
+    if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') {
+      const { App } = await import('@capacitor/app')
+      CapacitorApp = App
+      backButtonListener = await App.addListener('backButton', ({ canGoBack }) => {
+        if (canGoBack) {
+          router.back()
+        } else {
+          showExitConfirm.value = true
+        }
+      })
+    }
+  } catch {
+    // Capacitor not available, skip
   }
 })
 

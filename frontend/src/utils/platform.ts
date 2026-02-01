@@ -3,56 +3,63 @@
  *
  * Provides functions to detect the current platform (iOS, Android, Web)
  * for conditional logic in the application.
- * Uses dynamic imports to avoid build errors on web deployments.
+ * Uses build-time flag to avoid loading Capacitor on web builds.
  */
-
-// Lazy-loaded Capacitor module
-let Capacitor: typeof import('@capacitor/core').Capacitor | null = null
-let loaded = false
-
-async function loadCapacitor() {
-  if (!loaded) {
-    try {
-      const mod = await import('@capacitor/core')
-      Capacitor = mod.Capacitor
-    } catch {
-      Capacitor = null
-    }
-    loaded = true
-  }
-  return Capacitor
-}
 
 /**
  * Check if running on a native platform (iOS or Android)
  */
 export async function isNative(): Promise<boolean> {
-  const cap = await loadCapacitor()
-  return cap?.isNativePlatform() ?? false
+  if (!__CAPACITOR_ENABLED__) return false
+
+  try {
+    const { Capacitor } = await import('@capacitor/core')
+    return Capacitor.isNativePlatform()
+  } catch {
+    return false
+  }
 }
 
 /**
  * Check if running on iOS
  */
 export async function isIOS(): Promise<boolean> {
-  const cap = await loadCapacitor()
-  return cap?.getPlatform() === 'ios'
+  if (!__CAPACITOR_ENABLED__) return false
+
+  try {
+    const { Capacitor } = await import('@capacitor/core')
+    return Capacitor.getPlatform() === 'ios'
+  } catch {
+    return false
+  }
 }
 
 /**
  * Check if running on Android
  */
 export async function isAndroid(): Promise<boolean> {
-  const cap = await loadCapacitor()
-  return cap?.getPlatform() === 'android'
+  if (!__CAPACITOR_ENABLED__) return false
+
+  try {
+    const { Capacitor } = await import('@capacitor/core')
+    return Capacitor.getPlatform() === 'android'
+  } catch {
+    return false
+  }
 }
 
 /**
  * Check if running on web (not native)
  */
 export async function isWeb(): Promise<boolean> {
-  const cap = await loadCapacitor()
-  return !cap?.isNativePlatform()
+  if (!__CAPACITOR_ENABLED__) return true
+
+  try {
+    const { Capacitor } = await import('@capacitor/core')
+    return !Capacitor.isNativePlatform()
+  } catch {
+    return true
+  }
 }
 
 /**
@@ -60,21 +67,18 @@ export async function isWeb(): Promise<boolean> {
  * @returns 'ios' | 'android' | 'web'
  */
 export async function getPlatform(): Promise<'ios' | 'android' | 'web'> {
-  const cap = await loadCapacitor()
-  return (cap?.getPlatform() as 'ios' | 'android' | 'web') ?? 'web'
-}
+  if (!__CAPACITOR_ENABLED__) return 'web'
 
-/**
- * Synchronous platform check (returns false on web if Capacitor not loaded)
- * Use async versions for accurate detection
- */
-export function isNativeSync(): boolean {
-  return Capacitor?.isNativePlatform() ?? false
+  try {
+    const { Capacitor } = await import('@capacitor/core')
+    return Capacitor.getPlatform() as 'ios' | 'android' | 'web'
+  } catch {
+    return 'web'
+  }
 }
 
 /**
  * Platform constant object for convenient imports
- * Note: These are evaluated at import time, use async functions for accuracy
  */
 export const platform = {
   isNative,
@@ -82,7 +86,6 @@ export const platform = {
   isAndroid,
   isWeb,
   getPlatform,
-  isNativeSync,
 } as const
 
 export default platform
