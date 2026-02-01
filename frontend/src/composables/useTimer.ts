@@ -3,12 +3,14 @@ import { useTimerStore, TimerState } from '@/stores/timerStore'
 import { storeToRefs } from 'pinia'
 import { useAudio } from './useAudio'
 import { useHaptics } from './useHaptics'
+import { useKeepAwake } from './useKeepAwake'
 
 export function useTimer() {
   const timerStore = useTimerStore()
   const { state, currentTime, config, prepTime, prepDuration, intervalTime, currentInterval, currentIntervalIndex, totalIntervals, isIntervalBased, isWorkRestTimer, workRestPhase, workRestRestTime, currentRound, repeatRound, isOpenEndedInterval } = storeToRefs(timerStore)
   const { playBeep, playCountdown, speak } = useAudio()
   const { vibrateWarning, vibrateSuccess } = useHaptics()
+  const { keepAwake, allowSleep } = useKeepAwake()
 
   let intervalId: number | null = null
   const lastCueTime = ref(-1)
@@ -32,6 +34,7 @@ export function useTimer() {
     if (intervalId) return
 
     timerStore.start(skipPreparation)
+    keepAwake()
     intervalId = window.setInterval(() => {
       if (state.value === TimerState.PREPARING) {
         handlePreparation()
@@ -331,6 +334,7 @@ export function useTimer() {
       clearInterval(intervalId)
       intervalId = null
     }
+    allowSleep()
   }
 
   const resetTimer = () => {
@@ -343,6 +347,7 @@ export function useTimer() {
     lastIntervalCue.value = -1
     announcedHalfway.value = false
     announcedIntervalHalfway.value = false
+    allowSleep()
   }
 
   const checkAudioCues = () => {
@@ -413,6 +418,7 @@ export function useTimer() {
     if (intervalId) {
       clearInterval(intervalId)
     }
+    allowSleep()
   })
 
   return {
