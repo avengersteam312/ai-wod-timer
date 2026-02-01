@@ -2,11 +2,13 @@ import { ref, onUnmounted } from 'vue'
 import { useTimerStore, TimerState } from '@/stores/timerStore'
 import { storeToRefs } from 'pinia'
 import { useAudio } from './useAudio'
+import { useHaptics } from './useHaptics'
 
 export function useTimer() {
   const timerStore = useTimerStore()
   const { state, currentTime, config, prepTime, prepDuration, intervalTime, currentInterval, currentIntervalIndex, totalIntervals, isIntervalBased, isWorkRestTimer, workRestPhase, workRestRestTime, currentRound, repeatRound, isOpenEndedInterval } = storeToRefs(timerStore)
   const { playBeep, playCountdown, speak } = useAudio()
+  const { vibrateWarning, vibrateSuccess } = useHaptics()
 
   let intervalId: number | null = null
   const lastCueTime = ref(-1)
@@ -44,18 +46,23 @@ export function useTimer() {
 
     const remaining = prepDuration.value - prepTime.value
 
-    // Announce countdown: "ten seconds" (voice only), 3, 2, 1 (voice + beep)
+    // Announce countdown: "ten seconds" (voice only), 3, 2, 1 (voice + beep + haptic)
     if (remaining === 10) {
       speak('ten seconds')
+      vibrateWarning()
+    } else if (remaining === 5) {
+      vibrateWarning()
     } else if (remaining > 0 && remaining <= 3) {
       speak(remaining.toString())
       playCountdown()
+      vibrateWarning()
     }
 
     // Preparation complete, start workout
     if (prepTime.value >= prepDuration.value) {
       speak('GO!')
       playBeep()
+      vibrateSuccess()
       timerStore.startWorkout()
     }
   }
@@ -83,12 +90,16 @@ export function useTimer() {
 
       const remaining = workRestRestTime.value
 
-      // Voice countdown: "ten seconds" (voice only), 3, 2, 1 (voice + beep)
+      // Voice countdown: "ten seconds" (voice only), 3, 2, 1 (voice + beep + haptic)
       if (remaining === 10) {
         speak('ten seconds')
+        vibrateWarning()
+      } else if (remaining === 5) {
+        vibrateWarning()
       } else if (remaining === 3 || remaining === 2 || remaining === 1) {
         speak(remaining.toString())
         playCountdown()
+        vibrateWarning()
       }
 
       // Rest complete
@@ -98,6 +109,7 @@ export function useTimer() {
           // Workout complete
           speak('Great work!')
           playBeep()
+          vibrateSuccess()
           timerStore.complete()
           pauseTimer()
         } else {
@@ -124,6 +136,7 @@ export function useTimer() {
     if (currentRound.value >= totalRounds) {
       speak('Great work!')
       playBeep()
+      vibrateSuccess()
       timerStore.complete()
       pauseTimer()
     } else {
@@ -148,6 +161,7 @@ export function useTimer() {
     if (currentIntervalIndex.value >= totalIntervals.value - 1) {
       speak('Great work!')
       playBeep()
+      vibrateSuccess()
       timerStore.complete()
       pauseTimer()
     } else {
@@ -189,6 +203,7 @@ export function useTimer() {
     if (currentIntervalIndex.value >= totalIntervals.value - 1) {
       speak('Great work!')
       playBeep()
+      vibrateSuccess()
       timerStore.complete()
       pauseTimer()
     } else {
@@ -235,17 +250,24 @@ export function useTimer() {
       announcedIntervalHalfway.value = true
     }
 
-    // Voice countdown: "ten seconds" (voice only), 3, 2, 1 (voice + beep)
+    // Voice countdown: "ten seconds" (voice only), 5 (haptic only), 3, 2, 1 (voice + beep + haptic)
     // Skip "ten seconds" if we just announced "halfway" (they can coincide for 20-second intervals)
     if (remaining === 10 && !isHalfway) {
       if (lastIntervalCue.value !== remaining) {
         speak('ten seconds')
+        vibrateWarning()
+        lastIntervalCue.value = remaining
+      }
+    } else if (remaining === 5) {
+      if (lastIntervalCue.value !== remaining) {
+        vibrateWarning()
         lastIntervalCue.value = remaining
       }
     } else if (remaining === 3 || remaining === 2 || remaining === 1) {
       if (lastIntervalCue.value !== remaining) {
         speak(remaining.toString())
         playCountdown()
+        vibrateWarning()
         lastIntervalCue.value = remaining
       }
     }
@@ -275,6 +297,7 @@ export function useTimer() {
         // Workout complete
         speak('Great work!')
         playBeep()
+        vibrateSuccess()
         timerStore.complete()
         pauseTimer()
       } else {
@@ -335,16 +358,23 @@ export function useTimer() {
       announcedHalfway.value = true
     }
 
-    // Voice countdown: "ten seconds" (voice only), 3, 2, 1 (voice + beep)
+    // Voice countdown: "ten seconds" (voice only + haptic), 5 (haptic only), 3, 2, 1 (voice + beep + haptic)
     if (remaining === 10) {
       if (lastCueTime.value !== remaining) {
         speak('ten seconds')
+        vibrateWarning()
+        lastCueTime.value = remaining
+      }
+    } else if (remaining === 5) {
+      if (lastCueTime.value !== remaining) {
+        vibrateWarning()
         lastCueTime.value = remaining
       }
     } else if (remaining === 3 || remaining === 2 || remaining === 1) {
       if (lastCueTime.value !== remaining) {
         speak(remaining.toString())
         playCountdown()
+        vibrateWarning()
         lastCueTime.value = remaining
       }
     }
@@ -375,6 +405,7 @@ export function useTimer() {
       timerStore.complete()
       pauseTimer()
       playBeep()
+      vibrateSuccess()
     }
   }
 
