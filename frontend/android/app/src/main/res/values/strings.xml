@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">AI WOD Timer</string>
+    <string name="title_activity_main">AI WOD Timer</string>
+    <string name="package_name">com.wodtimer.app</string>
+    <string name="custom_url_scheme">com.wodtimer.app</string>
+</resources>
