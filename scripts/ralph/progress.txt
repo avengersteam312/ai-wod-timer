@@ -7,6 +7,13 @@ Started: Sun Feb  1 13:07:03 CST 2026
 - Working directory for frontend commands: `frontend/`
 - Capacitor packages installed: @capacitor/core, @capacitor/cli, @capacitor/ios, @capacitor/android (v8.0.2)
 - Capacitor config: `frontend/capacitor.config.ts` with appId 'com.wodtimer.app', webDir 'dist'
+- Native storage: Use `capacitorStorage` from `src/services/capacitorStorage.ts` instead of localStorage directly
+- Haptic feedback: Use `useHaptics` composable from `src/composables/useHaptics.ts` for native haptic feedback
+- Keep awake: Use `useKeepAwake` composable from `src/composables/useKeepAwake.ts` for screen wake lock
+- Platform detection: Use `src/utils/platform.ts` for isNative(), isIOS(), isAndroid(), isWeb(), getPlatform()
+- Safe area utilities: Use global CSS classes `safe-area-pt`, `safe-area-pb`, `safe-area-pl`, `safe-area-pr`, `safe-area-inset` from `src/style.css`
+- Headers in views use `safe-area-pt` class, BottomNav uses `safe-area-pb` and horizontal safe areas
+- Android back button: App.vue handles backButton event from @capacitor/app plugin with exit confirmation dialog
 
 ---
 
@@ -63,4 +70,165 @@ Started: Sun Feb  1 13:07:03 CST 2026
   - The package structure matches appId: com/wodtimer/app/
   - android/app/src/main/assets/capacitor.config.json is auto-generated from capacitor.config.ts
   - Web assets are synced to android/app/src/main/assets/public/
+---
+
+## 2026-02-01 - US-005
+- What was implemented: Updated Vite config for Capacitor compatibility
+- Files changed:
+  - frontend/vite.config.ts (added `base: './'` for relative asset paths)
+  - frontend/package.json (added `build:mobile` script)
+- **Learnings for future iterations:**
+  - Vite's `base: './'` is required for Capacitor to correctly resolve assets in the webview
+  - The `build:mobile` script combines build and cap sync in one command
+  - Use `npm run build:mobile` to prepare web assets for native platforms
+---
+
+## 2026-02-01 - US-006
+- What was implemented: Installed and configured Capacitor Preferences plugin for native storage
+- Files changed:
+  - frontend/package.json (added @capacitor/preferences)
+  - frontend/package-lock.json (updated with new dependency)
+  - frontend/src/services/capacitorStorage.ts (new file - storage wrapper service)
+- **Learnings for future iterations:**
+  - @capacitor/preferences provides native key-value storage on iOS/Android
+  - Use `Capacitor.isNativePlatform()` from @capacitor/core to detect native vs web
+  - The capacitorStorage service provides a localStorage-like API (get, set, remove, clear, keys)
+  - On web, falls back to localStorage; on native, uses Capacitor Preferences
+  - All methods are async to support both native and web platforms
+---
+
+## 2026-02-01 - US-007
+- What was implemented: Installed and configured Capacitor Haptics plugin for native haptic feedback
+- Files changed:
+  - frontend/package.json (added @capacitor/haptics)
+  - frontend/package-lock.json (updated with new dependency)
+  - frontend/src/composables/useHaptics.ts (new file - haptics composable)
+- **Learnings for future iterations:**
+  - @capacitor/haptics provides native haptic feedback on iOS/Android
+  - Capacitor Haptics has three types: ImpactStyle (Light/Medium/Heavy), NotificationType (Success/Warning/Error), and selection feedback
+  - The useHaptics composable follows Vue composable pattern with individual functions for each haptic type
+  - All haptic functions are async and gracefully degrade to no-op on web
+  - Additional selection-related haptics available: vibrateSelection, selectionStart, selectionEnd
+---
+
+## 2026-02-01 - US-008
+- What was implemented: Installed and configured Capacitor KeepAwake plugin for screen wake lock
+- Files changed:
+  - frontend/package.json (added @capacitor-community/keep-awake)
+  - frontend/package-lock.json (updated with new dependency)
+  - frontend/src/composables/useKeepAwake.ts (new file - keep awake composable)
+- **Learnings for future iterations:**
+  - @capacitor-community/keep-awake is a community plugin (not official @capacitor scope)
+  - The plugin provides keepAwake() and allowSleep() methods
+  - Also provides isSupported() and isKeptAwake() for status checking
+  - The useKeepAwake composable follows the same pattern as useHaptics
+  - Includes a reactive `isKeptAwake` ref to track state in Vue components
+  - Gracefully degrades to no-op on web (but still updates isKeptAwake ref)
+  - Note: US-010 will integrate this into the timer component
+---
+
+## 2026-02-01 - US-009
+- What was implemented: Integrated haptics into timer controls for mobile feedback
+- Files changed:
+  - frontend/src/components/timer/TimerControls.vue (added haptic feedback to button handlers)
+  - frontend/src/composables/useTimer.ts (added haptic feedback for countdown and completion)
+- **Learnings for future iterations:**
+  - TimerControls.vue handles all timer button interactions (play/pause, reset, done, skip, end)
+  - useTimer.ts handles timer logic including countdown cues and completion events
+  - Use vibrateLight for quick UI interactions (play/pause, skip)
+  - Use vibrateMedium for significant actions (reset, end)
+  - Use vibrateWarning for countdown warnings (10, 5, 3, 2, 1 seconds remaining)
+  - Use vibrateSuccess for workout completion
+  - All haptic functions are async but can be called without await for fire-and-forget behavior
+  - Haptic feedback gracefully degrades to no-op on web (checked via Capacitor.isNativePlatform())
+---
+
+## 2026-02-01 - US-010
+- What was implemented: Integrated keep awake into timer to keep screen on during workouts
+- Files changed:
+  - frontend/src/composables/useTimer.ts (integrated useKeepAwake composable)
+- **Learnings for future iterations:**
+  - useTimer.ts is the central place for timer logic and integration of native features
+  - keepAwake() is called when startTimer() is invoked to keep screen on during workout
+  - allowSleep() is called when pauseTimer(), resetTimer(), or component unmounts
+  - Timer completion flows through pauseTimer() which handles allowSleep()
+  - The onUnmounted hook in useTimer.ts ensures screen sleep is restored even if component unmounts unexpectedly
+  - Both keepAwake() and allowSleep() are fire-and-forget async calls (no need to await)
+---
+
+## 2026-02-01 - US-011
+- What was implemented: Created Capacitor platform detection utility
+- Files changed:
+  - frontend/src/utils/platform.ts (new file - platform detection functions)
+- **Learnings for future iterations:**
+  - Platform detection is centralized in `src/utils/platform.ts`
+  - Provides individual functions: isNative(), isIOS(), isAndroid(), isWeb(), getPlatform()
+  - Also exports a `platform` constant object with pre-computed boolean values for reactive usage
+  - Uses Capacitor.isNativePlatform() and Capacitor.getPlatform() under the hood
+  - getPlatform() returns 'ios' | 'android' | 'web' type
+  - Prefer using this utility over direct Capacitor calls for consistency
+---
+
+## 2026-02-01 - US-012
+- What was implemented: Configured iOS safe area handling for notch and home indicator
+- Files changed:
+  - frontend/index.html (added viewport-fit=cover to viewport meta tag)
+  - frontend/src/style.css (added global safe area utility classes)
+  - frontend/src/views/TimerView.vue (added safe-area-pt to both headers)
+  - frontend/src/views/ManualTimerView.vue (added safe-area-pt to both headers)
+  - frontend/src/views/HistoryView.vue (added safe-area-pt to header)
+  - frontend/src/views/MyWorkoutsView.vue (added safe-area-pt to header)
+  - frontend/src/components/BottomNav.vue (refactored to use global safe area classes)
+- **Learnings for future iterations:**
+  - `viewport-fit=cover` in meta viewport is required for env(safe-area-inset-*) to work
+  - Global CSS utility classes are defined in `src/style.css` under @layer utilities
+  - Headers use `safe-area-pt` class for top inset (respects iOS notch)
+  - BottomNav uses `safe-area-pb`, `safe-area-pl`, `safe-area-pr` for bottom and horizontal safe areas
+  - All views have inline headers (not a shared component), so each needs `safe-area-pt`
+  - BottomNav had scoped styles for safe area - refactored to use global utilities for consistency
+---
+
+## 2026-02-01 - US-013
+- What was implemented: Configured Android back button handling with exit confirmation
+- Files changed:
+  - frontend/package.json (added @capacitor/app)
+  - frontend/package-lock.json (updated with new dependency)
+  - frontend/src/App.vue (added back button listener and exit confirmation dialog)
+- **Learnings for future iterations:**
+  - @capacitor/app plugin provides `backButton` event for Android hardware back button
+  - The `canGoBack` parameter in the event handler indicates if there's navigation history
+  - Use `router.back()` to navigate back when there's history
+  - Use `App.exitApp()` to close the app (only works on Android)
+  - Back button handling is Android-only - check for platform with `Capacitor.getPlatform() === 'android'`
+  - The listener returns a handle with `remove()` method for cleanup in onUnmounted
+  - Exit confirmation uses Teleport to body with a modal dialog for better UX
+---
+
+## 2026-02-01 - US-014
+- What was implemented: Added Capacitor npm scripts for developer convenience
+- Files changed:
+  - frontend/package.json (added cap:sync, cap:ios, cap:android scripts)
+- **Learnings for future iterations:**
+  - Available npm scripts for Capacitor workflow:
+    - `npm run cap:sync` - Sync web assets to native projects
+    - `npm run cap:ios` - Open iOS project in Xcode
+    - `npm run cap:android` - Open Android project in Android Studio
+    - `npm run build:mobile` - Build web assets and sync to native (already existed from US-005)
+  - The `cap` command comes from @capacitor/cli which is already installed
+  - Use `cap sync` to copy web assets and update native plugins after changes
+  - Use `cap open <platform>` to open the native IDE for building/running
+---
+
+## 2026-02-01 - US-015
+- What was implemented: Created comprehensive Capacitor build and deployment documentation
+- Files changed:
+  - docs/capacitor-setup.md (new file - complete build and deployment guide)
+- **Learnings for future iterations:**
+  - Documentation follows the same format as existing docs (e.g., supabase-setup.md)
+  - Capacitor documentation covers: prerequisites, project structure, development workflow, iOS/Android build processes, signing, live reload, troubleshooting
+  - Key npm scripts: `build:mobile`, `cap:sync`, `cap:ios`, `cap:android`
+  - iOS requires: macOS, Xcode 15+, Apple Developer account, CocoaPods
+  - Android requires: Android Studio, Android SDK, JDK 17+
+  - For live reload development, update capacitor.config.ts with local IP URL (remember to remove before production build)
+  - All 15 user stories are now complete - Capacitor integration is fully implemented
 ---
