@@ -29,7 +29,7 @@ const navigate = (path: string) => {
 </script>
 
 <template>
-  <nav class="fixed bottom-0 left-0 right-0 bg-card border-t border-border safe-area-pb">
+  <nav class="fixed bottom-0 left-0 right-0 bg-card border-t border-border safe-area-pb safe-area-pl safe-area-pr">
     <div class="max-w-md mx-auto flex items-center justify-around">
       <button
         v-for="item in navItems"
@@ -59,9 +59,3 @@ const navigate = (path: string) => {
     </div>
   </nav>
 </template>
-
-<style scoped>
-.safe-area-pb {
-  padding-bottom: env(safe-area-inset-bottom, 0);
-}
-</style>
