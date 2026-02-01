@@ -5,14 +5,33 @@
  * Uses Capacitor Preferences plugin on native devices for persistent storage,
  * and falls back to localStorage on web.
  */
-import { Capacitor } from '@capacitor/core'
-import { Preferences } from '@capacitor/preferences'
 
-/**
- * Check if running on a native platform (iOS/Android)
- */
-function isNativePlatform(): boolean {
-  return Capacitor.isNativePlatform()
+// Lazy-loaded Capacitor modules
+let Capacitor: typeof import('@capacitor/core').Capacitor | null = null
+let Preferences: typeof import('@capacitor/preferences').Preferences | null = null
+
+async function isNativePlatform(): Promise<boolean> {
+  try {
+    if (!Capacitor) {
+      const mod = await import('@capacitor/core')
+      Capacitor = mod.Capacitor
+    }
+    return Capacitor.isNativePlatform()
+  } catch {
+    return false
+  }
+}
+
+async function loadPreferences() {
+  if (!Preferences) {
+    try {
+      const mod = await import('@capacitor/preferences')
+      Preferences = mod.Preferences
+    } catch {
+      Preferences = null
+    }
+  }
+  return Preferences
 }
 
 /**
@@ -22,9 +41,12 @@ function isNativePlatform(): boolean {
  * @returns The stored value, or null if not found
  */
 export async function get(key: string): Promise<string | null> {
-  if (isNativePlatform()) {
-    const { value } = await Preferences.get({ key })
-    return value
+  if (await isNativePlatform()) {
+    const prefs = await loadPreferences()
+    if (prefs) {
+      const { value } = await prefs.get({ key })
+      return value
+    }
   }
   return localStorage.getItem(key)
 }
@@ -36,11 +58,14 @@ export async function get(key: string): Promise<string | null> {
  * @param value - The value to store
  */
 export async function set(key: string, value: string): Promise<void> {
-  if (isNativePlatform()) {
-    await Preferences.set({ key, value })
-  } else {
-    localStorage.setItem(key, value)
+  if (await isNativePlatform()) {
+    const prefs = await loadPreferences()
+    if (prefs) {
+      await prefs.set({ key, value })
+      return
+    }
   }
+  localStorage.setItem(key, value)
 }
 
 /**
@@ -49,22 +74,28 @@ export async function set(key: string, value: string): Promise<void> {
  * @param key - The key to remove
  */
 export async function remove(key: string): Promise<void> {
-  if (isNativePlatform()) {
-    await Preferences.remove({ key })
-  } else {
-    localStorage.removeItem(key)
+  if (await isNativePlatform()) {
+    const prefs = await loadPreferences()
+    if (prefs) {
+      await prefs.remove({ key })
+      return
+    }
   }
+  localStorage.removeItem(key)
 }
 
 /**
  * Clear all values from storage
  */
 export async function clear(): Promise<void> {
-  if (isNativePlatform()) {
-    await Preferences.clear()
-  } else {
-    localStorage.clear()
+  if (await isNativePlatform()) {
+    const prefs = await loadPreferences()
+    if (prefs) {
+      await prefs.clear()
+      return
+    }
   }
+  localStorage.clear()
 }
 
 /**
@@ -73,9 +104,12 @@ export async function clear(): Promise<void> {
  * @returns Array of all stored keys
  */
 export async function keys(): Promise<string[]> {
-  if (isNativePlatform()) {
-    const { keys: storedKeys } = await Preferences.keys()
-    return storedKeys
+  if (await isNativePlatform()) {
+    const prefs = await loadPreferences()
+    if (prefs) {
+      const { keys: storedKeys } = await prefs.keys()
+      return storedKeys
+    }
   }
   return Object.keys(localStorage)
 }
