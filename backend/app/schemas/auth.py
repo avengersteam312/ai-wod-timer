@@ -5,29 +5,20 @@ from pydantic import BaseModel
 from typing import Optional
 
 
-class FirebaseInfo(BaseModel):
-    """Firebase authentication provider information."""
-    sign_in_provider: Optional[str] = None
-
-
 class UserInfoResponse(BaseModel):
     """User information response model."""
     uid: str
     email: Optional[str] = None
     email_verified: bool = False
     auth_time: Optional[int] = None
-    firebase: FirebaseInfo
 
     class Config:
         json_schema_extra = {
             "example": {
-                "uid": "firebase-user-id",
+                "uid": "supabase-user-id",
                 "email": "user@example.com",
-                "email_verified": False,
+                "email_verified": True,
                 "auth_time": 1234567890,
-                "firebase": {
-                    "sign_in_provider": "password"
-                }
             }
         }
 
@@ -42,7 +33,7 @@ class TestProtectedResponse(BaseModel):
         json_schema_extra = {
             "example": {
                 "message": "Authentication successful!",
-                "user_id": "firebase-user-id",
+                "user_id": "supabase-user-id",
                 "email": "user@example.com"
             }
         }

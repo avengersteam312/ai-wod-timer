@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     # AI Service
     OPENAI_API_KEY: str = ""
     AI_PROVIDER: str = "openai"
-    AI_MODEL: str = "gpt-4-turbo"
+    AI_MODEL: str = "gpt-4o-mini"  # Fast model for Vercel 10s timeout
     AI_CLASSIFIER_MODEL: str = "gpt-4.1-mini"  # Fast, cheap model for classification
     USE_AGENT_WORKFLOW: bool = False  # Set to True to use OpenAI Agents SDK workflow
     USE_CUSTOM_PROMPT_ONLY: bool = True  # Force using comprehensive custom prompt for all workout types
@@ -29,11 +29,8 @@ class Settings(BaseSettings):
     # CORS
     BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:5173", "http://localhost:3000"]
 
-    # Firebase
-    FIREBASE_PROJECT_ID: str = "ai-wod-timer"
-    # Optional: Path to Firebase service account JSON file (for production)
-    # If not provided, will use default credentials or project ID
-    FIREBASE_CREDENTIALS_PATH: str = ""
+    # Supabase
+    SUPABASE_JWT_SECRET: str = ""  # Get from Supabase Dashboard > Settings > API > JWT Secret
 
     class Config:
         env_file = ".env"

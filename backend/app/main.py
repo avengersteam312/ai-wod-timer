@@ -4,7 +4,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.api.v1.router import api_router
-from app.services.firebase_service import initialize_firebase
 
 logger = logging.getLogger(__name__)
 
@@ -13,17 +12,10 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown events."""
     # Startup
-    try:
-        initialize_firebase()
-        logger.info("Firebase Admin SDK initialized successfully")
-    except Exception as e:
-        # Log error but don't crash - Firebase will be initialized on first use
-        logger.warning(f"Firebase initialization failed: {e}")
-    
+    logger.info("Application starting up")
     yield
-    
-    # Shutdown (if needed in the future)
-    # Cleanup code can go here
+    # Shutdown
+    logger.info("Application shutting down")
 
 
 app = FastAPI(

@@ -1,5 +1,5 @@
 """
-Authentication endpoints for testing Firebase authentication.
+Authentication endpoints for Supabase authentication.
 """
 from fastapi import APIRouter, Depends
 from app.api.v1.dependencies import get_current_user
@@ -15,26 +15,20 @@ async def get_current_user_info(
 ) -> UserInfoResponse:
     """
     Get current authenticated user information.
-    
-    This is a protected endpoint that requires a valid Firebase token.
-    Returns the decoded Firebase token with user information.
-    
+
+    This is a protected endpoint that requires a valid Supabase access token.
+
     Usage:
-    - Include Authorization header: `Bearer <firebase_id_token>`
-    - Token is automatically verified by the backend
-    
+    - Include Authorization header: `Bearer <supabase_access_token>`
+
     Returns:
-        UserInfoResponse: User information including UID, email, and auth metadata
+        UserInfoResponse: User information including ID and email
     """
-    firebase_info = current_user.get("firebase", {})
     return UserInfoResponse(
-        uid=current_user.get("uid", ""),
+        uid=current_user.get("sub", ""),
         email=current_user.get("email"),
-        email_verified=current_user.get("email_verified", False),
-        auth_time=current_user.get("auth_time"),
-        firebase={
-            "sign_in_provider": firebase_info.get("sign_in_provider") if firebase_info else None,
-        }
+        email_verified=current_user.get("email_confirmed_at") is not None,
+        auth_time=current_user.get("iat"),
     )
 
 
@@ -44,14 +38,9 @@ async def test_protected_route(
 ) -> TestProtectedResponse:
     """
     Simple test endpoint to verify authentication is working.
-    
-    Returns a success message if the token is valid.
-    
-    Returns:
-        TestProtectedResponse: Success message with user identification
     """
     return TestProtectedResponse(
         message="Authentication successful!",
-        user_id=current_user.get("uid", ""),
+        user_id=current_user.get("sub", ""),
         email=current_user.get("email", "unknown")
     )
