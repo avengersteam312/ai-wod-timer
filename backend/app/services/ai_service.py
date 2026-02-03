@@ -39,13 +39,14 @@ class AIService:
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
-                max_tokens=4000,
+                max_tokens=2000,  # Reduced for faster responses
                 response_format={"type": "json_object"},
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
                 temperature=0,
+                timeout=8.0,  # Fail fast before Vercel 10s timeout
             )
 
             # Extract JSON from response
