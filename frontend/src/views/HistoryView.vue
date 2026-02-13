@@ -7,6 +7,7 @@ import BottomNav from '@/components/BottomNav.vue'
 import OfflineIndicator from '@/components/OfflineIndicator.vue'
 import Card from '@/components/ui/Card.vue'
 import { getSessionHistory, type Session } from '@/services/sessionService'
+import type { ParsedWorkout } from '@/types/workout'
 
 const router = useRouter()
 
@@ -76,7 +77,7 @@ const formatDuration = (seconds: number | null): string => {
 }
 
 const getWorkoutName = (session: Session): string => {
-  const snapshot = session.workout_snapshot
+  const snapshot = session.workout_snapshot as ParsedWorkout & { name?: string }
   // First try explicit name, then generate from workout type
   if (snapshot.name) return snapshot.name
 

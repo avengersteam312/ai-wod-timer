@@ -86,7 +86,7 @@ const nextIntervalIsRest = computed(() => {
     return false
   }
 
-  return intervals[nextIndex].type === 'rest'
+  return intervals[nextIndex]?.type === 'rest'
 })
 
 // End button is only enabled when running or paused

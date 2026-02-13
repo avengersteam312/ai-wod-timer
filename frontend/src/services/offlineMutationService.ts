@@ -13,7 +13,6 @@ import {
   saveLocalSession,
   updateLocalSession,
   saveLocalPreferences,
-  updateLocalPreferences,
   type LocalWorkout,
   type LocalSession,
   type LocalPreferences,

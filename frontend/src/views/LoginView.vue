@@ -128,7 +128,7 @@ const handlePasswordReset = async () => {
   // Validate email
   const emailValidation = validateEmail(resetEmail.value)
   if (!emailValidation.isValid) {
-    resetEmailError.value = emailValidation.error
+    resetEmailError.value = emailValidation.error ?? null
     return
   }
 

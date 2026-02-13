@@ -101,7 +101,7 @@ export function useWorkoutHighlighting(text: Ref<string>) {
       .filter((match, index, arr) => {
         // Remove duplicates (same start and end)
         if (index > 0) {
-          const prev = arr[index - 1]
+          const prev = arr[index - 1]!
           if (prev.start === match.start && prev.end === match.end) {
             return false
           }

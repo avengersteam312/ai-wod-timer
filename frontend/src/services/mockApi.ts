@@ -16,11 +16,11 @@ function parseMockWorkout(text: string): ParsedWorkout {
   if (textLower.includes('amrap')) {
     workoutType = 'amrap'
     const match = text.match(/amrap\s+(\d+)\s*min/i)
-    if (match) duration = parseInt(match[1]) * 60
+    if (match?.[1]) duration = parseInt(match[1]) * 60
   } else if (textLower.includes('emom')) {
     workoutType = 'emom'
     const match = text.match(/emom\s+(\d+)\s*min/i)
-    if (match) duration = parseInt(match[1]) * 60
+    if (match?.[1]) duration = parseInt(match[1]) * 60
   } else if (textLower.includes('for time')) {
     workoutType = 'for_time'
   } else if (textLower.includes('tabata')) {
@@ -30,7 +30,7 @@ function parseMockWorkout(text: string): ParsedWorkout {
 
   // Detect rounds
   const roundsMatch = text.match(/(\d+)\s+rounds/i)
-  if (roundsMatch) rounds = parseInt(roundsMatch[1])
+  if (roundsMatch?.[1]) rounds = parseInt(roundsMatch[1])
 
   // Parse movements (simple pattern matching)
   const movements = []
@@ -38,7 +38,7 @@ function parseMockWorkout(text: string): ParsedWorkout {
 
   for (const line of lines) {
     const repsMatch = line.match(/(\d+)\s+(.+)/i)
-    if (repsMatch && !line.toLowerCase().includes('min') && !line.toLowerCase().includes('rounds')) {
+    if (repsMatch?.[1] && repsMatch[2] && !line.toLowerCase().includes('min') && !line.toLowerCase().includes('rounds')) {
       const reps = parseInt(repsMatch[1])
       let name = repsMatch[2].trim()
 
@@ -75,7 +75,7 @@ function parseMockWorkout(text: string): ParsedWorkout {
   }
 }
 
-function generateIntervals(workoutType: WorkoutType, duration?: number, rounds?: number) {
+function generateIntervals(workoutType: WorkoutType, duration?: number, _rounds?: number) {
   const intervals = []
 
   if (workoutType === 'emom' && duration) {
@@ -109,7 +109,7 @@ function generateIntervals(workoutType: WorkoutType, duration?: number, rounds?:
   return intervals
 }
 
-function generateAudioCues(workoutType: WorkoutType, duration?: number, intervals?: any[]) {
+function generateAudioCues(workoutType: WorkoutType, duration?: number, _intervals?: unknown[]) {
   const cues = []
 
   if (duration) {

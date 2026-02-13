@@ -2,13 +2,15 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { TimerConfig } from '@/types/workout'
 
-export enum TimerState {
-  IDLE = 'idle',
-  PREPARING = 'preparing',
-  RUNNING = 'running',
-  PAUSED = 'paused',
-  COMPLETED = 'completed',
-}
+export const TimerState = {
+  IDLE: 'idle',
+  PREPARING: 'preparing',
+  RUNNING: 'running',
+  PAUSED: 'paused',
+  COMPLETED: 'completed',
+} as const
+
+export type TimerState = typeof TimerState[keyof typeof TimerState]
 
 // Manual round tracking for AMRAP, stopwatch, for_time timers
 export interface ManualRound {

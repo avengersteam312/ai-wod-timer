@@ -23,7 +23,7 @@ const handleSubmit = async () => {
   // Validate email
   const emailValidation = validateEmail(email.value)
   if (!emailValidation.isValid) {
-    emailError.value = emailValidation.error
+    emailError.value = emailValidation.error ?? null
     return
   }
 
