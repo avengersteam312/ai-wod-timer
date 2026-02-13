@@ -58,4 +58,11 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run tests
-        run: pytest
+        run: |
+          EXIT_CODE=0
+          pytest || EXIT_CODE=$?
+          if [ $EXIT_CODE -eq 5 ]; then
+            echo "No tests collected — skipping"
+            exit 0
+          fi
+          exit $EXIT_CODE
