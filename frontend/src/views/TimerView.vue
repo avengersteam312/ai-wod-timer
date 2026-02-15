@@ -32,7 +32,7 @@ const timerStore = useTimerStore()
 const authStore = useSupabaseAuthStore()
 const { currentWorkout } = storeToRefs(workoutStore)
 const { isCompleted, autoStart, skipPreparation } = storeToRefs(timerStore)
-const { audioEnabled, toggleAudio } = useAudio()
+const { voiceEnabled, toggleVoice } = useAudio()
 const { startTimer } = useTimer()
 const {
   showTimerBlock,
@@ -192,11 +192,11 @@ const workoutTitle = () => {
             <Check class="h-6 w-6" />
           </div>
           <button
-            @click="toggleAudio"
+            @click="toggleVoice"
             class="p-2 text-foreground hover:text-muted-foreground transition-colors"
-            aria-label="Toggle audio"
+            aria-label="Toggle voice"
           >
-            <Volume2 v-if="audioEnabled" class="h-6 w-6" />
+            <Volume2 v-if="voiceEnabled" class="h-6 w-6" />
             <VolumeX v-else class="h-6 w-6" />
           </button>
           <ProfileMenu />
