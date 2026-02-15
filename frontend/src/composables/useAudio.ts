@@ -189,14 +189,26 @@ export function useAudio() {
     synth.resume()
   }
 
-  // Unlock audio for mobile browsers (just resume AudioContext, no sound playback)
+  // Unlock audio for mobile browsers
   const unlockAudio = () => {
     if (audioUnlocked.value) return
+    audioUnlocked.value = true
 
+    // Resume AudioContext
     const context = new AudioContext()
-    context.resume().then(() => {
-      audioUnlocked.value = true
-    }).catch(() => {})
+    context.resume().catch(() => {})
+
+    // Play one sound silently to unlock HTML5 Audio on mobile
+    const unlock = countdownSound
+    const originalVolume = unlock.volume
+    unlock.volume = 0
+    unlock.play().then(() => {
+      unlock.pause()
+      unlock.currentTime = 0
+      unlock.volume = originalVolume
+    }).catch(() => {
+      unlock.volume = originalVolume
+    })
   }
 
   const toggleVoice = () => {

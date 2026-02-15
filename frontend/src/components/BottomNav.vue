@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Timer, Sparkles, History } from 'lucide-vue-next'
+import { useWorkoutStore } from '@/stores/workoutStore'
+import { useTimerStore } from '@/stores/timerStore'
 
 const route = useRoute()
 const router = useRouter()
+const workoutStore = useWorkoutStore()
+const timerStore = useTimerStore()
 
 interface NavItem {
   name: string
@@ -24,12 +27,17 @@ const isActive = (item: NavItem): boolean => {
 }
 
 const navigate = (path: string) => {
+  // Clear workout state when switching between timer views
+  if (path === '/' || path === '/manual') {
+    workoutStore.clearWorkout()
+    timerStore.reset()
+  }
   router.push(path)
 }
 </script>
 
 <template>
-  <nav class="fixed bottom-0 left-0 right-0 bg-card border-t border-border safe-area-pb safe-area-pl safe-area-pr">
+  <nav class="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border safe-area-pb safe-area-pl safe-area-pr">
     <div class="max-w-md mx-auto flex items-center justify-around">
       <button
         v-for="item in navItems"
