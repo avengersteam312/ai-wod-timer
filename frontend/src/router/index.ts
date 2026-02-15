@@ -47,6 +47,11 @@ const router = createRouter({
       component: HistoryView,
       meta: { requiresAuth: true }, // Requires authentication
     },
+    {
+      // Catch-all route - redirect unknown paths to home
+      path: '/:pathMatch(.*)*',
+      redirect: '/',
+    },
   ],
 })
 

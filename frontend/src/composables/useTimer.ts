@@ -8,7 +8,7 @@ import { useKeepAwake } from './useKeepAwake'
 export function useTimer() {
   const timerStore = useTimerStore()
   const { state, currentTime, config, prepTime, prepDuration, intervalTime, currentInterval, currentIntervalIndex, totalIntervals, isIntervalBased, isWorkRestTimer, workRestPhase, workRestRestTime, currentRound, repeatRound, isOpenEndedInterval } = storeToRefs(timerStore)
-  const { playBeep, playCountdown, playGo, playDone, playHalfway, playTenSeconds, playLastRound, playRest, playRoundOne, playNextRound, playNumber, speak } = useAudio()
+  const { playBeep, playCountdown, playGo, playDone, playHalfway, playTenSeconds, playLastRound, playRest, playRoundOne, playNextRound, playNumber, speak, unlockAudio } = useAudio()
   const { vibrateWarning, vibrateSuccess } = useHaptics()
   const { keepAwake, allowSleep } = useKeepAwake()
 
@@ -32,6 +32,9 @@ export function useTimer() {
 
   const startTimer = (skipPreparation: boolean = false) => {
     if (intervalId) return
+
+    // Resume AudioContext for mobile browsers
+    unlockAudio()
 
     timerStore.start(skipPreparation)
     keepAwake()

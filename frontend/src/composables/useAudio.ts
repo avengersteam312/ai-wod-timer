@@ -2,6 +2,7 @@ import { ref } from 'vue'
 
 // Shared state across all instances
 const voiceEnabled = ref(true)  // Only controls voice, beeps always play
+const audioUnlocked = ref(false)
 const synth = window.speechSynthesis
 
 // Helper to create audio elements
@@ -188,12 +189,23 @@ export function useAudio() {
     synth.resume()
   }
 
+  // Unlock audio for mobile browsers (just resume AudioContext, no sound playback)
+  const unlockAudio = () => {
+    if (audioUnlocked.value) return
+
+    const context = new AudioContext()
+    context.resume().then(() => {
+      audioUnlocked.value = true
+    }).catch(() => {})
+  }
+
   const toggleVoice = () => {
     voiceEnabled.value = !voiceEnabled.value
   }
 
   return {
     voiceEnabled,
+    unlockAudio,
     playBeep,
     playCountdown,
     playComplete,
