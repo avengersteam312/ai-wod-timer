@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHashHistory } from 'vue-router'
 import { watch } from 'vue'
 import TimerView from '@/views/TimerView.vue'
 import ManualTimerView from '@/views/ManualTimerView.vue'
@@ -9,7 +9,7 @@ import HistoryView from '@/views/HistoryView.vue'
 import { useSupabaseAuthStore } from '@/stores/supabaseAuthStore'
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  history: createWebHashHistory(),
   routes: [
     {
       path: '/login',
