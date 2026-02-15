@@ -2,17 +2,11 @@ import { ref } from 'vue'
 
 // Shared state across all instances
 const voiceEnabled = ref(true)  // Only controls voice, beeps always play
-const audioUnlocked = ref(false)
 const synth = window.speechSynthesis
 
-// All audio elements for unlocking
-const allSounds: HTMLAudioElement[] = []
-
-// Helper to create and register audio elements
+// Helper to create audio elements
 const createSound = (path: string): HTMLAudioElement => {
-  const audio = new Audio(path)
-  allSounds.push(audio)
-  return audio
+  return new Audio(path)
 }
 
 // Preload beep sounds
@@ -171,29 +165,9 @@ export function useAudio() {
     }
   }
 
-  // Unlock audio for Chrome autoplay policy
-  // Call this on first user interaction (click/tap)
-  const unlockAudio = () => {
-    if (audioUnlocked.value) return
-
-    // Play and immediately pause all sounds to unlock them
-    allSounds.forEach((sound: HTMLAudioElement) => {
-      sound.play().then(() => {
-        sound.pause()
-        sound.currentTime = 0
-      }).catch(() => {})
-    })
-
-    // Also create and resume an AudioContext
-    const context = new AudioContext()
-    context.resume().then(() => {
-      audioUnlocked.value = true
-    }).catch(() => {})
-  }
-
-  // Fallback speech synthesis for dynamic content (round numbers, rest, etc.)
+  // Fallback speech synthesis for dynamic content
   const speak = (text: string) => {
-    if (!audioEnabled.value || !synth) return
+    if (!voiceEnabled.value || !synth) return
 
     synth.cancel()
     synth.resume()
@@ -220,7 +194,6 @@ export function useAudio() {
 
   return {
     voiceEnabled,
-    unlockAudio,
     playBeep,
     playCountdown,
     playComplete,
