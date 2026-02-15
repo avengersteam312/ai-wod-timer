@@ -1,9 +1,23 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
 import { RouterView, useRouter } from 'vue-router'
+import { useAudio } from '@/composables/useAudio'
 
 const router = useRouter()
+const { unlockAudio } = useAudio()
 const showExitConfirm = ref(false)
+
+// Unlock audio on first user interaction
+const handleFirstInteraction = () => {
+  unlockAudio()
+  document.removeEventListener('click', handleFirstInteraction)
+  document.removeEventListener('touchstart', handleFirstInteraction)
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleFirstInteraction, { once: true })
+  document.addEventListener('touchstart', handleFirstInteraction, { once: true })
+})
 let backButtonListener: { remove: () => Promise<void> } | null = null
 let CapacitorApp: typeof import('@capacitor/app').App | null = null
 
