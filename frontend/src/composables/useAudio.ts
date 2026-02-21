@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 
 // Shared state across all instances
-const voiceEnabled = ref(true)  // Only controls voice, beeps always play
+const voiceEnabled = ref(true)  // When false, no audio plays at all (voice and beeps)
 const audioUnlocked = ref(false)
 const synth = window.speechSynthesis
 
@@ -47,8 +47,9 @@ Object.values(countdownNumbers).forEach(sound => sound.load())
 
 export function useAudio() {
 
-  // Transition beep (round changes) - oscillator (always plays)
+  // Transition beep (round changes) - oscillator
   const playBeep = () => {
+    if (!voiceEnabled.value) return
     const context = new AudioContext()
     const oscillator = context.createOscillator()
     const gainNode = context.createGain()
@@ -63,48 +64,40 @@ export function useAudio() {
     setTimeout(() => oscillator.stop(), 200)
   }
 
-  // Countdown beep (3, 2, 1) - always plays
+  // Countdown beep (3, 2, 1)
   const playCountdown = () => {
+    if (!voiceEnabled.value) return
     countdownSound.currentTime = 0
     countdownSound.play().catch(() => {})
   }
 
-  // Workout complete chime - always plays
+  // Workout complete chime
   const playComplete = () => {
+    if (!voiceEnabled.value) return
     completeSound.currentTime = 0
     completeSound.play().catch(() => {})
   }
 
   // Timer start voice (GO!) + beep
   const playGo = () => {
-    if (voiceEnabled.value) {
-      goSound.currentTime = 0
-      goSound.play().then(() => {
-        // Play go beep after voice finishes
-        goBeepSound.currentTime = 0
-        goBeepSound.play().catch(() => {})
-      }).catch(() => {})
-    } else {
-      // Just play beep if voice is muted
+    if (!voiceEnabled.value) return
+    goSound.currentTime = 0
+    goSound.play().then(() => {
+      if (!voiceEnabled.value) return
       goBeepSound.currentTime = 0
       goBeepSound.play().catch(() => {})
-    }
+    }).catch(() => {})
   }
 
   // Workout done voice + complete chime
   const playDone = () => {
-    if (voiceEnabled.value) {
-      doneSound.currentTime = 0
-      doneSound.play().then(() => {
-        // Play complete chime after voice finishes
-        completeSound.currentTime = 0
-        completeSound.play().catch(() => {})
-      }).catch(() => {})
-    } else {
-      // Just play chime if voice is muted
+    if (!voiceEnabled.value) return
+    doneSound.currentTime = 0
+    doneSound.play().then(() => {
+      if (!voiceEnabled.value) return
       completeSound.currentTime = 0
       completeSound.play().catch(() => {})
-    }
+    }).catch(() => {})
   }
 
   // Halfway voice
