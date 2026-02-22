@@ -276,8 +276,8 @@ const ringProgress = computed(() => {
 })
 
 // SVG circle calculations
-const ringSize = 260
-const strokeWidth = 10
+const ringSize = 200
+const strokeWidth = 8
 const radius = (ringSize - strokeWidth) / 2
 const circumference = 2 * Math.PI * radius
 

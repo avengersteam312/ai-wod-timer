@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
 import { useWorkoutStore } from '@/stores/workoutStore'
-import { useTimerStore } from '@/stores/timerStore'
+import { useTimerStore, TimerState } from '@/stores/timerStore'
 import { useSupabaseAuthStore } from '@/stores/supabaseAuthStore'
 import { storeToRefs } from 'pinia'
 import ManualTimer from '@/components/ManualTimer.vue'
-import { ArrowLeft, Volume2, VolumeX, Save, Check } from 'lucide-vue-next'
+import { ArrowLeft, Volume2, VolumeX } from 'lucide-vue-next'
 import { useAudio } from '@/composables/useAudio'
 import { useTimer } from '@/composables/useTimer'
 import { useTimerLayout } from '@/composables/useTimerLayout'
@@ -16,6 +16,7 @@ import BottomSheet from '@/components/ui/BottomSheet.vue'
 import OfflineIndicator from '@/components/OfflineIndicator.vue'
 import OfflineSaveToast from '@/components/OfflineSaveToast.vue'
 import { saveWorkout } from '@/services/workoutService'
+import { proposeWorkoutName, MAX_WORKOUT_NAME_LENGTH } from '@/utils/workoutName'
 import {
   TimerBlock,
   CurrentMovementBlock,
@@ -31,7 +32,7 @@ const workoutStore = useWorkoutStore()
 const timerStore = useTimerStore()
 const authStore = useSupabaseAuthStore()
 const { currentWorkout } = storeToRefs(workoutStore)
-const { isCompleted, autoStart, skipPreparation } = storeToRefs(timerStore)
+const { isCompleted, autoStart, skipPreparation, state: timerState } = storeToRefs(timerStore)
 const { voiceEnabled, toggleVoice } = useAudio()
 const { startTimer } = useTimer()
 const {
@@ -58,26 +59,44 @@ const saveError = ref<string | null>(null)
 const saveSuccess = ref(false)
 const savedOffline = ref(false)
 
-// Show save button only when authenticated and workout exists
-const canSave = computed(() => authStore.isAuthenticated && currentWorkout.value && !isSaved.value)
+// When save modal was opened from Done/Start New Workout, we exit after save or Don't save
+const saveThenExit = ref(false)
 
-// Generate default workout name from workout type
-const defaultWorkoutName = computed(() => {
-  if (!currentWorkout.value) return ''
-  const type = currentWorkout.value.workout_type.toUpperCase()
-  const date = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  return `${type} - ${date}`
-})
+// Pre-plan: show "Save for later" only before timer starts (IDLE), like TimerView
+const showSaveForLater = computed(
+  () =>
+    authStore.isAuthenticated &&
+    !!currentWorkout.value &&
+    !workoutStore.loadedFromWorkoutId &&
+    !isSaved.value &&
+    timerState.value === TimerState.IDLE
+)
 
-const openSaveModal = () => {
-  workoutName.value = defaultWorkoutName.value
-  saveError.value = null
-  showSaveModal.value = true
+const openEndSessionSavePrompt = () => {
+  // Already saved (e.g. loaded from My Workouts) → exit without prompting
+  if (workoutStore.loadedFromWorkoutId) {
+    handleBack()
+    return
+  }
+  if (authStore.isAuthenticated && currentWorkout.value && !isSaved.value) {
+    saveThenExit.value = true
+    workoutName.value = proposeWorkoutName(currentWorkout.value)
+    saveError.value = null
+    showSaveModal.value = true
+  } else {
+    handleBack()
+  }
 }
 
 const closeSaveModal = () => {
   showSaveModal.value = false
   saveError.value = null
+  saveThenExit.value = false
+}
+
+const handleDontSave = () => {
+  closeSaveModal()
+  handleBack()
 }
 
 const handleSaveWorkout = async () => {
@@ -85,14 +104,21 @@ const handleSaveWorkout = async () => {
 
   isSaving.value = true
   saveError.value = null
+  const nameToSave = workoutName.value.trim().slice(0, MAX_WORKOUT_NAME_LENGTH)
 
   try {
-    const result = await saveWorkout(currentWorkout.value, workoutName.value.trim())
+    const result = await saveWorkout(currentWorkout.value, nameToSave)
     savedWorkoutId.value = result.workout.id
     isSaved.value = true
     savedOffline.value = result.savedOffline
     saveSuccess.value = true
     showSaveModal.value = false
+
+    if (saveThenExit.value) {
+      saveThenExit.value = false
+      handleBack()
+      return
+    }
 
     // Clear success message after 3 seconds
     setTimeout(() => {
@@ -116,7 +142,11 @@ watch(currentWorkout, (workout) => {
 
 // Watch for rest timer completion - redirect back to manual timer list immediately
 watch(isCompleted, (completed) => {
-  if (completed && currentWorkout.value?.workout_type === 'custom' && currentWorkout.value?.raw_text?.includes('Rest')) {
+  const wt = currentWorkout.value?.workout_type
+  const isRestTimer =
+    wt === 'rest' ||
+    (wt === 'custom' && currentWorkout.value?.raw_text?.includes('Rest'))
+  if (completed && isRestTimer) {
     workoutStore.clearWorkout()
     timerStore.reset()
   }
@@ -180,23 +210,6 @@ const workoutTitle = () => {
         </div>
 
         <div class="flex items-center gap-1">
-          <!-- Save Workout Button -->
-          <button
-            v-if="canSave"
-            @click="openSaveModal"
-            class="p-2 text-foreground hover:text-muted-foreground transition-colors"
-            aria-label="Save workout"
-          >
-            <Save class="h-6 w-6" />
-          </button>
-          <!-- Saved Indicator -->
-          <div
-            v-else-if="isSaved"
-            class="p-2 text-timer-complete"
-            aria-label="Workout saved"
-          >
-            <Check class="h-6 w-6" />
-          </div>
           <button
             @click="toggleVoice"
             class="p-2 text-foreground hover:text-muted-foreground transition-colors"
@@ -231,17 +244,31 @@ const workoutTitle = () => {
 
       <!-- Main Content -->
       <main class="flex-1 flex flex-col px-4 pb-20 space-y-4">
+        <!-- Save for later (visible during workout, not only after stop) -->
+        <div
+          v-if="showSaveForLater"
+          class="flex justify-center"
+        >
+          <button
+            type="button"
+            @click="openEndSessionSavePrompt"
+            class="text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Save for later
+          </button>
+        </div>
+
         <!-- Timer Display with Ring -->
         <TimerBlock v-if="showTimerBlock" />
+
+        <!-- Timer Controls -->
+        <ControlsBlock v-if="showControls" @done="openEndSessionSavePrompt" />
 
         <!-- Round Counter -->
         <RoundCounterBlock v-if="showRoundCounter" />
 
         <!-- Manual Round Counter (for AMRAP, for_time, stopwatch) -->
         <ManualRoundCounterBlock />
-
-        <!-- Timer Controls -->
-        <ControlsBlock v-if="showControls" @done="handleBack" />
 
         <!-- Workout Summary -->
         <WorkoutSummaryBlock v-if="showWorkoutSummary" />
@@ -258,7 +285,7 @@ const workoutTitle = () => {
         <!-- Start New Workout Button (when completed) -->
         <button
           v-if="isCompleted && showCompletedCard"
-          @click="handleBack"
+          @click="openEndSessionSavePrompt"
           class="w-full bg-timer-complete text-background font-semibold py-3 rounded-lg hover:bg-timer-complete/90 transition-colors"
         >
           Start New Workout
@@ -269,10 +296,10 @@ const workoutTitle = () => {
       </main>
     </div>
 
-    <!-- Save Workout Modal -->
+    <!-- Save Workout Modal (shown when ending session via Done or Start New Workout) -->
     <BottomSheet
       :open="showSaveModal"
-      title="Save Workout"
+      title="Save this workout?"
       @update:open="(val) => !val && closeSaveModal()"
     >
       <div class="space-y-4">
@@ -284,6 +311,7 @@ const workoutTitle = () => {
             id="workout-name"
             v-model="workoutName"
             type="text"
+            maxlength="18"
             placeholder="Enter workout name"
             class="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
             @keyup.enter="handleSaveWorkout"
@@ -302,11 +330,11 @@ const workoutTitle = () => {
       <template #actions>
         <div class="flex gap-3">
           <button
-            @click="closeSaveModal"
+            @click="handleDontSave"
             class="flex-1 px-4 py-2 border border-border rounded-lg text-foreground hover:bg-surface transition-colors"
             :disabled="isSaving"
           >
-            Cancel
+            Don't save
           </button>
           <button
             @click="handleSaveWorkout"

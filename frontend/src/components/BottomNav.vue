@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useRoute, useRouter } from 'vue-router'
-import { Timer, Sparkles, History } from 'lucide-vue-next'
+import { Timer, GalleryVerticalEnd, History } from 'lucide-vue-next'
 import { useWorkoutStore } from '@/stores/workoutStore'
 import { useTimerStore } from '@/stores/timerStore'
 
@@ -18,7 +18,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { name: 'manual', path: '/manual', icon: Timer, label: 'Manual' },
-  { name: 'timer', path: '/', icon: Sparkles, label: 'AI Timer' },
+  { name: 'timer', path: '/', icon: GalleryVerticalEnd, label: 'Dashboard' },
   { name: 'history', path: '/history', icon: History, label: 'History' },
 ]
 
