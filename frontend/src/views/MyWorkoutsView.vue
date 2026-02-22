@@ -48,14 +48,19 @@ const formatDate = (dateString: string): string => {
   })
 }
 
+const MAX_NAME_CHARS = 18
+function displayName(name: string): string {
+  if (name.length <= MAX_NAME_CHARS) return name
+  return name.slice(0, MAX_NAME_CHARS - 3) + '...'
+}
+
 const handleBack = () => {
   router.push('/')
 }
 
 const handleLoadWorkout = (workout: Workout) => {
-  // Load the workout's parsed config into the workout store
-  workoutStore.setManualWorkout(workout.parsed_config)
-  // Navigate to timer view
+  // Load the workout's parsed config; mark as already saved so we don't prompt to save on done
+  workoutStore.setManualWorkout(workout.parsed_config, workout.id)
   router.push('/')
 }
 
@@ -188,8 +193,8 @@ onMounted(() => {
           >
             <div class="flex items-center gap-3">
               <div class="flex-1 min-w-0">
-                <h3 class="font-medium text-foreground truncate">
-                  {{ workout.name }}
+                <h3 class="font-medium text-foreground truncate" :title="workout.name">
+                  {{ displayName(workout.name) }}
                 </h3>
                 <p class="text-sm text-muted-foreground">
                   {{ formatDate(workout.created_at) }}

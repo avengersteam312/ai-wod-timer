@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useTimerStore } from '@/stores/timerStore'
 import { useWorkoutStore } from '@/stores/workoutStore'
 import Button from '@/components/ui/Button.vue'
@@ -20,11 +20,15 @@ import WorkRestConfig from './configs/WorkRestConfig.vue'
 import {
   type TimerType,
   buildTimerConfig,
-  buildManualWorkout
+  buildManualWorkout,
+  getTypeLabel
 } from './composables/useTimerConfigBuilder'
+import { useSupabaseAuthStore } from '@/stores/supabaseAuthStore'
+import { saveWorkout } from '@/services/workoutService'
 
 const timerStore = useTimerStore()
 const workoutStore = useWorkoutStore()
+const authStore = useSupabaseAuthStore()
 
 
 // Navigation state
@@ -64,6 +68,41 @@ const workRestRounds = ref(5)
 // Notes state
 const workoutNotes = ref('')
 const showNotesSheet = ref(false)
+
+// Save for later (pre-plan) state
+const saveForLaterLoading = ref(false)
+const saveForLaterError = ref<string | null>(null)
+const saveForLaterSuccess = ref(false)
+
+// Snapshot of current config so we can clear success when user changes config (avoids duplicate saves)
+const saveForLaterConfigSnapshot = computed(() => {
+  if (!selectedType.value) return ''
+  return JSON.stringify({
+    selectedType: selectedType.value,
+    restMinutes: restMinutes.value,
+    restSeconds: restSeconds.value,
+    durationMinutes: durationMinutes.value,
+    durationSeconds: durationSeconds.value,
+    tabataWorkSeconds: tabataWorkSeconds.value,
+    tabataRestSeconds: tabataRestSeconds.value,
+    tabataRounds: tabataRounds.value,
+    workMinutes: workMinutes.value,
+    workSeconds: workSeconds.value,
+    intervalRestMinutes: intervalRestMinutes.value,
+    intervalRestSeconds: intervalRestSeconds.value,
+    intervalRounds: intervalRounds.value,
+    emomRounds: emomRounds.value,
+    emomIntervalMinutes: emomIntervalMinutes.value,
+    workRestRounds: workRestRounds.value
+  })
+})
+
+// When user changes config after a save, clear success so they can save again (and avoid accidental duplicate of same config)
+watch(saveForLaterConfigSnapshot, (newVal, oldVal) => {
+  if (oldVal !== undefined && newVal !== oldVal && saveForLaterSuccess.value) {
+    saveForLaterSuccess.value = false
+  }
+})
 
 // Computed
 const totalRestSeconds = computed(() => restMinutes.value * 60 + restSeconds.value)
@@ -164,6 +203,53 @@ const handleStart = () => {
     skipPreparation: skipCountdown,
     prepDuration: countdownSeconds.value
   })
+}
+
+const defaultSaveName = computed(() => {
+  if (!selectedType.value) return ''
+  const type = getTypeLabel(selectedType.value).replace(/\s+/g, ' ').toUpperCase()
+  const date = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return `${type} - ${date}`
+})
+
+const handleSaveForLater = async () => {
+  if (!isValidConfig.value || !selectedType.value) return
+
+  const timerConfig = buildTimerConfig(selectedType.value, {
+    rest: { minutes: restMinutes.value, seconds: restSeconds.value },
+    duration: { minutes: durationMinutes.value, seconds: durationSeconds.value },
+    tabata: {
+      workSeconds: tabataWorkSeconds.value,
+      restSeconds: tabataRestSeconds.value,
+      rounds: tabataRounds.value
+    },
+    customInterval: {
+      workMinutes: workMinutes.value,
+      workSeconds: workSeconds.value,
+      restMinutes: intervalRestMinutes.value,
+      restSeconds: intervalRestSeconds.value,
+      rounds: intervalRounds.value
+    },
+    emom: { rounds: emomRounds.value, intervalMinutes: emomIntervalMinutes.value },
+    workRest: { rounds: workRestRounds.value }
+  })
+
+  const notes = workoutNotes.value.trim() || undefined
+  const workout = buildManualWorkout(selectedType.value, timerConfig, notes)
+  const name = defaultSaveName.value || workout.workout_type.toUpperCase()
+
+  saveForLaterLoading.value = true
+  saveForLaterError.value = null
+  saveForLaterSuccess.value = false
+
+  try {
+    await saveWorkout(workout, name)
+    saveForLaterSuccess.value = true
+  } catch (err) {
+    saveForLaterError.value = err instanceof Error ? err.message : 'Failed to save workout'
+  } finally {
+    saveForLaterLoading.value = false
+  }
 }
 </script>
 
@@ -268,6 +354,30 @@ const handleStart = () => {
       >
         Start Timer
       </Button>
+
+      <!-- Save for later (pre-plan): save without starting -->
+      <div v-if="authStore.isAuthenticated && isValidConfig" class="space-y-2">
+        <button
+          type="button"
+          @click="handleSaveForLater"
+          :disabled="saveForLaterLoading || saveForLaterSuccess"
+          class="w-full py-3 text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+        >
+          {{ saveForLaterLoading ? 'Saving...' : saveForLaterSuccess ? 'Saved!' : 'Save for later' }}
+        </button>
+        <p
+          v-if="saveForLaterSuccess"
+          class="text-sm text-timer-complete text-center"
+        >
+          Saved! Find it in My Workouts.
+        </p>
+        <p
+          v-if="saveForLaterError"
+          class="text-sm text-destructive text-center"
+        >
+          {{ saveForLaterError }}
+        </p>
+      </div>
     </template>
   </div>
 </template>
