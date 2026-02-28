@@ -26,6 +26,7 @@ dependencies:
 
   # Audio
   audioplayers: ^5.2.1
+  path_provider: ^2.1.2
 
   # Screen Wake Lock
   wakelock_plus: ^1.1.4
@@ -55,7 +56,6 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/sounds/beeps/
-    - assets/sounds/voice/
     - assets/images/
+    - assets/sounds/voice/
     - .env

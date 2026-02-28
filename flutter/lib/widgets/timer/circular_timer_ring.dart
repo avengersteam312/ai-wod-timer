@@ -17,6 +17,7 @@ class CircularTimerRing extends StatefulWidget {
   final double strokeWidth;
   final double size;
   final Widget? centerWidget;
+  final bool isAnimating;
 
   const CircularTimerRing({
     super.key,
@@ -27,6 +28,7 @@ class CircularTimerRing extends StatefulWidget {
     this.strokeWidth = 8,
     this.size = 200,
     this.centerWidget,
+    this.isAnimating = true,
   });
 
   @override
@@ -34,39 +36,43 @@ class CircularTimerRing extends StatefulWidget {
 }
 
 class _CircularTimerRingState extends State<CircularTimerRing> {
-  double _previousProgress = 0;
+  int _resetCount = 0;
+  double _lastProgress = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _lastProgress = widget.progress;
+  }
 
   @override
   void didUpdateWidget(CircularTimerRing oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _previousProgress = oldWidget.progress;
-  }
-
-  // Smooth animation over 1 second to match timer ticks, instant reset
-  Duration get _animationDuration {
-    // Instant reset only when progress jumps to 0 or near 0
-    if (widget.progress < 0.05 && _previousProgress > 0.5) {
-      return const Duration(milliseconds: 50);
+    // Detect reset: progress jumps backwards significantly
+    if (widget.progress < _lastProgress - 0.1) {
+      _resetCount++;
     }
-    // Animate over full second for smooth continuous progress (forward or backward)
-    return const Duration(milliseconds: 1000);
+    _lastProgress = widget.progress;
   }
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: widget.size,
-      height: widget.size,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Background dots (unprogressed part)
-          TweenAnimationBuilder<double>(
-            tween: Tween(begin: _previousProgress, end: widget.progress),
-            duration: _animationDuration,
-            curve: Curves.linear,
-            builder: (context, animatedProgress, _) {
-              return CustomPaint(
+    return TweenAnimationBuilder<double>(
+      key: ValueKey(_resetCount),
+      tween: Tween<double>(begin: 0, end: widget.progress),
+      duration: widget.isAnimating
+          ? const Duration(milliseconds: 1000)
+          : Duration.zero,
+      curve: Curves.linear,
+      builder: (context, animatedProgress, child) {
+        return SizedBox(
+          width: widget.size,
+          height: widget.size,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Background dots (unprogressed part)
+              CustomPaint(
                 size: Size(widget.size, widget.size),
                 painter: _TimerRingPainter(
                   progress: animatedProgress,
@@ -74,17 +80,10 @@ class _CircularTimerRingState extends State<CircularTimerRing> {
                   strokeWidth: widget.strokeWidth,
                   drawDots: true,
                 ),
-              );
-            },
-          ),
+              ),
 
-          // Progress ring (solid arc)
-          TweenAnimationBuilder<double>(
-            tween: Tween(begin: _previousProgress, end: widget.progress),
-            duration: _animationDuration,
-            curve: Curves.linear,
-            builder: (context, animatedProgress, _) {
-              return CustomPaint(
+              // Progress ring (solid arc)
+              CustomPaint(
                 size: Size(widget.size, widget.size),
                 painter: _TimerRingPainter(
                   progress: animatedProgress,
@@ -93,26 +92,26 @@ class _CircularTimerRingState extends State<CircularTimerRing> {
                   hasGlow: true,
                   drawDots: false,
                 ),
-              );
-            },
-          ),
-
-          // Center content
-          widget.centerWidget ??
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    widget.time,
-                    style: AppTextStyles.timerLarge.copyWith(
-                      fontSize: widget.size * 0.22,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
               ),
-        ],
-      ),
+
+              // Center content
+              widget.centerWidget ??
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        widget.time,
+                        style: AppTextStyles.timerLarge.copyWith(
+                          fontSize: widget.size * 0.22,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -226,6 +225,7 @@ class AnimatedTimerRing extends StatefulWidget {
   final Widget? centerWidget;
   final String? label;
   final String? subLabel;
+  final bool isAnimating;
 
   const AnimatedTimerRing({
     super.key,
@@ -236,6 +236,7 @@ class AnimatedTimerRing extends StatefulWidget {
     this.centerWidget,
     this.label,
     this.subLabel,
+    this.isAnimating = true,
   });
 
   @override
@@ -284,6 +285,7 @@ class _AnimatedTimerRingState extends State<AnimatedTimerRing>
             time: widget.time,
             progressColor: widget.progressColor,
             size: widget.size,
+            isAnimating: widget.isAnimating,
             centerWidget: widget.centerWidget ??
                 Column(
                   mainAxisSize: MainAxisSize.min,
