@@ -23,13 +23,19 @@ class _AppShellState extends State<AppShell> {
   // Start on AI Timer tab (middle)
   int _currentIndex = 1;
 
-  // Called when user taps on bottom tab - clears workout to show default content
+  // Called when user taps on bottom tab - allows switching without clearing timer
   void _onTabTapped(int index) {
     final workout = context.read<WorkoutProvider>();
 
-    // Clear workout when tapping any tab (to show default content)
-    if (workout.currentWorkout != null) {
-      workout.clearWorkout();
+    // If tapping AI Timer tab while already on it with active timer, toggle views
+    if (index == 1 && _currentIndex == 1 && workout.currentWorkout != null) {
+      workout.toggleInputOverride();
+      return;
+    }
+
+    // If coming back to AI Timer tab with active timer, show timer view
+    if (index == 1 && _currentIndex != 1 && workout.currentWorkout != null) {
+      workout.setShowInputOverride(false);
     }
 
     setState(() {
@@ -39,6 +45,8 @@ class _AppShellState extends State<AppShell> {
 
   // Called programmatically to show timer - does NOT clear workout
   void _navigateToTimer() {
+    final workout = context.read<WorkoutProvider>();
+    workout.setShowInputOverride(false);
     setState(() {
       _currentIndex = 1; // AI Timer tab
     });
@@ -56,6 +64,13 @@ class _AppShellState extends State<AppShell> {
   Widget build(BuildContext context) {
     final workout = context.watch<WorkoutProvider>();
     final hasActiveTimer = workout.currentWorkout != null;
+    final isOnTimerTab = _currentIndex == 1;
+    final isShowingInput = workout.showInputOverride;
+    // Show badge when timer is active and either on different tab OR showing input view
+    final showTimerBadge = hasActiveTimer && (!isOnTimerTab || isShowingInput);
+
+    // Don't highlight AI Timer tab when timer is running and showing timer view
+    final shouldMuteAITimer = hasActiveTimer && isOnTimerTab && !isShowingInput;
 
     return Scaffold(
       body: IndexedStack(
@@ -78,25 +93,46 @@ class _AppShellState extends State<AppShell> {
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
           onTap: _onTabTapped,
-          // Only hide highlight when timer is actively running
-          selectedItemColor: hasActiveTimer
+          selectedItemColor: shouldMuteAITimer
               ? AppColors.textMuted
               : AppColors.primary,
           unselectedItemColor: AppColors.textMuted,
           items: [
-            BottomNavigationBarItem(
-              icon: const Icon(Icons.timer_outlined),
-              activeIcon: Icon(hasActiveTimer ? Icons.timer_outlined : Icons.timer),
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.timer_outlined),
+              activeIcon: Icon(Icons.timer),
               label: 'Manual',
             ),
             BottomNavigationBarItem(
-              icon: const Icon(Icons.auto_awesome_outlined),
-              activeIcon: Icon(hasActiveTimer ? Icons.auto_awesome_outlined : Icons.auto_awesome),
-              label: 'AI Timer',
+              icon: showTimerBadge
+                  ? const Badge(
+                      backgroundColor: AppColors.success,
+                      smallSize: 8,
+                      child: Icon(Icons.auto_awesome_outlined),
+                    )
+                  : const Icon(Icons.auto_awesome_outlined),
+              activeIcon: showTimerBadge
+                  ? Badge(
+                      backgroundColor: AppColors.success,
+                      smallSize: 8,
+                      child: Icon(
+                        Icons.auto_awesome,
+                        color: shouldMuteAITimer
+                            ? AppColors.textMuted
+                            : AppColors.primary,
+                      ),
+                    )
+                  : Icon(
+                      Icons.auto_awesome,
+                      color: shouldMuteAITimer
+                          ? AppColors.textMuted
+                          : AppColors.primary,
+                    ),
+              label: showTimerBadge ? workout.formattedTime : 'AI Timer',
             ),
-            BottomNavigationBarItem(
-              icon: const Icon(Icons.history_outlined),
-              activeIcon: Icon(hasActiveTimer ? Icons.history_outlined : Icons.history),
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.history_outlined),
+              activeIcon: Icon(Icons.history),
               label: 'History',
             ),
           ],

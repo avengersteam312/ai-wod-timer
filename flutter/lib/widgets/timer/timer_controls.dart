@@ -121,6 +121,11 @@ class TimerControls extends StatelessWidget {
   }
 
   Widget? _buildLeftSecondaryButton() {
+    // Always show reset button when paused
+    if (isPaused) {
+      return null; // Will fall through to show reset button
+    }
+
     // Skip rest button (start next round) when in rest interval
     if (isRest && onSkipRest != null) {
       return CircularControlButton(

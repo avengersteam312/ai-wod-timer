@@ -282,14 +282,7 @@ class _TimerScreenState extends State<TimerScreen> {
         return Scaffold(
           appBar: workout.currentWorkout != null
               ? AppBar(
-                  leading: IconButton(
-                    icon: const Icon(Icons.arrow_back),
-                    onPressed: () {
-                      workout.clearWorkout();
-                      _resetSaveState();
-                      widget.onNavigateToManual?.call();
-                    },
-                  ),
+                  automaticallyImplyLeading: false,
                   title: Text(
                     workout.currentWorkout!.type.displayName.toUpperCase(),
                   ),
@@ -411,7 +404,7 @@ class _TimerScreenState extends State<TimerScreen> {
                   ),
                 // Main content
                 Expanded(
-                  child: workout.currentWorkout == null
+                  child: (workout.currentWorkout == null || workout.showInputOverride)
                       ? _buildInputView(context, workout)
                       : _buildTimerView(context, workout),
                 ),
@@ -619,6 +612,7 @@ class _TimerScreenState extends State<TimerScreen> {
                     time: workout.formattedTime,
                     progressColor: _getTimerColor(workout),
                     size: 260,
+                    isAnimating: workout.isRunning || workout.isRest || workout.isCountdown,
                     centerWidget: _buildTimerCenterContent(workout, currentWorkout),
                   ),
                 ),

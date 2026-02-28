@@ -97,6 +97,7 @@ class _WorkRestTimerScreenState extends State<WorkRestTimerScreen> {
       time: workout.formattedTime,
       progressColor: activeColor,
       size: 280,
+      isAnimating: workout.isRunning || workout.isRest || workout.isCountdown,
       centerWidget: TimerDisplay(
         time: workout.formattedTime,
         label: label,

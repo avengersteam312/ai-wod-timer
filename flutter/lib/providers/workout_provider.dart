@@ -65,6 +65,9 @@ class WorkoutProvider with ChangeNotifier {
   WorkoutSession? _currentSession;
   DateTime? _sessionStartTime;
 
+  // UI state - show AI input view while timer is running
+  bool _showInputOverride = false;
+
   // Getters
   Workout? get currentWorkout => _currentWorkout;
   String get workoutInput => _workoutInput;
@@ -84,6 +87,19 @@ class WorkoutProvider with ChangeNotifier {
   bool get isCompleted => _timerState == TimerState.completed;
   bool get isIdle => _timerState == TimerState.idle;
   bool get isRest => _timerState == TimerState.rest;
+
+  // UI state for showing input while timer runs
+  bool get showInputOverride => _showInputOverride;
+
+  void setShowInputOverride(bool value) {
+    _showInputOverride = value;
+    notifyListeners();
+  }
+
+  void toggleInputOverride() {
+    _showInputOverride = !_showInputOverride;
+    notifyListeners();
+  }
 
   Movement? get currentMovement {
     if (_currentWorkout == null || _currentWorkout!.movements.isEmpty) {
@@ -277,7 +293,10 @@ class WorkoutProvider with ChangeNotifier {
     }
 
     // Progress within current interval (0 to 1)
-    return _intervalElapsedSeconds / effectiveDuration;
+    // Add 1 second offset only after timer has started (not on initial state)
+    final offset = _intervalElapsedSeconds > 0 ? 1 : 0;
+    final adjustedElapsed = (_intervalElapsedSeconds + offset).clamp(0, effectiveDuration);
+    return adjustedElapsed / effectiveDuration;
   }
 
   String get formattedTime {
@@ -547,14 +566,14 @@ class WorkoutProvider with ChangeNotifier {
     if (newInterval.isRest) {
       _timerState = TimerState.rest;
       _timerPhase = TimerPhase.rest;
-      _audioService.play(SoundType.rest);
+      _audioService.playRest();
       _hapticsService.trigger(HapticType.medium);
     } else {
       _timerState = TimerState.running;
       _timerPhase = TimerPhase.work;
       // Increment round when entering a new work interval
       _currentRound++;
-      _audioService.play(SoundType.roundComplete);
+      _audioService.playNextRound();
       _hapticsService.timerAlert();
     }
 
@@ -631,7 +650,7 @@ class WorkoutProvider with ChangeNotifier {
 
     if (_currentMovementIndex < _currentWorkout!.movements.length - 1) {
       _currentMovementIndex++;
-      _audioService.play(SoundType.intervalChange);
+      _audioService.playNextRound();
       _hapticsService.buttonTap();
       notifyListeners();
     }
@@ -648,7 +667,7 @@ class WorkoutProvider with ChangeNotifier {
   void _completeWorkout() {
     _timer?.cancel();
     _timerState = TimerState.completed;
-    _audioService.play(SoundType.workoutComplete);
+    _audioService.playComplete();
     _hapticsService.workoutComplete();
     _completeSession();
     notifyListeners();
