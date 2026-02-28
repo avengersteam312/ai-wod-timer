@@ -1,0 +1,529 @@
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import '../../models/workout_session.dart';
+import '../../providers/auth_provider.dart';
+import '../../services/offline_storage_service.dart';
+import '../../theme/app_theme.dart';
+import '../../widgets/session_card.dart';
+
+class HistoryScreen extends StatefulWidget {
+  const HistoryScreen({super.key});
+
+  @override
+  State<HistoryScreen> createState() => _HistoryScreenState();
+}
+
+class _HistoryScreenState extends State<HistoryScreen> {
+  final OfflineStorageService _storageService = OfflineStorageService();
+  bool _isLoading = false;
+  List<WorkoutSession> _sessions = [];
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHistory();
+  }
+
+  Future<void> _loadHistory() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final authProvider = context.read<AuthProvider>();
+      final userId = authProvider.user?.id ?? 'anonymous';
+
+      final sessions = await _storageService.getSessions(userId);
+
+      setState(() {
+        _sessions = sessions;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Failed to load history';
+        _isLoading = false;
+      });
+    }
+  }
+
+  Map<String, List<WorkoutSession>> _groupSessionsByDate() {
+    final grouped = <String, List<WorkoutSession>>{};
+
+    for (final session in _sessions) {
+      final date = _getDateKey(session.startedAt);
+      grouped.putIfAbsent(date, () => []).add(session);
+    }
+
+    return grouped;
+  }
+
+  String _getDateKey(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final sessionDate = DateTime(date.year, date.month, date.day);
+
+    if (sessionDate == today) {
+      return 'Today';
+    } else if (sessionDate == yesterday) {
+      return 'Yesterday';
+    } else if (now.difference(sessionDate).inDays < 7) {
+      return DateFormat('EEEE').format(date);
+    } else {
+      return DateFormat('MMMM d, y').format(date);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('History'),
+        actions: [
+          IconButton(
+            onPressed: _loadHistory,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: _buildBody(),
+      ),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(
+          color: AppColors.primary,
+        ),
+      );
+    }
+
+    if (_error != null) {
+      return _buildErrorState();
+    }
+
+    if (_sessions.isEmpty) {
+      return _buildEmptyState();
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadHistory,
+      color: AppColors.primary,
+      child: CustomScrollView(
+        slivers: [
+          // Stats summary
+          SliverToBoxAdapter(
+            child: _buildStatsSummary(),
+          ),
+
+          // Sessions grouped by date
+          ..._buildGroupedSessions(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatsSummary() {
+    final completedSessions =
+        _sessions.where((s) => s.status == SessionStatus.completed).toList();
+    final totalMinutes = completedSessions.fold<int>(
+      0,
+      (sum, s) => sum + (s.durationSeconds ?? 0),
+    ) ~/
+        60;
+
+    // Get unique workout days this week
+    final now = DateTime.now();
+    final weekStart = now.subtract(Duration(days: now.weekday - 1));
+    final thisWeekSessions = _sessions.where((s) {
+      return s.startedAt.isAfter(weekStart);
+    }).toList();
+
+    final uniqueDays = <int>{};
+    for (final session in thisWeekSessions) {
+      uniqueDays.add(session.startedAt.day);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Expanded(
+            child: SessionStatCard(
+              label: 'Workouts',
+              value: '${completedSessions.length}',
+              icon: Icons.fitness_center,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: SessionStatCard(
+              label: 'Total Time',
+              value: '${totalMinutes}m',
+              icon: Icons.timer,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: SessionStatCard(
+              label: 'This Week',
+              value: '${uniqueDays.length}',
+              icon: Icons.calendar_today,
+              iconColor: AppColors.success,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildGroupedSessions() {
+    final grouped = _groupSessionsByDate();
+    final widgets = <Widget>[];
+
+    grouped.forEach((date, sessions) {
+      // Date header
+      widgets.add(
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
+            child: Text(
+              date,
+              style: AppTextStyles.label,
+            ),
+          ),
+        ),
+      );
+
+      // Sessions for this date
+      widgets.add(
+        SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) {
+              final session = sessions[index];
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: SessionCard(
+                  session: session,
+                  onTap: () => _showSessionDetails(session),
+                ),
+              );
+            },
+            childCount: sessions.length,
+          ),
+        ),
+      );
+    });
+
+    return widgets;
+  }
+
+  void _showSessionDetails(WorkoutSession session) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _SessionDetailsSheet(session: session),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: AppColors.cardBackground,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.history,
+                size: 40,
+                color: AppColors.textMuted,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'No Workout History',
+              style: AppTextStyles.h3,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Your completed workouts will appear here.\nStart a workout to begin tracking your progress.',
+              style: AppTextStyles.body.copyWith(
+                color: AppColors.textSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.error_outline,
+              size: 64,
+              color: AppColors.error,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Something went wrong',
+              style: AppTextStyles.h3,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _error ?? 'Please try again',
+              style: AppTextStyles.body.copyWith(
+                color: AppColors.textSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: _loadHistory,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SessionDetailsSheet extends StatelessWidget {
+  final WorkoutSession session;
+
+  const _SessionDetailsSheet({required this.session});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (context, scrollController) {
+          return SingleChildScrollView(
+            controller: scrollController,
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Handle
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.border,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Status badge
+                _buildStatusBadge(),
+                const SizedBox(height: 16),
+
+                // Workout name
+                Text(
+                  session.workoutName,
+                  style: AppTextStyles.h2,
+                ),
+                const SizedBox(height: 8),
+
+                // Workout type
+                Text(
+                  session.workoutType.toUpperCase(),
+                  style: AppTextStyles.label.copyWith(
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Stats grid
+                Row(
+                  children: [
+                    Expanded(
+                      child: _StatItem(
+                        label: 'Duration',
+                        value: session.formattedDuration,
+                        icon: Icons.timer,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    if (session.roundsCompleted != null)
+                      Expanded(
+                        child: _StatItem(
+                          label: 'Rounds',
+                          value: '${session.roundsCompleted}',
+                          icon: Icons.repeat,
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: _StatItem(
+                        label: 'Date',
+                        value: DateFormat('MMM d, y').format(session.startedAt),
+                        icon: Icons.calendar_today,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _StatItem(
+                        label: 'Time',
+                        value: DateFormat('h:mm a').format(session.startedAt),
+                        icon: Icons.access_time,
+                      ),
+                    ),
+                  ],
+                ),
+
+                // Notes
+                if (session.notes != null && session.notes!.isNotEmpty) ...[
+                  const SizedBox(height: 24),
+                  Text(
+                    'Notes',
+                    style: AppTextStyles.label,
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.inputBackground,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      session.notes!,
+                      style: AppTextStyles.body,
+                    ),
+                  ),
+                ],
+
+                const SizedBox(height: 32),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge() {
+    Color color;
+    String label;
+    IconData icon;
+
+    switch (session.status) {
+      case SessionStatus.completed:
+        color = AppColors.success;
+        label = 'Completed';
+        icon = Icons.check_circle;
+        break;
+      case SessionStatus.abandoned:
+        color = AppColors.warning;
+        label = 'Abandoned';
+        icon = Icons.cancel;
+        break;
+      case SessionStatus.inProgress:
+        color = AppColors.primary;
+        label = 'In Progress';
+        icon = Icons.play_circle;
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: AppTextStyles.buttonSmall.copyWith(color: color),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatItem extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+
+  const _StatItem({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.inputBackground,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 16, color: AppColors.textMuted),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: AppTextStyles.labelSmall,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: AppTextStyles.h4,
+          ),
+        ],
+      ),
+    );
+  }
+}

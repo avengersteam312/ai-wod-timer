@@ -52,7 +52,9 @@ yarn-error.log*
 build/
 *.egg
 
-# Claude Code
+# Claude/Ralph Code
+.ralph/
+.ralphrc
 .claude/
 CLAUDE*.md
 
