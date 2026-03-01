@@ -58,6 +58,10 @@ class WorkoutProvider with ChangeNotifier {
   int _totalWorkSeconds = 0;
   int _totalRestSeconds = 0;
 
+  // Final round counts (preserved when completing early)
+  int? _finalWorkRound;
+  int? _finalRestRound;
+
   // Manual counter (for counting rounds, reps, etc.)
   int _counter = 0;
 
@@ -181,10 +185,10 @@ class WorkoutProvider with ChangeNotifier {
     return intervals.where((i) => i.isRest).length;
   }
 
-  /// Current work round (1-indexed, 0 if not started)
+  /// Current work round (1-indexed, 0 if not started or in countdown)
   int get currentWorkRound {
-    if (_timerState == TimerState.idle) return 0;
-    if (_timerState == TimerState.completed) return totalWorkRounds;
+    if (_timerState == TimerState.idle || _timerState == TimerState.countdown) return 0;
+    if (_timerState == TimerState.completed) return _finalWorkRound ?? totalWorkRounds;
 
     int workCount = 0;
     for (int i = 0; i < _currentIntervalIndex; i++) {
@@ -195,10 +199,10 @@ class WorkoutProvider with ChangeNotifier {
     return workCount;
   }
 
-  /// Current rest round (1-indexed, 0 if not started)
+  /// Current rest round (1-indexed, 0 if not started or in countdown)
   int get currentRestRound {
-    if (_timerState == TimerState.idle) return 0;
-    if (_timerState == TimerState.completed) return totalRestRounds;
+    if (_timerState == TimerState.idle || _timerState == TimerState.countdown) return 0;
+    if (_timerState == TimerState.completed) return _finalRestRound ?? totalRestRounds;
 
     int restCount = 0;
     for (int i = 0; i < _currentIntervalIndex; i++) {
@@ -372,7 +376,7 @@ class WorkoutProvider with ChangeNotifier {
                 id: _uuid.v4(),
                 name: map['name'] as String? ?? '',
                 reps: map['reps'] as int?,
-                durationSeconds: map['duration_seconds'] as int?,
+                durationSeconds: map['duration'] as int? ?? map['duration_seconds'] as int?,
                 unit: map['unit'] as String?,
                 weight: (map['weight'] as num?)?.toDouble(),
                 weightUnit: map['weight_unit'] as String?,
@@ -381,7 +385,7 @@ class WorkoutProvider with ChangeNotifier {
             .toList() ??
         [];
 
-    // Parse timer config
+    // Parse timer config using fromJson to properly parse intervals
     final timerConfigMap =
         response['timer_config'] as Map<String, dynamic>? ?? {};
 
@@ -391,15 +395,9 @@ class WorkoutProvider with ChangeNotifier {
       name: response['name'] as String? ?? 'Workout',
       rawInput: _workoutInput,
       type: WorkoutTypeExtension.fromString(
-        response['type'] as String? ?? 'custom',
+        response['workout_type'] as String? ?? response['type'] as String? ?? 'custom',
       ),
-      timerConfig: TimerConfig(
-        totalSeconds: timerConfigMap['total_seconds'] as int?,
-        workSeconds: timerConfigMap['work_seconds'] as int?,
-        restSeconds: timerConfigMap['rest_seconds'] as int?,
-        rounds: timerConfigMap['rounds'] as int?,
-        intervalSeconds: timerConfigMap['interval_seconds'] as int?,
-      ),
+      timerConfig: TimerConfig.fromJson(timerConfigMap),
       movements: movementsList,
       createdAt: DateTime.now(),
     );
@@ -489,6 +487,20 @@ class WorkoutProvider with ChangeNotifier {
 
   // Track announced cues
   bool _announcedHalfway = false;
+  bool _announcedTenSeconds = false;
+  bool _announcedNextRound = false;
+
+  /// Calculate total workout duration in seconds
+  int get _totalWorkoutDuration {
+    int total = 0;
+    for (final interval in intervals) {
+      // Skip stopwatch intervals (duration 0)
+      if (interval.duration > 0) {
+        total += interval.duration;
+      }
+    }
+    return total;
+  }
 
   void _tick() {
     _elapsedSeconds++;
@@ -518,21 +530,36 @@ class WorkoutProvider with ChangeNotifier {
 
     final remaining = effectiveDuration - _intervalElapsedSeconds;
 
-    // Halfway announcement for single long intervals (AMRAP, For Time)
-    if (intervals.length == 1 && interval.isWork) {
-      final halfwayPoint = interval.duration ~/ 2;
-      if (_intervalElapsedSeconds == halfwayPoint &&
-          halfwayPoint > 0 &&
-          !_announcedHalfway) {
+    // Halfway announcement - works for all timer types
+    if (!_announcedHalfway) {
+      final totalDuration = _totalWorkoutDuration;
+      final halfwayPoint = totalDuration ~/ 2;
+      // Announce halfway when total elapsed time reaches halfway point
+      if (halfwayPoint > 0 && _elapsedSeconds == halfwayPoint) {
         _audioService.playHalfway();
         _announcedHalfway = true;
       }
     }
 
-    // Warning sounds at 10 seconds
-    if (remaining == 10) {
+    // Warning sounds at 10 seconds remaining in interval
+    if (remaining == 10 && !_announcedTenSeconds) {
       _audioService.playTenSeconds();
       _hapticsService.timerAlert();
+      _announcedTenSeconds = true;
+    }
+    // Reset 10-second flag when we move past 10 seconds remaining
+    if (remaining > 10) {
+      _announcedTenSeconds = false;
+    }
+
+    // "Next round" voice announcement at 5 seconds (before 3, 2, 1 countdown)
+    // Only announce if there's another work interval coming (not rest)
+    if (remaining == 5 && !_announcedNextRound && _currentIntervalIndex < intervals.length - 1) {
+      final nextInterval = intervals[_currentIntervalIndex + 1];
+      if (nextInterval.isWork) {
+        _audioService.playNextRoundVoice();
+      }
+      _announcedNextRound = true;
     }
 
     // Countdown sounds (3, 2, 1)
@@ -552,6 +579,8 @@ class WorkoutProvider with ChangeNotifier {
 
   void _advanceToNextInterval() {
     _intervalElapsedSeconds = 0;
+    _announcedTenSeconds = false;
+    _announcedNextRound = false;
     _currentIntervalIndex++;
 
     // Check if all intervals completed
@@ -573,7 +602,7 @@ class WorkoutProvider with ChangeNotifier {
       _timerPhase = TimerPhase.work;
       // Increment round when entering a new work interval
       _currentRound++;
-      _audioService.playNextRound();
+      _audioService.playGo();
       _hapticsService.timerAlert();
     }
 
@@ -637,10 +666,14 @@ class WorkoutProvider with ChangeNotifier {
     _dynamicRestDuration = 0;
     _totalWorkSeconds = 0;
     _totalRestSeconds = 0;
+    _finalWorkRound = null;
+    _finalRestRound = null;
     _counter = 0;
     _currentSession = null;
     _sessionStartTime = null;
     _announcedHalfway = false;
+    _announcedTenSeconds = false;
+    _announcedNextRound = false;
     _pausedDuringCountdown = false;
     notifyListeners();
   }
@@ -650,7 +683,7 @@ class WorkoutProvider with ChangeNotifier {
 
     if (_currentMovementIndex < _currentWorkout!.movements.length - 1) {
       _currentMovementIndex++;
-      _audioService.playNextRound();
+      _audioService.playNextRoundBeep();
       _hapticsService.buttonTap();
       notifyListeners();
     }
@@ -666,6 +699,9 @@ class WorkoutProvider with ChangeNotifier {
 
   void _completeWorkout() {
     _timer?.cancel();
+    // Preserve round counts before changing state (getters depend on state)
+    _finalWorkRound = currentWorkRound;
+    _finalRestRound = currentRestRound;
     _timerState = TimerState.completed;
     _audioService.playComplete();
     _hapticsService.workoutComplete();

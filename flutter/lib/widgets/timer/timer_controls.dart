@@ -27,7 +27,7 @@ class TimerControls extends StatelessWidget {
   /// Button dimensions from Penpot design
   static const double mainButtonSize = 72;
   static const double secondaryButtonSize = 48;
-  static const double buttonSpacing = 24;
+  static const double buttonSpacing = 40;
 
   const TimerControls({
     super.key,
@@ -121,8 +121,8 @@ class TimerControls extends StatelessWidget {
   }
 
   Widget? _buildLeftSecondaryButton() {
-    // Always show reset button when paused
-    if (isPaused) {
+    // Always show reset button when paused or completed
+    if (isPaused || isCompleted) {
       return null; // Will fall through to show reset button
     }
 
@@ -157,35 +157,129 @@ class TimerControls extends StatelessWidget {
 /// Compact timer controls for smaller UI contexts
 class CompactTimerControls extends StatelessWidget {
   final bool isRunning;
+  final bool isPaused;
+  final bool isIdle;
+  final bool isCompleted;
+  final bool isCountdown;
+  final bool isRest;
+  final bool isNextRest;
   final VoidCallback onPlayPause;
   final VoidCallback onReset;
+  final VoidCallback? onStop;
+  final VoidCallback? onSkipToRest;
+  final VoidCallback? onSkipRest;
+
+  /// Compact button sizes
+  static const double mainButtonSize = 52;
+  static const double secondaryButtonSize = 36;
+  static const double buttonSpacing = 32;
 
   const CompactTimerControls({
     super.key,
     required this.isRunning,
+    this.isPaused = false,
+    this.isIdle = false,
+    this.isCompleted = false,
+    this.isCountdown = false,
+    this.isRest = false,
+    this.isNextRest = false,
     required this.onPlayPause,
     required this.onReset,
+    this.onStop,
+    this.onSkipToRest,
+    this.onSkipRest,
   });
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        CircularControlButton(
-          icon: Icons.refresh,
-          onPressed: onReset,
-          size: 40,
-          backgroundColor: AppColors.inputBackground,
-          iconColor: AppColors.textSecondary,
-        ),
-        const SizedBox(width: 12),
-        PlayPauseButton(
-          isPlaying: isRunning,
-          onPressed: onPlayPause,
-          size: 48,
-        ),
+        // Left button: reset, coffee, or skip rest
+        _buildLeftButton(),
+        SizedBox(width: buttonSpacing),
+        // Center: play/pause or checkmark when completed
+        _buildPlayPauseButton(),
+        SizedBox(width: buttonSpacing),
+        // Right: stop button
+        if (onStop != null) _buildStopButton(),
       ],
+    );
+  }
+
+  Widget _buildLeftButton() {
+    // Always show reset button when paused or completed
+    if (isPaused || isCompleted) {
+      return _buildResetButton();
+    }
+
+    // Skip rest button (start next round) when in rest interval
+    if (isRest && onSkipRest != null) {
+      return CircularControlButton(
+        icon: Icons.skip_next,
+        onPressed: onSkipRest!,
+        size: secondaryButtonSize,
+        backgroundColor: AppColors.timerWork.withValues(alpha: 0.2),
+        iconColor: AppColors.timerWork,
+      );
+    }
+
+    // Coffee button (skip to rest) when next interval is rest
+    if (isNextRest && onSkipToRest != null) {
+      final isDisabled = !isRunning || isCountdown;
+      return CircularControlButton(
+        icon: Icons.coffee,
+        onPressed: isDisabled ? () {} : onSkipToRest!,
+        size: secondaryButtonSize,
+        backgroundColor: AppColors.timerRest.withValues(alpha: 0.2),
+        iconColor: AppColors.timerRest,
+        disabled: isDisabled,
+      );
+    }
+
+    return _buildResetButton();
+  }
+
+  Widget _buildResetButton() {
+    return CircularControlButton(
+      icon: Icons.refresh,
+      onPressed: onReset,
+      size: secondaryButtonSize,
+      backgroundColor: AppColors.inputBackground,
+      iconColor: AppColors.textSecondary,
+    );
+  }
+
+  Widget _buildPlayPauseButton() {
+    if (isCompleted) {
+      return PlayPauseButton(
+        isPlaying: false,
+        onPressed: onPlayPause,
+        size: mainButtonSize,
+        backgroundColor: AppColors.success,
+        iconColor: AppColors.textPrimary,
+        playIcon: Icons.check,
+        pauseIcon: Icons.check,
+        gradient: null,
+      );
+    }
+
+    return PlayPauseButton(
+      isPlaying: isRunning,
+      onPressed: onPlayPause,
+      size: mainButtonSize,
+    );
+  }
+
+  Widget _buildStopButton() {
+    final isDisabled = isCountdown || isIdle || isCompleted;
+    return CircularControlButton(
+      icon: Icons.stop,
+      onPressed: isDisabled ? () {} : onStop!,
+      size: secondaryButtonSize,
+      backgroundColor: AppColors.inputBackground,
+      iconColor: AppColors.error,
+      disabled: isDisabled,
     );
   }
 }

@@ -5,6 +5,7 @@ import '../../models/workout_session.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/offline_storage_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/auth_button.dart';
 import '../../widgets/session_card.dart';
 
 class HistoryScreen extends StatefulWidget {
@@ -88,6 +89,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             onPressed: _loadHistory,
             icon: const Icon(Icons.refresh),
           ),
+          const AuthButton(),
         ],
       ),
       body: SafeArea(
@@ -210,9 +212,29 @@ class _HistoryScreenState extends State<HistoryScreen> {
               final session = sessions[index];
               return Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                child: SessionCard(
-                  session: session,
-                  onTap: () => _showSessionDetails(session),
+                child: Dismissible(
+                  key: Key(session.id),
+                  direction: DismissDirection.endToStart,
+                  dismissThresholds: const {DismissDirection.endToStart: 0.5},
+                  background: Container(
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 24),
+                    decoration: BoxDecoration(
+                      color: AppColors.error,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.delete,
+                      color: Colors.white,
+                    ),
+                  ),
+                  onDismissed: (direction) {
+                    _deleteSession(session);
+                  },
+                  child: SessionCard(
+                    session: session,
+                    onTap: () => _showSessionDetails(session),
+                  ),
                 ),
               );
             },
@@ -223,6 +245,24 @@ class _HistoryScreenState extends State<HistoryScreen> {
     });
 
     return widgets;
+  }
+
+  Future<void> _deleteSession(WorkoutSession session) async {
+    try {
+      await _storageService.deleteSession(session.id);
+      setState(() {
+        _sessions.removeWhere((s) => s.id == session.id);
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete session'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 
   void _showSessionDetails(WorkoutSession session) {
