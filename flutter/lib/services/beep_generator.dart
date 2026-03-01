@@ -13,7 +13,7 @@ class BeepGenerator {
     return generateBeep(
       frequency: 880, // A5 note
       durationMs: 80,
-      volume: 0.7,
+      volume: 1.125,
       fadeOutPercent: 30,
     );
   }
@@ -24,7 +24,7 @@ class BeepGenerator {
     return generateBeep(
       frequency: 1000, // 1kHz - clear, attention-grabbing
       durationMs: 500,
-      volume: 0.8,
+      volume: 1.125,
       fadeInPercent: 2,
       fadeOutPercent: 20,
     );
@@ -33,17 +33,18 @@ class BeepGenerator {
   /// Generate a completion beep (dual-tone chord - satisfying end)
   static Uint8List completeBeep() {
     // Two-tone chord: C5 + E5 (major third - sounds positive/complete)
+    // Lower volume since two tones mix together
     final tone1 = _generateTone(
       frequency: 523, // C5
       durationMs: 300,
-      volume: 0.5,
+      volume: 0.625,
       fadeInPercent: 5,
       fadeOutPercent: 50,
     );
     final tone2 = _generateTone(
       frequency: 659, // E5
       durationMs: 300,
-      volume: 0.5,
+      volume: 0.625,
       fadeInPercent: 5,
       fadeOutPercent: 50,
     );
@@ -57,7 +58,7 @@ class BeepGenerator {
     final beep = _generateTone(
       frequency: 1000,
       durationMs: 80,
-      volume: 0.7,
+      volume: 1.125,
       fadeOutPercent: 30,
     );
 
@@ -70,7 +71,7 @@ class BeepGenerator {
     final beep = _generateTone(
       frequency: 1000,
       durationMs: 80,
-      volume: 0.7,
+      volume: 1.125,
       fadeOutPercent: 30,
     );
 
@@ -83,7 +84,7 @@ class BeepGenerator {
     return generateBeep(
       frequency: 1000, // Same as go - clear, professional
       durationMs: 80,
-      volume: 0.8,
+      volume: 1.125,
       fadeOutPercent: 30,
     );
   }
@@ -93,7 +94,7 @@ class BeepGenerator {
     return generateBeep(
       frequency: 440, // A4 - lower, calmer
       durationMs: 150,
-      volume: 0.5,
+      volume: 1.125,
       fadeInPercent: 10,
       fadeOutPercent: 50,
     );

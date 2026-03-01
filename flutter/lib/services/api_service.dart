@@ -27,9 +27,13 @@ class ApiService {
     };
 
     // Add auth token if available
-    final session = Supabase.instance.client.auth.currentSession;
-    if (session != null) {
-      headers['Authorization'] = 'Bearer ${session.accessToken}';
+    try {
+      final session = Supabase.instance.client.auth.currentSession;
+      if (session != null) {
+        headers['Authorization'] = 'Bearer ${session.accessToken}';
+      }
+    } catch (_) {
+      // Supabase not initialized, skip auth header
     }
 
     return headers;
@@ -136,6 +140,6 @@ class ApiService {
 
   // AI Workout Parsing
   Future<Map<String, dynamic>> parseWorkout(String input) async {
-    return await post('/api/parse', body: {'workout_text': input});
+    return await post('/api/v1/timer/parse', body: {'workout_text': input});
   }
 }

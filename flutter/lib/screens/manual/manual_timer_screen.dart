@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/workout.dart';
 import '../../providers/workout_provider.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/auth_button.dart';
 import '../../widgets/manual/timer_type_selector.dart';
 import '../../widgets/manual/duration_stepper.dart';
 import '../../widgets/manual/quick_select_chip.dart';
@@ -51,6 +52,9 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Manual Timer'),
+        actions: const [
+          AuthButton(),
+        ],
       ),
       body: SafeArea(
         child: Column(

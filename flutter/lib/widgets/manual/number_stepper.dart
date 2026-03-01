@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../theme/app_theme.dart';
 
 /// A number stepper with +/- buttons for single values.
 ///
 /// Displays a number with decrease/increase buttons on sides.
+/// Tap on the value to enter it directly via numeric keyboard.
 class NumberStepper extends StatelessWidget {
   final int value;
   final ValueChanged<int> onChanged;
@@ -36,6 +38,54 @@ class NumberStepper extends StatelessWidget {
     }
   }
 
+  void _showInputDialog(BuildContext context) {
+    final controller = TextEditingController(text: value.toString());
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.cardBackground,
+        title: Text('Enter Value', style: AppTextStyles.h3),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          autofocus: true,
+          textAlign: TextAlign.center,
+          style: AppTextStyles.h2,
+          decoration: InputDecoration(
+            hintText: '$minValue - $maxValue',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          onSubmitted: (text) {
+            _submitValue(ctx, text);
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => _submitValue(ctx, controller.text),
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _submitValue(BuildContext context, String text) {
+    final parsed = int.tryParse(text);
+    if (parsed != null) {
+      final clamped = parsed.clamp(minValue, maxValue);
+      onChanged(clamped);
+    }
+    Navigator.pop(context);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -47,30 +97,33 @@ class NumberStepper extends StatelessWidget {
           onTap: value > minValue ? _decrease : null,
         ),
         const SizedBox(width: 16),
-        // Value display
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          decoration: BoxDecoration(
-            color: AppColors.cardBackground,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '$value',
-                style: AppTextStyles.h2,
-              ),
-              if (suffix != null) ...[
-                const SizedBox(width: 8),
+        // Value display - tappable for direct input
+        GestureDetector(
+          onTap: () => _showInputDialog(context),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppColors.cardBackground,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
                 Text(
-                  suffix!,
-                  style: AppTextStyles.body.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
+                  '$value',
+                  style: AppTextStyles.h2,
                 ),
+                if (suffix != null) ...[
+                  const SizedBox(width: 8),
+                  Text(
+                    suffix!,
+                    style: AppTextStyles.body.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
         const SizedBox(width: 16),

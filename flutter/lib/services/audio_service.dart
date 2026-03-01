@@ -48,16 +48,17 @@ class AudioService {
   // File paths for pre-loaded voice files (copied from assets to temp)
   final Map<SoundType, String> _voiceFilePaths = {};
 
-  // Pool of AudioPlayers for concurrent playback
-  final List<AudioPlayer> _beepPlayerPool = [];
+  // Dedicated pre-loaded players for each beep type (instant playback)
+  final Map<SoundType, AudioPlayer> _beepPlayers = {};
+
+  // Pool of AudioPlayers for voice playback
   final List<AudioPlayer> _voicePlayerPool = [];
-  int _currentBeepPlayerIndex = 0;
   int _currentVoicePlayerIndex = 0;
   static const int _poolSize = 4;
 
   bool _isInitialized = false;
   bool _isVoiceMuted = true;
-  double _volume = 1.0;
+  double _volume = 1.5;
 
   bool get isMuted => _isVoiceMuted;
   bool get isVoiceMuted => _isVoiceMuted;
@@ -74,20 +75,25 @@ class AudioService {
       // Pre-load voice files from assets to temp directory
       await _preloadVoiceFiles();
 
-      // Initialize player pools with low latency mode
-      for (int i = 0; i < _poolSize; i++) {
-        final beepPlayer = AudioPlayer();
-        await beepPlayer.setReleaseMode(ReleaseMode.stop);
-        await beepPlayer.setPlayerMode(PlayerMode.lowLatency);
-        _beepPlayerPool.add(beepPlayer);
+      // Create dedicated pre-loaded player for each beep type (instant playback)
+      for (final entry in _beepFilePaths.entries) {
+        final player = AudioPlayer();
+        await player.setReleaseMode(ReleaseMode.stop);
+        await player.setPlayerMode(PlayerMode.lowLatency);
+        await player.setSource(DeviceFileSource(entry.value));
+        _beepPlayers[entry.key] = player;
+        debugPrint('Pre-loaded beep player: ${entry.key}');
+      }
 
+      // Initialize voice player pool with low latency mode
+      for (int i = 0; i < _poolSize; i++) {
         final voicePlayer = AudioPlayer();
         await voicePlayer.setReleaseMode(ReleaseMode.stop);
         await voicePlayer.setPlayerMode(PlayerMode.lowLatency);
         _voicePlayerPool.add(voicePlayer);
       }
 
-      // Pre-warm players by loading first sound (reduces first-play delay)
+      // Pre-warm voice players
       await _prewarmPlayers();
 
       _isInitialized = true;
@@ -178,23 +184,17 @@ class AudioService {
     debugPrint('Voices ready: ${_voiceFilePaths.length}');
   }
 
-  /// Pre-warm audio players to reduce first-play latency
+  /// Pre-warm voice players to reduce first-play latency
   Future<void> _prewarmPlayers() async {
     try {
-      // Load a sound into each player without playing (sets up audio session)
-      if (_beepFilePaths.isNotEmpty) {
-        final beepPath = _beepFilePaths.values.first;
-        for (final player in _beepPlayerPool) {
-          await player.setSource(DeviceFileSource(beepPath));
-        }
-      }
+      // Load a sound into each voice player without playing (sets up audio session)
       if (_voiceFilePaths.isNotEmpty) {
         final voicePath = _voiceFilePaths.values.first;
         for (final player in _voicePlayerPool) {
           await player.setSource(DeviceFileSource(voicePath));
         }
       }
-      debugPrint('Players pre-warmed');
+      debugPrint('Voice players pre-warmed');
     } catch (e) {
       debugPrint('Pre-warm failed: $e');
     }
@@ -204,19 +204,17 @@ class AudioService {
   Future<void> _playBeep(SoundType sound) async {
     if (!_isInitialized) return;
 
-    final filePath = _beepFilePaths[sound];
-    if (filePath == null) {
-      debugPrint('Beep sound not available: $sound');
+    final player = _beepPlayers[sound];
+    if (player == null) {
+      debugPrint('Beep player not available: $sound');
       return;
     }
 
     try {
-      final player = _beepPlayerPool[_currentBeepPlayerIndex];
-      _currentBeepPlayerIndex = (_currentBeepPlayerIndex + 1) % _poolSize;
-
-      // Don't await - fire and forget for minimum latency
+      // Seek to start and play - source is already loaded for instant playback
       player.setVolume(_volume);
-      player.play(DeviceFileSource(filePath));
+      player.seek(Duration.zero);
+      player.resume();
     } catch (e) {
       debugPrint('Failed to play beep $sound: $e');
     }
@@ -314,7 +312,6 @@ class AudioService {
   Future<void> playComplete() async {
     if (!_isInitialized) return;
     _playBeep(SoundType.complete);
-    _playVoice(SoundType.voiceDone);
   }
 
   Future<void> playRest() async {
@@ -340,6 +337,18 @@ class AudioService {
     _playVoice(SoundType.voiceNextRound);
   }
 
+  /// Play only "next round" voice (before countdown)
+  Future<void> playNextRoundVoice() async {
+    if (!_isInitialized) return;
+    _playVoice(SoundType.voiceNextRound);
+  }
+
+  /// Play only next round beep (when round starts)
+  Future<void> playNextRoundBeep() async {
+    if (!_isInitialized) return;
+    _playBeep(SoundType.nextRound);
+  }
+
   Future<void> playTenSeconds() async {
     if (!_isInitialized) return;
     _playBeep(SoundType.tenSeconds);
@@ -355,12 +364,12 @@ class AudioService {
   }
 
   void setVolume(double volume) {
-    _volume = volume.clamp(0.0, 1.0);
+    _volume = volume.clamp(0.0, 2.0);
   }
 
   Future<void> stop() async {
     try {
-      for (final player in _beepPlayerPool) {
+      for (final player in _beepPlayers.values) {
         await player.stop();
       }
       for (final player in _voicePlayerPool) {
@@ -373,13 +382,13 @@ class AudioService {
 
   Future<void> dispose() async {
     try {
-      for (final player in _beepPlayerPool) {
+      for (final player in _beepPlayers.values) {
         await player.dispose();
       }
       for (final player in _voicePlayerPool) {
         await player.dispose();
       }
-      _beepPlayerPool.clear();
+      _beepPlayers.clear();
       _voicePlayerPool.clear();
       _beepFilePaths.clear();
       _voiceFilePaths.clear();

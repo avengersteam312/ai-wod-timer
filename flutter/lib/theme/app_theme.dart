@@ -65,6 +65,7 @@ class AppTextStyles {
     color: AppColors.textPrimary,
     letterSpacing: -2,
     height: 1,
+    fontFeatures: [FontFeature.tabularFigures()],
   );
 
   static const TextStyle timerMedium = TextStyle(
@@ -72,6 +73,7 @@ class AppTextStyles {
     fontWeight: FontWeight.w300,
     color: AppColors.textPrimary,
     letterSpacing: -1,
+    fontFeatures: [FontFeature.tabularFigures()],
   );
 
   // Headings

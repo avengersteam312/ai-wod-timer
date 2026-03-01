@@ -7,6 +7,7 @@ import '../../providers/workout_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../models/workout.dart';
 import '../../services/audio_service.dart';
+import '../../widgets/auth_button.dart';
 import '../../widgets/timer/circular_timer_ring.dart';
 import '../../widgets/timer/timer_controls.dart';
 import '../../widgets/timer/movement_list.dart';
@@ -283,6 +284,18 @@ class _TimerScreenState extends State<TimerScreen> {
           appBar: workout.currentWorkout != null
               ? AppBar(
                   automaticallyImplyLeading: false,
+                  leading: IconButton(
+                    icon: const Icon(Icons.close),
+                    tooltip: 'Cancel timer',
+                    onPressed: () {
+                      workout.clearWorkout();
+                      _inputController.clear();
+                      setState(() {
+                        _isSaved = false;
+                        _showSaveSuccess = false;
+                      });
+                    },
+                  ),
                   title: Text(
                     workout.currentWorkout!.type.displayName.toUpperCase(),
                   ),
@@ -346,9 +359,8 @@ class _TimerScreenState extends State<TimerScreen> {
                 )
               : AppBar(
                   title: const Text('AI Workout Timer'),
-                  actions: [
-                    // Sign in / Profile button
-                    _buildAuthButton(context, auth),
+                  actions: const [
+                    AuthButton(),
                   ],
                 ),
           body: SafeArea(
@@ -416,81 +428,11 @@ class _TimerScreenState extends State<TimerScreen> {
     );
   }
 
-  /// Auth button - shows sign in or profile menu
-  Widget _buildAuthButton(BuildContext context, AuthProvider auth) {
-    if (auth.isAuthenticated) {
-      // Show profile menu for authenticated users
-      return PopupMenuButton<String>(
-        icon: Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: AppColors.primary,
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(
-            Icons.person,
-            color: AppColors.textPrimary,
-            size: 20,
-          ),
-        ),
-        onSelected: (value) async {
-          if (value == 'signout') {
-            await auth.signOut();
-          }
-        },
-        itemBuilder: (context) => [
-          PopupMenuItem<String>(
-            enabled: false,
-            child: Text(
-              auth.user?.email ?? '',
-              style: AppTextStyles.bodySmall.copyWith(
-                color: AppColors.textMuted,
-              ),
-            ),
-          ),
-          const PopupMenuDivider(),
-          const PopupMenuItem<String>(
-            value: 'signout',
-            child: Row(
-              children: [
-                Icon(Icons.logout, size: 20),
-                SizedBox(width: 8),
-                Text('Sign Out'),
-              ],
-            ),
-          ),
-        ],
-      );
-    } else {
-      // Show sign in button for unauthenticated users
-      return IconButton(
-        icon: Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: AppColors.primary,
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(
-            Icons.person_outline,
-            color: AppColors.textPrimary,
-            size: 20,
-          ),
-        ),
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const LoginScreen()),
-          );
-        },
-      );
-    }
-  }
-
   /// Input view for workout parsing
   Widget _buildInputView(BuildContext context, WorkoutProvider workout) {
-    return SingleChildScrollView(
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: SingleChildScrollView(
       controller: _scrollController,
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -582,6 +524,7 @@ class _TimerScreenState extends State<TimerScreen> {
           ),
         ],
       ),
+      ),
     );
   }
 
@@ -589,107 +532,193 @@ class _TimerScreenState extends State<TimerScreen> {
     final currentWorkout = workout.currentWorkout!;
 
     return Stack(
+      fit: StackFit.expand,
       children: [
         // Main content
         SingleChildScrollView(
-          controller: _scrollController,
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            children: [
-              const SizedBox(height: 16),
-
-              // Timer ring (tappable for manual counter)
-              GestureDetector(
-                onTap: workout.shouldShowManualCounter && workout.isRunning
-                    ? () => workout.incrementCounter()
-                    : null,
-                child: PulsingRing(
-                  size: 260,
-                  enabled: workout.shouldShowManualCounter && workout.isRunning,
-                  color: AppColors.primary,
-                  child: AnimatedTimerRing(
-                    progress: workout.progress,
-                    time: workout.formattedTime,
-                    progressColor: _getTimerColor(workout),
-                    size: 260,
-                    isAnimating: workout.isRunning || workout.isRest || workout.isCountdown,
-                    centerWidget: _buildTimerCenterContent(workout, currentWorkout),
+            controller: _scrollController,
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+            child: Column(
+              children: [
+                // Timer ring (tappable for manual counter)
+                GestureDetector(
+                  onTap: workout.shouldShowManualCounter && workout.isRunning
+                      ? () => workout.incrementCounter()
+                      : null,
+                  child: PulsingRing(
+                    size: 300,
+                    enabled: workout.shouldShowManualCounter && workout.isRunning,
+                    color: AppColors.primary,
+                    child: AnimatedTimerRing(
+                      progress: workout.progress,
+                      time: workout.formattedTime,
+                      progressColor: _getTimerColor(workout),
+                      size: 300,
+                      isAnimating: workout.isRunning || workout.isRest || workout.isCountdown,
+                      centerWidget: _buildTimerCenterContent(workout, currentWorkout),
+                    ),
                   ),
                 ),
-              ),
 
-              const SizedBox(height: 32),
+                const SizedBox(height: 16),
 
-              // Timer controls
-              TimerControls(
-                isRunning: workout.isRunning || workout.isRest || workout.isCountdown,
-                isPaused: workout.isPaused,
-                isIdle: workout.isIdle,
-                isCompleted: workout.isCompleted,
-                isCountdown: workout.isCountdown,
-                isRest: workout.isRest,
-                isNextRest: workout.isNextRest && workout.isCurrentWork,
-                onPlayPause: () {
-                  workout.toggleTimer();
-                },
-                onReset: () {
-                  workout.resetTimer();
-                },
-                onSkip: currentWorkout.movements.isNotEmpty
-                    ? () => workout.skipMovement()
-                    : null,
-                onComplete: () {
-                  workout.completeEarly();
-                },
-                onSkipToRest: workout.isNextRest
-                    ? () => workout.completeCurrentInterval()
-                    : null,
-                onSkipRest: workout.isRest
-                    ? () => workout.completeCurrentInterval()
-                    : null,
-              ),
-
-              const SizedBox(height: 32),
-
-              // Current movement display
-              if (currentWorkout.movements.isNotEmpty) ...[
-                CurrentMovementDisplay(
-                  current: workout.currentMovement,
-                  next: workout.nextMovement,
+                // Timer controls (only show inline when notes not expanded)
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  transitionBuilder: (child, animation) {
+                    return FadeTransition(
+                      opacity: animation,
+                      child: SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(0, 0.3),
+                          end: Offset.zero,
+                        ).animate(CurvedAnimation(
+                          parent: animation,
+                          curve: Curves.easeOut,
+                        )),
+                        child: child,
+                      ),
+                    );
+                  },
+                  child: _notesExpanded
+                      ? const SizedBox.shrink()
+                      : TimerControls(
+                          key: const ValueKey('inline_controls'),
+                          isRunning: workout.isRunning || workout.isRest || workout.isCountdown,
+                          isPaused: workout.isPaused,
+                          isIdle: workout.isIdle,
+                          isCompleted: workout.isCompleted,
+                          isCountdown: workout.isCountdown,
+                          isRest: workout.isRest,
+                          isNextRest: workout.isNextRest && workout.isCurrentWork,
+                          onPlayPause: () {
+                            workout.toggleTimer();
+                          },
+                          onReset: () {
+                            workout.resetTimer();
+                          },
+                          onSkip: currentWorkout.movements.isNotEmpty
+                              ? () => workout.skipMovement()
+                              : null,
+                          onComplete: () {
+                            workout.completeEarly();
+                          },
+                          onSkipToRest: workout.isNextRest
+                              ? () => workout.completeCurrentInterval()
+                              : null,
+                          onSkipRest: workout.isRest
+                              ? () => workout.completeCurrentInterval()
+                              : null,
+                        ),
                 ),
-                const SizedBox(height: 24),
-                MovementList(
-                  movements: currentWorkout.movements,
-                  currentIndex: workout.currentMovementIndex,
-                ),
+
+                const SizedBox(height: 32),
+
+                // Current movement display
+                if (currentWorkout.movements.isNotEmpty) ...[
+                  CurrentMovementDisplay(
+                    current: workout.currentMovement,
+                    next: workout.nextMovement,
+                  ),
+                  const SizedBox(height: 24),
+                  MovementList(
+                    movements: currentWorkout.movements,
+                    currentIndex: workout.currentMovementIndex,
+                  ),
+                ],
+
+                // Extra space at bottom when notes expanded to prevent content being hidden
+                if (_notesExpanded) SizedBox(height: MediaQuery.of(context).size.height * 0.4),
+
               ],
-
-            ],
+            ),
           ),
-        ),
 
         // Notes toggle and panel (slides up from bottom)
         Positioned(
           left: 0,
           right: 0,
           bottom: 0,
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 250),
-            transitionBuilder: (child, animation) {
-              return SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0, 1),
-                  end: Offset.zero,
-                ).animate(CurvedAnimation(
-                  parent: animation,
-                  curve: Curves.easeOut,
-                )),
-                child: child,
-              );
-            },
-            child: _notesExpanded
-                ? _buildNotesPanel(currentWorkout.notes ?? '')
-                : _buildNotesToggle(currentWorkout.notes ?? ''),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Notes toggle/panel
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 250),
+                transitionBuilder: (child, animation) {
+                  return SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0, 1),
+                      end: Offset.zero,
+                    ).animate(CurvedAnimation(
+                      parent: animation,
+                      curve: Curves.easeOut,
+                    )),
+                    child: child,
+                  );
+                },
+                child: _notesExpanded
+                    ? _buildNotesPanel(currentWorkout.notes ?? '')
+                    : _buildNotesToggle(currentWorkout.notes ?? ''),
+              ),
+              // Compact controls panel when notes expanded (at very bottom)
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 250),
+                transitionBuilder: (child, animation) {
+                  return SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0, 1),
+                      end: Offset.zero,
+                    ).animate(CurvedAnimation(
+                      parent: animation,
+                      curve: Curves.easeOut,
+                    )),
+                    child: child,
+                  );
+                },
+                child: _notesExpanded
+                    ? Container(
+                        key: const ValueKey('compact_controls'),
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        decoration: BoxDecoration(
+                          color: AppColors.cardBackground,
+                          border: Border(
+                            top: BorderSide(color: AppColors.border, width: 1),
+                          ),
+                        ),
+                        child: SafeArea(
+                          top: false,
+                          child: CompactTimerControls(
+                            isRunning: workout.isRunning || workout.isRest || workout.isCountdown,
+                            isPaused: workout.isPaused,
+                            isIdle: workout.isIdle,
+                            isCompleted: workout.isCompleted,
+                            isCountdown: workout.isCountdown,
+                            isRest: workout.isRest,
+                            isNextRest: workout.isNextRest && workout.isCurrentWork,
+                            onPlayPause: () {
+                              workout.toggleTimer();
+                            },
+                            onReset: () {
+                              workout.resetTimer();
+                            },
+                            onStop: () {
+                              workout.completeEarly();
+                            },
+                            onSkipToRest: workout.isNextRest
+                                ? () => workout.completeCurrentInterval()
+                                : null,
+                            onSkipRest: workout.isRest
+                                ? () => workout.completeCurrentInterval()
+                                : null,
+                          ),
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ],
           ),
         ),
       ],
@@ -705,9 +734,10 @@ class _TimerScreenState extends State<TimerScreen> {
     // If nothing extra to show, return null (default time display)
     if (!showRounds && !isWorkRest && !showManualCounter && !showRoundCounter) return null;
 
+    const double timerSize = 300;
     return SizedBox(
-      width: 260,
-      height: 260,
+      width: timerSize,
+      height: timerSize,
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -715,14 +745,14 @@ class _TimerScreenState extends State<TimerScreen> {
           Text(
             workout.formattedTime,
             style: AppTextStyles.timerLarge.copyWith(
-              fontSize: 260 * 0.22,
+              fontSize: timerSize * 0.22,
               fontWeight: FontWeight.w700,
             ),
           ),
           // Round/Rest counter (for interval-based timers with work and rest)
-          if (showRoundCounter)
+          if (showRoundCounter) ...[
             Positioned(
-              bottom: 260 * 0.22,
+              bottom: timerSize * 0.22,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -752,11 +782,22 @@ class _TimerScreenState extends State<TimerScreen> {
                   ),
                 ],
               ),
-            )
+            ),
+            // Total time display
+            Positioned(
+              top: timerSize * 0.22,
+              child: Text(
+                'Total: ${workout.formattedElapsedTime}',
+                style: AppTextStyles.bodySmall.copyWith(
+                  color: AppColors.textMuted,
+                ),
+              ),
+            ),
+          ]
           // Other bottom text (Total, Round X of Y, Counter)
           else if (isWorkRest)
             Positioned(
-              bottom: 260 * 0.28,
+              bottom: timerSize * 0.28,
               child: Text(
                 'Total: ${workout.formattedElapsedTime}',
                 style: AppTextStyles.bodySmall.copyWith(
@@ -764,19 +805,29 @@ class _TimerScreenState extends State<TimerScreen> {
                 ),
               ),
             )
-          else if (showRounds)
+          else if (showRounds) ...[
             Positioned(
-              bottom: 260 * 0.28,
+              bottom: timerSize * 0.28,
               child: Text(
-                'Round ${workout.currentRound} of ${workout.totalRounds}',
+                'Round ${workout.isIdle || workout.isCountdown ? 0 : workout.currentRound} of ${workout.totalRounds}',
                 style: AppTextStyles.bodySmall.copyWith(
                   color: AppColors.textMuted,
                 ),
               ),
-            )
+            ),
+            Positioned(
+              top: timerSize * 0.22,
+              child: Text(
+                'Total: ${workout.formattedElapsedTime}',
+                style: AppTextStyles.bodySmall.copyWith(
+                  color: AppColors.textMuted,
+                ),
+              ),
+            ),
+          ]
           else if (showManualCounter)
             Positioned(
-              bottom: 260 * 0.28,
+              bottom: timerSize * 0.28,
               child: Text(
                 'Counter: ${workout.counter}',
                 style: AppTextStyles.bodySmall.copyWith(
@@ -833,7 +884,10 @@ class _TimerScreenState extends State<TimerScreen> {
     return Container(
       key: const ValueKey('notes_panel'),
       width: double.infinity,
-      constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height * 0.28),
+      constraints: BoxConstraints(
+        minHeight: MediaQuery.of(context).size.height * 0.30,
+        maxHeight: MediaQuery.of(context).size.height * 0.40,
+      ),
       padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
       decoration: const BoxDecoration(
         color: AppColors.cardBackground,
@@ -875,10 +929,10 @@ class _TimerScreenState extends State<TimerScreen> {
                 child: Align(
                   alignment: Alignment.topLeft,
                   child: Text(
-                    notes.isEmpty ? 'No notes' : notes,
+                    notes,
                     textAlign: TextAlign.left,
                     style: AppTextStyles.bodyLarge.copyWith(
-                      color: notes.isEmpty ? AppColors.textMuted : AppColors.textPrimary,
+                      color: AppColors.textPrimary,
                       height: 1.5,
                     ),
                   ),
