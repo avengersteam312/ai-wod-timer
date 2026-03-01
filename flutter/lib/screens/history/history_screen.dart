@@ -215,6 +215,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 child: Dismissible(
                   key: Key(session.id),
                   direction: DismissDirection.endToStart,
+                  dismissThresholds: const {DismissDirection.endToStart: 0.5},
                   background: Container(
                     alignment: Alignment.centerRight,
                     padding: const EdgeInsets.only(right: 24),
@@ -227,9 +228,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       color: Colors.white,
                     ),
                   ),
-                  confirmDismiss: (direction) async {
-                    return await _confirmDelete(session);
-                  },
                   onDismissed: (direction) {
                     _deleteSession(session);
                   },
@@ -247,33 +245,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
     });
 
     return widgets;
-  }
-
-  Future<bool> _confirmDelete(WorkoutSession session) async {
-    return await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.cardBackground,
-        title: Text('Delete Session?', style: AppTextStyles.h3),
-        content: Text(
-          'Are you sure you want to delete "${session.workoutName}"? This cannot be undone.',
-          style: AppTextStyles.body,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.error,
-            ),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    ) ?? false;
   }
 
   Future<void> _deleteSession(WorkoutSession session) async {

@@ -11,7 +11,6 @@ import '../../widgets/auth_button.dart';
 import '../../widgets/timer/circular_timer_ring.dart';
 import '../../widgets/timer/timer_controls.dart';
 import '../../widgets/timer/movement_list.dart';
-import '../../widgets/timer/pulsing_ring.dart';
 import '../auth/login_screen.dart';
 
 class TimerScreen extends StatefulWidget {
@@ -541,21 +540,23 @@ class _TimerScreenState extends State<TimerScreen> {
             child: Column(
               children: [
                 // Timer ring (tappable for manual counter)
-                GestureDetector(
-                  onTap: workout.shouldShowManualCounter && workout.isRunning
-                      ? () => workout.incrementCounter()
-                      : null,
-                  child: PulsingRing(
-                    size: 300,
-                    enabled: workout.shouldShowManualCounter && workout.isRunning,
-                    color: AppColors.primary,
-                    child: AnimatedTimerRing(
-                      progress: workout.progress,
-                      time: workout.formattedTime,
-                      progressColor: _getTimerColor(workout),
-                      size: 300,
-                      isAnimating: workout.isRunning || workout.isRest || workout.isCountdown,
-                      centerWidget: _buildTimerCenterContent(workout, currentWorkout),
+                // Wrapped in SizedBox to maintain same layout as before (when PulsingRing added +80)
+                SizedBox(
+                  width: 380,
+                  height: 380,
+                  child: Center(
+                    child: GestureDetector(
+                      onTap: workout.shouldShowManualCounter && workout.isRunning
+                          ? () => workout.incrementCounter()
+                          : null,
+                      child: AnimatedTimerRing(
+                        progress: workout.progress,
+                        time: workout.formattedTime,
+                        progressColor: _getTimerColor(workout),
+                        size: 300,
+                        isAnimating: workout.isRunning || workout.isRest || workout.isCountdown,
+                        centerWidget: _buildTimerCenterContent(workout, currentWorkout),
+                      ),
                     ),
                   ),
                 ),
@@ -825,7 +826,7 @@ class _TimerScreenState extends State<TimerScreen> {
               ),
             ),
           ]
-          else if (showManualCounter)
+          else if (showManualCounter) ...[
             Positioned(
               bottom: timerSize * 0.28,
               child: Text(
@@ -835,6 +836,28 @@ class _TimerScreenState extends State<TimerScreen> {
                 ),
               ),
             ),
+            // Tap icon hint with text
+            Positioned(
+              top: timerSize * 0.18,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.touch_app,
+                    size: 28,
+                    color: AppColors.textSecondary,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Tap to count',
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
