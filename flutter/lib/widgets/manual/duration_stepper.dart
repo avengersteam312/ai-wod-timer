@@ -39,72 +39,36 @@ class DurationStepper extends StatelessWidget {
     }
   }
 
-  void _showInputDialog(BuildContext context) {
-    final minutesController = TextEditingController(text: minutes.toString());
-    final secondsController = TextEditingController(text: seconds.toString().padLeft(2, '0'));
-    final secondsFocus = FocusNode();
+
+  void _showMinutesDialog(BuildContext context) {
+    final text = minutes.toString();
+    final controller = TextEditingController(text: text);
+    controller.selection = TextSelection(baseOffset: 0, extentOffset: text.length);
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.cardBackground,
-        title: Text('Enter Time', style: AppTextStyles.h3),
-        content: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Minutes input
-            SizedBox(
-              width: 60,
-              child: TextField(
-                controller: minutesController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(2),
-                ],
-                autofocus: true,
-                textAlign: TextAlign.center,
-                style: AppTextStyles.h2,
-                decoration: InputDecoration(
-                  hintText: 'min',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                onSubmitted: (_) {
-                  secondsFocus.requestFocus();
-                },
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Text(':', style: AppTextStyles.h2),
-            ),
-            // Seconds input
-            SizedBox(
-              width: 60,
-              child: TextField(
-                controller: secondsController,
-                focusNode: secondsFocus,
-                keyboardType: TextInputType.number,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(2),
-                ],
-                textAlign: TextAlign.center,
-                style: AppTextStyles.h2,
-                decoration: InputDecoration(
-                  hintText: 'sec',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                onSubmitted: (_) {
-                  _submitValue(ctx, minutesController.text, secondsController.text);
-                },
-              ),
-            ),
+        title: Text('Enter Minutes', style: AppTextStyles.h3),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(2),
           ],
+          autofocus: true,
+          textAlign: TextAlign.center,
+          style: AppTextStyles.h2,
+          decoration: InputDecoration(
+            hintText: 'min',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          onSubmitted: (text) {
+            _submitMinutes(ctx, text);
+          },
         ),
         actions: [
           TextButton(
@@ -112,7 +76,7 @@ class DurationStepper extends StatelessWidget {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () => _submitValue(ctx, minutesController.text, secondsController.text),
+            onPressed: () => _submitMinutes(ctx, controller.text),
             child: const Text('Done'),
           ),
         ],
@@ -120,10 +84,63 @@ class DurationStepper extends StatelessWidget {
     );
   }
 
-  void _submitValue(BuildContext context, String minutesText, String secondsText) {
-    final mins = int.tryParse(minutesText) ?? 0;
-    final secs = int.tryParse(secondsText) ?? 0;
-    final total = (mins * 60) + secs;
+  void _submitMinutes(BuildContext context, String text) {
+    final mins = int.tryParse(text) ?? 0;
+    final total = (mins * 60) + seconds;
+    final clamped = total.clamp(minSeconds, maxSeconds);
+    onChanged(clamped);
+    Navigator.pop(context);
+  }
+
+  void _showSecondsDialog(BuildContext context) {
+    final text = seconds.toString().padLeft(2, '0');
+    final controller = TextEditingController(text: text);
+    controller.selection = TextSelection(baseOffset: 0, extentOffset: text.length);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.cardBackground,
+        title: Text('Enter Seconds', style: AppTextStyles.h3),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(2),
+          ],
+          autofocus: true,
+          textAlign: TextAlign.center,
+          style: AppTextStyles.h2,
+          decoration: InputDecoration(
+            hintText: 'sec',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          onSubmitted: (text) {
+            _submitSeconds(ctx, text);
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => _submitSeconds(ctx, controller.text),
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _submitSeconds(BuildContext context, String text) {
+    final secs = int.tryParse(text) ?? 0;
+    // Clamp seconds to 0-59
+    final clampedSecs = secs.clamp(0, 59);
+    final total = (minutes * 60) + clampedSecs;
     final clamped = total.clamp(minSeconds, maxSeconds);
     onChanged(clamped);
     Navigator.pop(context);
@@ -140,35 +157,40 @@ class DurationStepper extends StatelessWidget {
           onTap: totalSeconds > minSeconds ? _decrease : null,
         ),
         const SizedBox(width: 16),
-        // Time display - tappable for direct input
-        GestureDetector(
-          onTap: () => _showInputDialog(context),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            decoration: BoxDecoration(
-              color: AppColors.cardBackground,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
+        // Time display - each part tappable separately
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          decoration: BoxDecoration(
+            color: AppColors.cardBackground,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Minutes - tappable
+              GestureDetector(
+                onTap: () => _showMinutesDialog(context),
+                child: Text(
                   '$minutes',
-                  style: AppTextStyles.h1.copyWith(fontSize: 48),
+                  style: AppTextStyles.h2,
                 ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Text(
-                    ':',
-                    style: AppTextStyles.h1.copyWith(fontSize: 48),
-                  ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Text(
+                  ':',
+                  style: AppTextStyles.h2,
                 ),
-                Text(
+              ),
+              // Seconds - tappable
+              GestureDetector(
+                onTap: () => _showSecondsDialog(context),
+                child: Text(
                   seconds.toString().padLeft(2, '0'),
-                  style: AppTextStyles.h1.copyWith(fontSize: 48),
+                  style: AppTextStyles.h2,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
         const SizedBox(width: 16),
