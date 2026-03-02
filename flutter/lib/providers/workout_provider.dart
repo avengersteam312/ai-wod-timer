@@ -372,14 +372,52 @@ class WorkoutProvider with ChangeNotifier {
     final movementsList = (response['movements'] as List<dynamic>?)
             ?.map((m) {
               final map = m as Map<String, dynamic>;
+              // Handle reps as int or string (AI may return either)
+              int? reps;
+              final repsValue = map['reps'];
+              if (repsValue is int) {
+                reps = repsValue;
+              } else if (repsValue is String) {
+                reps = int.tryParse(repsValue);
+              }
+              // Handle weight as num or string (AI returns string like "225#")
+              double? weight;
+              String? weightUnit;
+              final weightValue = map['weight'];
+              if (weightValue is num) {
+                weight = weightValue.toDouble();
+              } else if (weightValue is String) {
+                // Extract numeric part from strings like "225#" or "95 lbs"
+                final match = RegExp(r'(\d+(?:\.\d+)?)').firstMatch(weightValue);
+                if (match != null) {
+                  weight = double.tryParse(match.group(1)!);
+                }
+                // Extract unit from weight string if not separately provided
+                if (map['weight_unit'] == null) {
+                  if (weightValue.contains('#') || weightValue.contains('lb')) {
+                    weightUnit = 'lbs';
+                  } else if (weightValue.contains('kg')) {
+                    weightUnit = 'kg';
+                  }
+                }
+              }
+              // Handle duration as int or string
+              int? durationSeconds;
+              final durValue = map['duration'] ?? map['duration_seconds'];
+              if (durValue is int) {
+                durationSeconds = durValue;
+              } else if (durValue is String) {
+                durationSeconds = int.tryParse(durValue);
+              }
               return Movement(
                 id: _uuid.v4(),
                 name: map['name'] as String? ?? '',
-                reps: map['reps'] as int?,
-                durationSeconds: map['duration'] as int? ?? map['duration_seconds'] as int?,
+                reps: reps,
+                durationSeconds: durationSeconds,
                 unit: map['unit'] as String?,
-                weight: (map['weight'] as num?)?.toDouble(),
-                weightUnit: map['weight_unit'] as String?,
+                weight: weight,
+                weightUnit: weightUnit ?? map['weight_unit'] as String?,
+                notes: map['notes'] as String?,
               );
             })
             .toList() ??

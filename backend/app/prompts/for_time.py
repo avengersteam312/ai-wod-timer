@@ -6,7 +6,7 @@ CONCEPT:
 - Athlete completes prescribed work in minimum time
 - Goal is to finish all movements/rounds as quickly as possible
 - Time cap limits maximum duration (optional)
-- Always 1 single interval regardless of rounds or rep schemes
+- Usually 1 single interval (unless explicit sets with rest are specified)
 
 RULES:
 - With time cap: 1 interval with duration = time cap in seconds
@@ -15,6 +15,7 @@ RULES:
 - "21-15-9" = descending rep scheme (still 1 interval, not 3)
 - "5 RFT" = 5 rounds for time (still 1 interval)
 - Rep schemes describe the work, not separate intervals
+- EXCEPTION: If workout has "X sets" with "rest X:XX between sets", create separate work+rest intervals
 
 EXAMPLES:
 
@@ -46,4 +47,9 @@ With distance:
 Chipper style:
 "For Time: 50 Cal Row, 40 Toes to Bar, 30 Wall Balls, 20 Clean & Jerks 135#, 10 Muscle-ups"
 → intervals: [{duration: 0, type: "work"}]
-→ movements: [{name: "Cal Row", calories: 50}, {name: "Toes to Bar", reps: 40}, {name: "Wall Balls", reps: 30}, {name: "Clean & Jerks", reps: 20, weight: "135#"}, {name: "Muscle-ups", reps: 10}]"""
+→ movements: [{name: "Cal Row", calories: 50}, {name: "Toes to Bar", reps: 40}, {name: "Wall Balls", reps: 30}, {name: "Clean & Jerks", reps: 20, weight: "135#"}, {name: "Muscle-ups", reps: 10}]
+
+Multiple sets with rest between:
+"For Time: 3 sets - 9 snatches, 9 burpee box jump overs, 6 snatches, 6 burpee box jump overs, 3 snatches, 3 burpee box jump overs - rest 3:00 between sets"
+→ intervals: [{duration: 0, type: "work"}, {duration: 180, type: "rest"}, {duration: 0, type: "work"}, {duration: 180, type: "rest"}, {duration: 0, type: "work"}]
+→ movements: [{name: "Snatches", reps: 9, notes: "then 6, then 3 each set"}, {name: "Burpee Box Jump Overs", reps: 9, notes: "30/24 in, then 6, then 3 each set"}]"""
