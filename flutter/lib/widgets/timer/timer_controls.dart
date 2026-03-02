@@ -92,18 +92,7 @@ class TimerControls extends StatelessWidget {
   }
 
   Widget? _buildRightButton() {
-    // Skip button when available and not completed
-    if (onSkip != null && !isCompleted) {
-      return CircularControlButton(
-        icon: Icons.skip_next,
-        onPressed: onSkip!,
-        size: secondaryButtonSize,
-        backgroundColor: AppColors.inputBackground,
-        iconColor: AppColors.textSecondary,
-      );
-    }
-
-    // Stop button - always visible, only disabled during countdown
+    // Always show stop button when onComplete is available
     if (onComplete != null) {
       final isDisabled = isCountdown || isIdle || isCompleted;
 
@@ -114,6 +103,17 @@ class TimerControls extends StatelessWidget {
         backgroundColor: AppColors.inputBackground,
         iconColor: AppColors.error,
         disabled: isDisabled,
+      );
+    }
+
+    // Fallback: Skip button when available and not completed
+    if (onSkip != null && !isCompleted) {
+      return CircularControlButton(
+        icon: Icons.skip_next,
+        onPressed: onSkip!,
+        size: secondaryButtonSize,
+        backgroundColor: AppColors.inputBackground,
+        iconColor: AppColors.textSecondary,
       );
     }
 

@@ -39,7 +39,9 @@ class NumberStepper extends StatelessWidget {
   }
 
   void _showInputDialog(BuildContext context) {
-    final controller = TextEditingController(text: value.toString());
+    final text = value.toString();
+    final controller = TextEditingController(text: text);
+    controller.selection = TextSelection(baseOffset: 0, extentOffset: text.length);
 
     showDialog(
       context: context,

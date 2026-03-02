@@ -10,8 +10,8 @@ import '../../services/audio_service.dart';
 import '../../widgets/auth_button.dart';
 import '../../widgets/timer/circular_timer_ring.dart';
 import '../../widgets/timer/timer_controls.dart';
-import '../../widgets/timer/movement_list.dart';
-import '../auth/login_screen.dart';
+
+enum NotesState { closed, minimized, full }
 
 class TimerScreen extends StatefulWidget {
   final VoidCallback? onNavigateToManual;
@@ -38,8 +38,9 @@ class _TimerScreenState extends State<TimerScreen> {
   // Offline state
   bool _isOffline = false;
 
-  // Notes expanded state
-  bool _notesExpanded = false;
+  // Notes state: closed, minimized, full
+  NotesState _notesState = NotesState.closed;
+  bool _isNotesExiting = false;
 
   @override
   void initState() {
@@ -257,8 +258,24 @@ class _TimerScreenState extends State<TimerScreen> {
       _savedOffline = false;
       _showSaveSuccess = false;
       _saveError = null;
-      _notesExpanded = false;
+      _notesState = NotesState.closed;
     });
+  }
+
+  String _combineNotesWithDescription(Workout workout) {
+    final description = workout.rawInput?.trim() ?? '';
+    final notes = workout.notes?.trim() ?? '';
+
+    if (description.isEmpty && notes.isEmpty) {
+      return '';
+    }
+    if (description.isEmpty) {
+      return notes;
+    }
+    if (notes.isEmpty) {
+      return description;
+    }
+    return '$description\n\n---\n\n$notes';
   }
 
   void _handleWakeLock(WorkoutProvider workout) {
@@ -536,14 +553,16 @@ class _TimerScreenState extends State<TimerScreen> {
         // Main content
         SingleChildScrollView(
             controller: _scrollController,
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+            physics: _notesState != NotesState.closed
+                ? const NeverScrollableScrollPhysics()
+                : null,
+            padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
             child: Column(
               children: [
                 // Timer ring (tappable for manual counter)
-                // Wrapped in SizedBox to maintain same layout as before (when PulsingRing added +80)
                 SizedBox(
-                  width: 380,
-                  height: 380,
+                  width: 320,
+                  height: 320,
                   child: Center(
                     child: GestureDetector(
                       onTap: workout.shouldShowManualCounter && workout.isRunning
@@ -581,7 +600,7 @@ class _TimerScreenState extends State<TimerScreen> {
                       ),
                     );
                   },
-                  child: _notesExpanded
+                  child: _notesState != NotesState.closed
                       ? const SizedBox.shrink()
                       : TimerControls(
                           key: const ValueKey('inline_controls'),
@@ -614,111 +633,61 @@ class _TimerScreenState extends State<TimerScreen> {
                 ),
 
                 const SizedBox(height: 32),
-
-                // Current movement display
-                if (currentWorkout.movements.isNotEmpty) ...[
-                  CurrentMovementDisplay(
-                    current: workout.currentMovement,
-                    next: workout.nextMovement,
-                  ),
-                  const SizedBox(height: 24),
-                  MovementList(
-                    movements: currentWorkout.movements,
-                    currentIndex: workout.currentMovementIndex,
-                  ),
-                ],
-
-                // Extra space at bottom when notes expanded to prevent content being hidden
-                if (_notesExpanded) SizedBox(height: MediaQuery.of(context).size.height * 0.4),
-
               ],
             ),
           ),
 
         // Notes toggle and panel (slides up from bottom)
-        Positioned(
+        AnimatedPositioned(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
           left: 0,
           right: 0,
           bottom: 0,
+          // Full: cover entire screen, Minimized: start below clock, Closed: anchor to bottom
+          top: _notesState == NotesState.full
+              ? 0
+              : (_notesState == NotesState.minimized ? 400 : null),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: _notesState != NotesState.closed ? MainAxisSize.max : MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.end,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Notes toggle/panel
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 250),
-                transitionBuilder: (child, animation) {
-                  return SlideTransition(
-                    position: Tween<Offset>(
-                      begin: const Offset(0, 1),
-                      end: Offset.zero,
-                    ).animate(CurvedAnimation(
-                      parent: animation,
-                      curve: Curves.easeOut,
-                    )),
-                    child: child,
-                  );
-                },
-                child: _notesExpanded
-                    ? _buildNotesPanel(currentWorkout.notes ?? '')
-                    : _buildNotesToggle(currentWorkout.notes ?? ''),
-              ),
-              // Compact controls panel when notes expanded (at very bottom)
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 250),
-                transitionBuilder: (child, animation) {
-                  return SlideTransition(
-                    position: Tween<Offset>(
-                      begin: const Offset(0, 1),
-                      end: Offset.zero,
-                    ).animate(CurvedAnimation(
-                      parent: animation,
-                      curve: Curves.easeOut,
-                    )),
-                    child: child,
-                  );
-                },
-                child: _notesExpanded
-                    ? Container(
-                        key: const ValueKey('compact_controls'),
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        decoration: BoxDecoration(
-                          color: AppColors.cardBackground,
-                          border: Border(
-                            top: BorderSide(color: AppColors.border, width: 1),
-                          ),
+              // Notes toggle (only when closed)
+              if (_notesState == NotesState.closed)
+                _buildNotesToggle(_combineNotesWithDescription(currentWorkout)),
+              // Single animated notes panel containing timer, controls, and notes content
+              if (_notesState != NotesState.closed)
+                Expanded(
+                  child: Builder(
+                    builder: (context) {
+                      // Only animate slide when opening or closing completely
+                      // Full → Minimized is handled by AnimatedPositioned
+                      final isExitingToClose = _isNotesExiting && _notesState == NotesState.minimized;
+                      return TweenAnimationBuilder<double>(
+                        key: ValueKey('notes_panel_${isExitingToClose ? 'closing' : 'open'}'),
+                        duration: const Duration(milliseconds: 300),
+                        tween: Tween<double>(
+                          begin: isExitingToClose ? 0.0 : 1.0,
+                          end: isExitingToClose ? 1.0 : 0.0,
                         ),
-                        child: SafeArea(
-                          top: false,
-                          child: CompactTimerControls(
-                            isRunning: workout.isRunning || workout.isRest || workout.isCountdown,
-                            isPaused: workout.isPaused,
-                            isIdle: workout.isIdle,
-                            isCompleted: workout.isCompleted,
-                            isCountdown: workout.isCountdown,
-                            isRest: workout.isRest,
-                            isNextRest: workout.isNextRest && workout.isCurrentWork,
-                            onPlayPause: () {
-                              workout.toggleTimer();
-                            },
-                            onReset: () {
-                              workout.resetTimer();
-                            },
-                            onStop: () {
-                              workout.completeEarly();
-                            },
-                            onSkipToRest: workout.isNextRest
-                                ? () => workout.completeCurrentInterval()
-                                : null,
-                            onSkipRest: workout.isRest
-                                ? () => workout.completeCurrentInterval()
-                                : null,
-                          ),
+                        curve: Curves.easeInOut,
+                        builder: (context, value, child) {
+                          final screenHeight = MediaQuery.of(context).size.height;
+                          return Transform.translate(
+                            offset: Offset(0, value * screenHeight * 0.6),
+                            child: child,
+                          );
+                        },
+                        child: _buildUnifiedNotesPanel(
+                          workout,
+                          _combineNotesWithDescription(currentWorkout),
+                          _notesState == NotesState.full,
                         ),
-                      )
-                    : const SizedBox.shrink(),
-              ),
+                      );
+                    },
+                  ),
+                ),
             ],
           ),
         ),
@@ -881,20 +850,36 @@ class _TimerScreenState extends State<TimerScreen> {
       key: const ValueKey('notes_toggle'),
       onTap: () {
         setState(() {
-          _notesExpanded = true;
+          _notesState = NotesState.minimized;
         });
       },
-      child: const Padding(
-        padding: EdgeInsets.only(bottom: 16),
+      onVerticalDragEnd: (details) {
+        final velocity = details.primaryVelocity ?? 0;
+        if (velocity < -300) {
+          // Swipe up - open notes to minimized (half)
+          setState(() {
+            _notesState = NotesState.minimized;
+          });
+        }
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.only(bottom: 16),
+        color: Colors.transparent,
         child: Column(
           children: [
-            Icon(
-              Icons.keyboard_arrow_up,
-              color: AppColors.textMuted,
-              size: 20,
+            // Drag handle indicator
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.textMuted,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
-            Text(
-              'Show notes',
+            const SizedBox(height: 8),
+            const Text(
+              'Swipe up for notes',
               style: AppTextStyles.bodySmall,
             ),
           ],
@@ -903,63 +888,171 @@ class _TimerScreenState extends State<TimerScreen> {
     );
   }
 
-  Widget _buildNotesPanel(String notes) {
-    return Container(
-      key: const ValueKey('notes_panel'),
-      width: double.infinity,
-      constraints: BoxConstraints(
-        minHeight: MediaQuery.of(context).size.height * 0.30,
-        maxHeight: MediaQuery.of(context).size.height * 0.40,
+  Widget _buildUnifiedNotesPanel(WorkoutProvider workout, String notes, bool isFull) {
+    final notesContent = SingleChildScrollView(
+      child: Align(
+        alignment: Alignment.topLeft,
+        child: Text(
+          notes,
+          textAlign: TextAlign.left,
+          style: AppTextStyles.bodyLarge.copyWith(
+            color: AppColors.textPrimary,
+            height: 1.5,
+          ),
+        ),
       ),
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+    );
+
+    return Container(
+      width: double.infinity,
       decoration: const BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: SafeArea(
-        top: false,
+        top: isFull,
+        bottom: false,
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: MainAxisSize.max,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Hide notes button
-            Center(
-              child: GestureDetector(
-                onTap: () {
+            // Swipe handle + Hide notes button
+            GestureDetector(
+              onVerticalDragEnd: (details) {
+                final velocity = details.primaryVelocity ?? 0;
+                if (velocity > 300) {
+                  // Swipe down - minimize or close
+                  if (_notesState == NotesState.full) {
+                    setState(() {
+                      _notesState = NotesState.minimized;
+                    });
+                  } else {
+                    setState(() {
+                      _isNotesExiting = true;
+                    });
+                    Future.delayed(const Duration(milliseconds: 350), () {
+                      if (mounted) {
+                        setState(() {
+                          _isNotesExiting = false;
+                          _notesState = NotesState.closed;
+                        });
+                      }
+                    });
+                  }
+                } else if (velocity < -300) {
+                  // Swipe up - maximize
+                  if (_notesState == NotesState.minimized) {
+                    setState(() {
+                      _notesState = NotesState.full;
+                    });
+                  }
+                }
+              },
+              onTap: () {
+                if (_notesState == NotesState.full) {
                   setState(() {
-                    _notesExpanded = false;
+                    _notesState = NotesState.minimized;
                   });
-                },
-                child: const Column(
+                } else {
+                  setState(() {
+                    _isNotesExiting = true;
+                  });
+                  Future.delayed(const Duration(milliseconds: 350), () {
+                    if (mounted) {
+                      setState(() {
+                        _isNotesExiting = false;
+                        _notesState = NotesState.closed;
+                      });
+                    }
+                  });
+                }
+              },
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                color: Colors.transparent,
+                child: Column(
                   children: [
-                    Text(
-                      'Hide notes',
-                      style: AppTextStyles.bodySmall,
+                    // Drag handle indicator
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.textMuted,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
-                    Icon(
-                      Icons.keyboard_arrow_down,
-                      color: AppColors.textMuted,
-                      size: 20,
+                    const SizedBox(height: 8),
+                    Text(
+                      isFull ? 'Swipe down to minimize' : 'Swipe up or down',
+                      style: AppTextStyles.bodySmall,
                     ),
                   ],
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
             // Notes content
-            Flexible(
-              child: SingleChildScrollView(
-                child: Align(
-                  alignment: Alignment.topLeft,
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: notesContent,
+              ),
+            ),
+            // Compact timer (only when full)
+            if (isFull)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: const BoxDecoration(
+                  border: Border(
+                    top: BorderSide(color: AppColors.border, width: 1),
+                    bottom: BorderSide(color: AppColors.border, width: 1),
+                  ),
+                ),
+                child: Center(
                   child: Text(
-                    notes,
-                    textAlign: TextAlign.left,
-                    style: AppTextStyles.bodyLarge.copyWith(
+                    workout.formattedTime,
+                    style: AppTextStyles.h1.copyWith(
+                      fontSize: 36,
+                      fontWeight: FontWeight.w700,
                       color: AppColors.textPrimary,
-                      height: 1.5,
                     ),
                   ),
                 ),
+              ),
+            // Compact controls (always when open)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              decoration: const BoxDecoration(
+                border: Border(
+                  top: BorderSide(color: AppColors.border, width: 1),
+                ),
+              ),
+              child: CompactTimerControls(
+                isRunning: workout.isRunning || workout.isRest || workout.isCountdown,
+                isPaused: workout.isPaused,
+                isIdle: workout.isIdle,
+                isCompleted: workout.isCompleted,
+                isCountdown: workout.isCountdown,
+                isRest: workout.isRest,
+                isNextRest: workout.isNextRest && workout.isCurrentWork,
+                onPlayPause: () {
+                  workout.toggleTimer();
+                },
+                onReset: () {
+                  workout.resetTimer();
+                },
+                onStop: () {
+                  workout.completeEarly();
+                },
+                onSkipToRest: workout.isNextRest
+                    ? () => workout.completeCurrentInterval()
+                    : null,
+                onSkipRest: workout.isRest
+                    ? () => workout.completeCurrentInterval()
+                    : null,
               ),
             ),
           ],

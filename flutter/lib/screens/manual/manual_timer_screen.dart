@@ -453,19 +453,18 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
       children: [
         // Work section
         Text(
-          'WORK (seconds)',
+          'WORK',
           style: AppTextStyles.labelSmall.copyWith(
             letterSpacing: 1.5,
             color: AppColors.textMuted,
           ),
         ),
         const SizedBox(height: 8),
-        NumberStepper(
-          value: _workSeconds,
-          minValue: 5,
-          maxValue: 60,
+        DurationStepper(
+          totalSeconds: _workSeconds,
+          minSeconds: 5,
+          maxSeconds: 300, // 5 minutes max
           step: 5,
-          suffix: 's',
           onChanged: (value) {
             setState(() => _workSeconds = value);
           },
@@ -474,19 +473,18 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
 
         // Rest section
         Text(
-          'REST (seconds)',
+          'REST',
           style: AppTextStyles.labelSmall.copyWith(
             letterSpacing: 1.5,
             color: AppColors.textMuted,
           ),
         ),
         const SizedBox(height: 8),
-        NumberStepper(
-          value: _restSeconds,
-          minValue: 5,
-          maxValue: 60,
+        DurationStepper(
+          totalSeconds: _restSeconds,
+          minSeconds: 5,
+          maxSeconds: 300, // 5 minutes max
           step: 5,
-          suffix: 's',
           onChanged: (value) {
             setState(() => _restSeconds = value);
           },
