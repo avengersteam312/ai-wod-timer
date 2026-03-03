@@ -129,7 +129,7 @@ class _MyWorkoutsScreenState extends State<MyWorkoutsScreen> {
 
   void _startWorkout(Workout workout) {
     final workoutProvider = context.read<WorkoutProvider>();
-    workoutProvider.setWorkout(workout);
+    workoutProvider.setWorkout(workout, fromSavedWorkoutId: workout.id);
 
     // Navigate to timer tab
     widget.onNavigateToTimer?.call();

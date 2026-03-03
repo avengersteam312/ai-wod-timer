@@ -77,7 +77,10 @@ class _AppShellState extends State<AppShell> {
         index: _currentIndex,
         children: [
           ManualTimerScreen(onNavigateToTimer: _navigateToTimer),
-          TimerScreen(onNavigateToManual: _navigateToManual),
+          TimerScreen(
+            onNavigateToManual: _navigateToManual,
+            isDashboardVisible: _currentIndex == 1,
+          ),
           const HistoryScreen(),
         ],
       ),
@@ -108,27 +111,27 @@ class _AppShellState extends State<AppShell> {
                   ? const Badge(
                       backgroundColor: AppColors.success,
                       smallSize: 8,
-                      child: Icon(Icons.auto_awesome_outlined),
+                      child: Icon(Icons.dashboard_outlined),
                     )
-                  : const Icon(Icons.auto_awesome_outlined),
+                  : const Icon(Icons.dashboard_outlined),
               activeIcon: showTimerBadge
                   ? Badge(
                       backgroundColor: AppColors.success,
                       smallSize: 8,
                       child: Icon(
-                        Icons.auto_awesome,
+                        Icons.dashboard,
                         color: shouldMuteAITimer
                             ? AppColors.textMuted
                             : AppColors.primary,
                       ),
                     )
                   : Icon(
-                      Icons.auto_awesome,
+                      Icons.dashboard,
                       color: shouldMuteAITimer
                           ? AppColors.textMuted
                           : AppColors.primary,
                     ),
-              label: showTimerBadge ? workout.formattedTime : 'AI Timer',
+              label: showTimerBadge ? workout.formattedTime : 'Dashboard',
             ),
             const BottomNavigationBarItem(
               icon: Icon(Icons.history_outlined),

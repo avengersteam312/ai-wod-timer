@@ -41,8 +41,11 @@ class AuthService {
       );
       return response;
     } on AuthException catch (e) {
+      debugPrint('[AuthService] SignIn AuthException: ${e.message}');
       throw AuthException(_mapAuthError(e.message));
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('[AuthService] SignIn error: $e');
+      debugPrint('[AuthService] SignIn stackTrace: $stackTrace');
       throw AuthException('Failed to sign in. Please try again.');
     }
   }
@@ -61,8 +64,11 @@ class AuthService {
       );
       return response;
     } on AuthException catch (e) {
+      debugPrint('[AuthService] SignUp AuthException: ${e.message}');
       throw AuthException(_mapAuthError(e.message));
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('[AuthService] SignUp error: $e');
+      debugPrint('[AuthService] SignUp stackTrace: $stackTrace');
       throw AuthException('Failed to sign up. Please try again.');
     }
   }
