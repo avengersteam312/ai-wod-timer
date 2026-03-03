@@ -2,11 +2,17 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class AppConfig {
   // Supabase Configuration
+  static const String supabaseUrlPlaceholder = 'https://your-project.supabase.co';
+
   static String get supabaseUrl =>
-      dotenv.env['SUPABASE_URL'] ?? 'https://your-project.supabase.co';
+      dotenv.env['SUPABASE_URL'] ?? supabaseUrlPlaceholder;
 
   static String get supabaseAnonKey =>
       dotenv.env['SUPABASE_ANON_KEY'] ?? '';
+
+  /// True when both Supabase URL and anon key are set to real values (not placeholders/empty).
+  static bool get hasSupabaseConfig =>
+      supabaseAnonKey.isNotEmpty && supabaseUrl != supabaseUrlPlaceholder;
 
   // Backend API Configuration
   static String get apiBaseUrl =>

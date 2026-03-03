@@ -72,8 +72,12 @@ class WorkoutProvider with ChangeNotifier {
   // UI state - show AI input view while timer is running
   bool _showInputOverride = false;
 
+  /// Set when workout was loaded from My Workouts (already saved); skip save prompt on end session.
+  String? _loadedFromWorkoutId;
+
   // Getters
   Workout? get currentWorkout => _currentWorkout;
+  String? get loadedFromWorkoutId => _loadedFromWorkoutId;
   String get workoutInput => _workoutInput;
   bool get isParsing => _isParsing;
   String? get parseError => _parseError;
@@ -354,12 +358,25 @@ class WorkoutProvider with ChangeNotifier {
 
       final result = await _apiService.parseWorkout(_workoutInput);
 
-      // Convert API response to Workout model
+      // Convert API response to Workout model (new workout from AI, not from saved)
       _currentWorkout = _createWorkoutFromResponse(result);
+      _loadedFromWorkoutId = null;
+      _showInputOverride = false; // Ensure timer view is shown after creating
       _isParsing = false;
       notifyListeners();
-    } catch (e) {
-      _parseError = 'Failed to parse workout. Please try again.';
+    } catch (e, stackTrace) {
+      debugPrint('[WorkoutProvider] parseWorkout error: $e');
+      debugPrint('[WorkoutProvider] parseWorkout stackTrace: $stackTrace');
+      final msg = e.toString();
+      if (msg.contains('Network error') ||
+          msg.contains('Connection') ||
+          msg.contains('Connection refused') ||
+          msg.contains('Failed host lookup')) {
+        _parseError =
+            'Cannot reach the workout server. Is the backend running? On device/simulator, set API_BASE_URL in .env to your computer\'s IP (e.g. http://192.168.1.x:8000).';
+      } else {
+        _parseError = 'Failed to parse workout. Please try again.';
+      }
       _isParsing = false;
       notifyListeners();
     }
@@ -446,9 +463,10 @@ class WorkoutProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  void setWorkout(Workout workout) {
+  void setWorkout(Workout workout, {String? fromSavedWorkoutId}) {
     _currentWorkout = workout;
     _workoutInput = workout.rawInput ?? '';
+    _loadedFromWorkoutId = fromSavedWorkoutId;
     resetTimer();
     notifyListeners();
   }
@@ -834,6 +852,19 @@ class WorkoutProvider with ChangeNotifier {
     }
   }
 
+  /// Returns true if the user already has a saved workout with this name (case-insensitive).
+  /// Pass [excludeWorkoutId] when updating an existing workout so the current name is allowed.
+  Future<bool> isWorkoutNameTaken(String userId, String name, {String? excludeWorkoutId}) async {
+    final workouts = await _storageService.getWorkouts(userId);
+    final normalized = name.trim().toLowerCase();
+    if (normalized.isEmpty) return false;
+    for (final w in workouts) {
+      if (excludeWorkoutId != null && w.id == excludeWorkoutId) continue;
+      if ((w.name.trim().toLowerCase()) == normalized) return true;
+    }
+    return false;
+  }
+
   Future<void> saveWorkout(Workout workout) async {
     try {
       await _storageService.saveWorkout(workout);
@@ -855,6 +886,9 @@ class WorkoutProvider with ChangeNotifier {
     int countdownSeconds = 5,
     String? notes,
   }) {
+    // New manual workout is not from saved list
+    _loadedFromWorkoutId = null;
+
     final userId = _authProvider?.user?.id ?? 'anonymous';
 
     // Build intervals based on timer type
@@ -889,6 +923,56 @@ class WorkoutProvider with ChangeNotifier {
 
     resetTimer();
     notifyListeners();
+  }
+
+  /// Build a Workout from manual timer config for saving (e.g. "Save for later").
+  /// Uses the same interval logic as setManualTimer. Caller can pass [name] or it defaults to type + date.
+  Workout buildManualWorkoutForSave({
+    required WorkoutType type,
+    int? totalSeconds,
+    int? workSeconds,
+    int? restSeconds,
+    int? rounds,
+    int? intervalSeconds,
+    bool hasCountdown = true,
+    int countdownSeconds = 5,
+    String? notes,
+    String? name,
+  }) {
+    final userId = _authProvider?.user?.id ?? 'anonymous';
+    final intervals = _buildIntervals(
+      type: type,
+      totalSeconds: totalSeconds,
+      workSeconds: workSeconds,
+      restSeconds: restSeconds,
+      rounds: rounds,
+      intervalSeconds: intervalSeconds,
+    );
+    final defaultName = '${type.displayName.toUpperCase()} - ${_formatShortDate(DateTime.now())}';
+    return Workout(
+      id: _uuid.v4(),
+      userId: userId,
+      name: name ?? defaultName,
+      notes: notes,
+      type: type,
+      timerConfig: TimerConfig(
+        intervals: intervals,
+        totalSeconds: totalSeconds,
+        workSeconds: workSeconds,
+        restSeconds: restSeconds,
+        rounds: rounds,
+        intervalSeconds: intervalSeconds,
+        hasCountdown: hasCountdown,
+        countdownSeconds: countdownSeconds,
+      ),
+      movements: [],
+      createdAt: DateTime.now(),
+    );
+  }
+
+  static String _formatShortDate(DateTime date) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${months[date.month - 1]} ${date.day}';
   }
 
   /// Build intervals list based on timer type
@@ -964,6 +1048,8 @@ class WorkoutProvider with ChangeNotifier {
     _currentWorkout = null;
     _workoutInput = '';
     _parseError = null;
+    _loadedFromWorkoutId = null;
+    _showInputOverride = false;
     resetTimer();
     notifyListeners();
   }

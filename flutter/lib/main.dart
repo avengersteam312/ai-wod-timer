@@ -22,8 +22,9 @@ void main() async {
   // Initialize Hive for local storage
   await OfflineStorageService().init();
 
-  // Initialize Supabase only if auth is required
-  if (AppConfig.authRequired) {
+  // Initialize Supabase whenever both URL and anon key are configured so Sign In/Sign Up work.
+  // authRequired only controls whether the app gates access; auth must be initialized if user can log in.
+  if (AppConfig.hasSupabaseConfig) {
     await Supabase.initialize(
       url: AppConfig.supabaseUrl,
       anonKey: AppConfig.supabaseAnonKey,

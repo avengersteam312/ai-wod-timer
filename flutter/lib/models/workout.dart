@@ -199,6 +199,23 @@ class TimerConfig {
       intervalSeconds: intervalSeconds ?? this.intervalSeconds,
     );
   }
+
+  /// True if this config matches another for timer behavior (intervals, countdown).
+  bool sameConfigAs(TimerConfig other) {
+    if (hasCountdown != other.hasCountdown ||
+        countdownSeconds != other.countdownSeconds) {
+      return false;
+    }
+    if (intervals.length != other.intervals.length) return false;
+    for (var i = 0; i < intervals.length; i++) {
+      final a = intervals[i];
+      final b = other.intervals[i];
+      if (a.duration != b.duration || a.type != b.type || a.repeat != b.repeat) {
+        return false;
+      }
+    }
+    return true;
+  }
 }
 
 class Workout {
@@ -310,5 +327,11 @@ class Workout {
       return movements.map((m) => m.displayText).join(', ');
     }
     return '${movements.take(3).map((m) => m.displayText).join(', ')} +${movements.length - 3} more';
+  }
+
+  /// True if this workout has the same type and timer config as another (e.g. same time cap, countdown, rounds).
+  bool hasSameConfigAs(Workout other) {
+    if (type != other.type) return false;
+    return timerConfig.sameConfigAs(other.timerConfig);
   }
 }

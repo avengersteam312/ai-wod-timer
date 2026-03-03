@@ -155,11 +155,14 @@ class AuthProvider with ChangeNotifier {
 
       return true;
     } on AuthException catch (e) {
+      debugPrint('[AuthProvider] signUp AuthException: ${e.message}');
       _error = e.message;
       _isLoading = false;
       notifyListeners();
       return false;
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('[AuthProvider] signUp error: $e');
+      debugPrint('[AuthProvider] signUp stackTrace: $stackTrace');
       _error = 'An unexpected error occurred. Please try again.';
       _isLoading = false;
       notifyListeners();

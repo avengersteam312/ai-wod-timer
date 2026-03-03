@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/workout.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/workout_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/auth_button.dart';
+import '../../utils/workout_name.dart';
 import '../../widgets/manual/timer_type_selector.dart';
 import '../../widgets/manual/duration_stepper.dart';
 import '../../widgets/manual/quick_select_chip.dart';
@@ -38,9 +40,22 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
   String _workoutNotes = '';
   final _notesController = TextEditingController();
 
+  // Save for later state
+  final _saveForLaterNameController = TextEditingController();
+  bool _saveForLaterLoading = false;
+  String? _saveForLaterError;
+  bool _saveForLaterSuccess = false;
+
+  void _onConfigChanged() {
+    if (_saveForLaterSuccess) {
+      setState(() => _saveForLaterSuccess = false);
+    }
+  }
+
   @override
   void dispose() {
     _notesController.dispose();
+    _saveForLaterNameController.dispose();
     super.dispose();
   }
 
@@ -68,6 +83,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
                 setState(() {
                   _selectedType = type;
                   _setDefaultsForType(type);
+                  _onConfigChanged();
                 });
               },
             ),
@@ -114,6 +130,12 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
                         ],
                       ),
                     ),
+
+                    // Save for later (when authenticated and config valid)
+                    if (context.watch<AuthProvider>().isAuthenticated) ...[
+                      const SizedBox(height: 12),
+                      _buildSaveForLaterSection(),
+                    ],
 
                     const SizedBox(height: 16),
                   ],
@@ -226,6 +248,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
           maxValue: 30,
           onChanged: (value) {
             setState(() => _countdownSeconds = value);
+            _onConfigChanged();
           },
         ),
       ],
@@ -320,6 +343,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
                   setState(() {
                     _workoutNotes = _notesController.text;
                   });
+                  _onConfigChanged();
                   Navigator.pop(ctx);
                 },
                 child: const Text('Done'),
@@ -398,6 +422,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
       step: 60,
       onChanged: (value) {
         setState(() => _totalSeconds = value);
+        _onConfigChanged();
       },
     );
   }
@@ -421,6 +446,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
           maxValue: 30,
           onChanged: (value) {
             setState(() => _rounds = value);
+            _onConfigChanged();
           },
         ),
         const SizedBox(height: 16),
@@ -441,6 +467,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
           step: 30,
           onChanged: (value) {
             setState(() => _intervalSeconds = value);
+            _onConfigChanged();
           },
         ),
       ],
@@ -467,6 +494,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
           step: 5,
           onChanged: (value) {
             setState(() => _workSeconds = value);
+            _onConfigChanged();
           },
         ),
         const SizedBox(height: 16),
@@ -487,6 +515,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
           step: 5,
           onChanged: (value) {
             setState(() => _restSeconds = value);
+            _onConfigChanged();
           },
         ),
         const SizedBox(height: 16),
@@ -506,6 +535,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
           maxValue: 20,
           onChanged: (value) {
             setState(() => _rounds = value);
+            _onConfigChanged();
           },
         ),
       ],
@@ -531,6 +561,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
           maxValue: 50,
           onChanged: (value) {
             setState(() => _rounds = value);
+            _onConfigChanged();
           },
         ),
         const SizedBox(height: 24),
@@ -561,6 +592,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
                     _restSeconds = 30;
                   }
                 });
+                _onConfigChanged();
               },
             ),
           ],
@@ -574,6 +606,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
             step: 5,
             onChanged: (value) {
               setState(() => _restSeconds = value);
+              _onConfigChanged();
             },
           ),
         ],
@@ -601,6 +634,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
           step: 5,
           onChanged: (value) {
             setState(() => _workSeconds = value);
+            _onConfigChanged();
           },
         ),
         const SizedBox(height: 16),
@@ -621,6 +655,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
           step: 5,
           onChanged: (value) {
             setState(() => _restSeconds = value);
+            _onConfigChanged();
           },
         ),
         const SizedBox(height: 16),
@@ -640,6 +675,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
           maxValue: 99,
           onChanged: (value) {
             setState(() => _rounds = value);
+            _onConfigChanged();
           },
         ),
       ],
@@ -724,6 +760,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
       step: 60,
       onChanged: (value) {
         setState(() => _totalSeconds = value);
+        _onConfigChanged();
       },
     );
   }
@@ -757,6 +794,162 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
         ),
       ],
     );
+  }
+
+  Widget _buildSaveForLaterSection() {
+    final defaultName = defaultManualWorkoutName(_selectedType);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Workout name',
+          style: AppTextStyles.label,
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: _saveForLaterNameController,
+          maxLength: maxWorkoutNameLength,
+          decoration: InputDecoration(
+            hintText: defaultName,
+            border: const OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextButton(
+          onPressed: (_saveForLaterLoading || _saveForLaterSuccess)
+              ? null
+              : _saveForLater,
+          child: Text(
+            _saveForLaterLoading
+                ? 'Saving...'
+                : _saveForLaterSuccess
+                    ? 'Saved!'
+                    : 'Save for later',
+            style: TextStyle(
+              color: _saveForLaterSuccess ? AppColors.timerComplete : null,
+            ),
+          ),
+        ),
+        if (_saveForLaterSuccess)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              'Saved! Find it in My Workouts.',
+              style: AppTextStyles.bodySmall.copyWith(
+                color: AppColors.timerComplete,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        if (_saveForLaterError != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              _saveForLaterError!,
+              style: AppTextStyles.bodySmall.copyWith(color: AppColors.error),
+              textAlign: TextAlign.center,
+            ),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _saveForLater() async {
+    final workoutProvider = context.read<WorkoutProvider>();
+    int? totalSeconds;
+    int? workSeconds;
+    int? restSeconds;
+    int? rounds;
+    int? intervalSeconds;
+
+    switch (_selectedType) {
+      case WorkoutType.stopwatch:
+        break;
+      case WorkoutType.amrap:
+      case WorkoutType.forTime:
+        totalSeconds = _totalSeconds;
+        break;
+      case WorkoutType.emom:
+        rounds = _rounds;
+        intervalSeconds = _intervalSeconds;
+        totalSeconds = _rounds * _intervalSeconds;
+        break;
+      case WorkoutType.tabata:
+        workSeconds = _workSeconds;
+        restSeconds = _restSeconds;
+        rounds = _rounds;
+        totalSeconds = (_workSeconds + _restSeconds) * _rounds;
+        break;
+      case WorkoutType.workRest:
+        rounds = _rounds;
+        if (_useFixedRest) restSeconds = _restSeconds;
+        break;
+      case WorkoutType.restTimer:
+        totalSeconds = _totalSeconds;
+        break;
+      case WorkoutType.customInterval:
+        workSeconds = _workSeconds;
+        restSeconds = _restSeconds;
+        rounds = _rounds;
+        totalSeconds = (_workSeconds + _restSeconds) * _rounds;
+        break;
+      default:
+        break;
+    }
+
+    final rawName = _saveForLaterNameController.text.trim();
+    final name = rawName.isEmpty
+        ? defaultManualWorkoutName(_selectedType)
+        : (rawName.length > maxWorkoutNameLength
+            ? rawName.substring(0, maxWorkoutNameLength)
+            : rawName);
+
+    final userId = context.read<AuthProvider>().user?.id;
+    if (userId != null) {
+      final taken = await workoutProvider.isWorkoutNameTaken(userId, name);
+      if (taken) {
+        setState(() {
+          _saveForLaterError = 'This name already exists. Please choose a different name.';
+        });
+        return;
+      }
+    }
+
+    final workout = workoutProvider.buildManualWorkoutForSave(
+      type: _selectedType,
+      totalSeconds: totalSeconds,
+      workSeconds: workSeconds,
+      restSeconds: restSeconds,
+      rounds: rounds,
+      intervalSeconds: intervalSeconds,
+      hasCountdown: _showCountdown,
+      countdownSeconds: _countdownSeconds,
+      notes: _workoutNotes.isNotEmpty ? _workoutNotes : null,
+      name: name,
+    );
+
+    setState(() {
+      _saveForLaterLoading = true;
+      _saveForLaterError = null;
+      _saveForLaterSuccess = false;
+    });
+
+    try {
+      await workoutProvider.saveWorkout(workout);
+      if (mounted) {
+        setState(() {
+          _saveForLaterLoading = false;
+          _saveForLaterSuccess = true;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _saveForLaterLoading = false;
+          _saveForLaterError = e.toString();
+        });
+      }
+    }
   }
 
   void _startTimer() {
