@@ -18,9 +18,9 @@ class AppConfig {
   static String get apiBaseUrl =>
       dotenv.env['API_BASE_URL'] ?? 'http://localhost:8000';
 
-  // Development Settings
-  static bool get authRequired =>
-      (dotenv.env['AUTH_REQUIRED'] ?? 'true').toLowerCase() == 'true';
+  // Auth Settings - when enabled, users can optionally sign in
+  static bool get authEnabled =>
+      (dotenv.env['AUTH_ENABLED'] ?? 'true').toLowerCase() == 'true';
 
   // App Configuration
   static const String appName = 'AI WOD Timer';

@@ -1,16 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../config/app_config.dart';
 import '../providers/auth_provider.dart';
 import '../screens/auth/login_screen.dart';
 import '../theme/app_theme.dart';
 
 /// Reusable auth button for AppBar actions.
 /// Shows profile menu when authenticated, sign in button when not.
+/// Hidden when authRequired is false.
 class AuthButton extends StatelessWidget {
   const AuthButton({super.key});
 
   @override
   Widget build(BuildContext context) {
+    // Hide auth button if auth is not enabled
+    if (!AppConfig.authEnabled) {
+      return const SizedBox.shrink();
+    }
+
     final auth = context.watch<AuthProvider>();
 
     if (auth.isAuthenticated) {

@@ -79,13 +79,14 @@ class BeepGenerator {
     return _concatenateWithGapsAndCreateWav([beep, beep, beep], 60);
   }
 
-  /// Generate a next round beep (like go but short)
+  /// Generate a next round beep (higher pitched, energetic)
   static Uint8List nextRoundBeep() {
     return generateBeep(
-      frequency: 1000, // Same as go - clear, professional
-      durationMs: 80,
+      frequency: 1200, // Higher than go (1000Hz) - energetic new round signal
+      durationMs: 150,
       volume: 1.125,
-      fadeOutPercent: 30,
+      fadeInPercent: 2,
+      fadeOutPercent: 20,
     );
   }
 

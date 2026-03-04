@@ -62,7 +62,13 @@ class _LoginScreenState extends State<LoginScreen> {
     if (mounted) {
       setState(() => _isLoading = false);
 
-      if (!success && authProvider.error != null) {
+      if (success) {
+        // Go back if this screen was pushed (not shown by AuthWrapper)
+        if (Navigator.canPop(context)) {
+          Navigator.pop(context);
+        }
+        // Otherwise, AuthWrapper will automatically rebuild and show AppShell
+      } else if (authProvider.error != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(authProvider.error!),

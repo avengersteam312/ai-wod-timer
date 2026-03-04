@@ -10,6 +10,7 @@ import '../../services/audio_service.dart';
 import '../../services/offline_storage_service.dart';
 import '../../utils/workout_name.dart';
 import '../../screens/workouts/my_workouts_screen.dart';
+import '../../screens/auth/login_screen.dart';
 import '../../widgets/auth_button.dart';
 import '../../widgets/timer/circular_timer_ring.dart';
 import '../../widgets/timer/timer_controls.dart';
@@ -59,6 +60,10 @@ class _TimerScreenState extends State<TimerScreen> {
   NotesState _notesState = NotesState.closed;
   bool _isNotesExiting = false;
 
+  // Drag-to-delete state
+  bool _isDraggingTimer = false;
+  bool _isOverTrash = false;
+
   static const int _maxSavedWorkoutsDisplay = 12;
 
   @override
@@ -76,6 +81,11 @@ class _TimerScreenState extends State<TimerScreen> {
     // Refresh saved workouts when user returns to Dashboard tab so list is up to date
     final becameVisible = widget.isDashboardVisible && !oldWidget.isDashboardVisible;
     if (becameVisible && mounted) {
+      // Clear old status messages
+      setState(() {
+        _showSaveSuccess = false;
+        _saveError = null;
+      });
       final userId = context.read<AuthProvider>().user?.id;
       if (userId != null) {
         _loadSavedWorkouts(userId);
@@ -140,43 +150,35 @@ class _TimerScreenState extends State<TimerScreen> {
     });
   }
 
-  /// Close save modal and stay on the timer (never go back to dashboard).
+  /// Close save modal. If triggered from Stop/X, go back to input.
   void _handleDontSave(WorkoutProvider workout) {
     Navigator.pop(context);
-    _saveThenExit = false;
+    if (_saveThenExit) {
+      _saveThenExit = false;
+      _goBackToInput(workout);
+    }
   }
 
-  /// Open save prompt when ending session (Done, Start New Workout, or Save for later).
-  /// AI-created workouts always get the save prompt. Manual: only if config is not already saved.
-  Future<void> _openEndSessionSavePrompt(BuildContext context, WorkoutProvider workout) async {
-    // Stop the timer immediately when user taps Stop
+  /// Handle Stop button press: complete and stay on screen.
+  void _handleStopTimer(BuildContext context, WorkoutProvider workout) {
+    // Complete the timer and stay on screen
+    workout.completeEarly();
+  }
+
+  /// Open save prompt when ending session (X button).
+  void _openEndSessionSavePrompt(BuildContext context, WorkoutProvider workout) {
+    // If workout is still running, pause it first
     if (workout.isRunning || workout.isRest || workout.isCountdown) {
       workout.pauseTimer();
     }
+    // If loaded from saved workouts, just go back (already saved)
     if (workout.loadedFromWorkoutId != null) {
       _goBackToInput(workout);
       return;
     }
     final auth = context.read<AuthProvider>();
+    // Show save prompt for authenticated users (unless already saved)
     if (auth.isAuthenticated && workout.currentWorkout != null && !_isSaved) {
-      final current = workout.currentWorkout!;
-      // AI-created workouts always ask to save
-      if (_isAiCreatedWorkout(current)) {
-        _saveThenExit = true;
-        _workoutNameController.text = proposeWorkoutName(workout.currentWorkout);
-        _saveError = null;
-        _showSaveWorkoutModal(context, workout);
-        return;
-      }
-      // Manual: only show save prompt if no saved workout has the same config
-      final userId = auth.user!.id;
-      final saved = await _storageService.getWorkouts(userId);
-      if (!mounted) return;
-      final alreadySavedWithSameConfig = saved.any((s) => current.hasSameConfigAs(s));
-      if (alreadySavedWithSameConfig) {
-        _goBackToInput(workout);
-        return;
-      }
       _saveThenExit = true;
       _workoutNameController.text = proposeWorkoutName(workout.currentWorkout);
       _saveError = null;
@@ -188,7 +190,7 @@ class _TimerScreenState extends State<TimerScreen> {
 
   /// Open save modal without exiting (e.g. from Save button in app bar).
   void _openSaveModal(BuildContext context, WorkoutProvider workout) {
-    if (workout.currentWorkout == null || _isSaved) return;
+    if (workout.currentWorkout == null) return;
     _saveThenExit = false;
     _workoutNameController.text = proposeWorkoutName(workout.currentWorkout);
     _saveError = null;
@@ -223,7 +225,7 @@ class _TimerScreenState extends State<TimerScreen> {
             children: [
               Row(
                 children: [
-                  Text('Save this workout?', style: AppTextStyles.h3),
+                  const Text('Save as template?', style: AppTextStyles.h3),
                   const Spacer(),
                   IconButton(
                     icon: const Icon(Icons.close),
@@ -233,7 +235,7 @@ class _TimerScreenState extends State<TimerScreen> {
               ),
               const SizedBox(height: 24),
               Text(
-                'Workout Name',
+                'Timer name',
                 style: AppTextStyles.label,
               ),
               const SizedBox(height: 8),
@@ -241,7 +243,7 @@ class _TimerScreenState extends State<TimerScreen> {
                 controller: _workoutNameController,
                 maxLength: maxWorkoutNameLength,
                 decoration: const InputDecoration(
-                  hintText: 'Enter workout name',
+                  hintText: 'Enter timer name',
                 ),
                 onSubmitted: (_) => _handleSaveWorkout(context, workout, setModalState),
               ),
@@ -274,7 +276,7 @@ class _TimerScreenState extends State<TimerScreen> {
                   Expanded(
                     child: OutlinedButton(
                       onPressed: _isSaving ? null : () => _handleDontSave(workout),
-                      child: const Text('Don\'t save'),
+                      child: const Text('Cancel'),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -392,16 +394,6 @@ class _TimerScreenState extends State<TimerScreen> {
     }
   }
 
-  void _resetSaveState() {
-    setState(() {
-      _isSaved = false;
-      _savedOffline = false;
-      _showSaveSuccess = false;
-      _saveError = null;
-      _notesState = NotesState.closed;
-    });
-  }
-
   String _combineNotesWithDescription(Workout workout) {
     final description = workout.rawInput?.trim() ?? '';
     final notes = workout.notes?.trim() ?? '';
@@ -424,19 +416,6 @@ class _TimerScreenState extends State<TimerScreen> {
     } else {
       WakelockPlus.disable();
     }
-  }
-
-  /// True if this workout was created by AI (has user's raw input). AI workouts always offer save.
-  bool _isAiCreatedWorkout(Workout? w) {
-    return w != null && (w.rawInput != null && w.rawInput!.trim().isNotEmpty);
-  }
-
-  /// True if we should show the Save button. AI-created workouts always; manual only when config is not already saved.
-  bool _shouldShowSaveButton(WorkoutProvider workout) {
-    if (workout.loadedFromWorkoutId != null) return false;
-    if (workout.currentWorkout == null) return false;
-    if (_isAiCreatedWorkout(workout.currentWorkout)) return true;
-    return !_savedWorkouts.any((s) => workout.currentWorkout!.hasSameConfigAs(s));
   }
 
   @override
@@ -465,7 +444,7 @@ class _TimerScreenState extends State<TimerScreen> {
         }
 
         return Scaffold(
-          appBar: workout.currentWorkout != null
+          appBar: workout.currentWorkout != null && !workout.showInputOverride
               ? AppBar(
                   automaticallyImplyLeading: false,
                   leading: IconButton(
@@ -477,12 +456,12 @@ class _TimerScreenState extends State<TimerScreen> {
                     workout.currentWorkout!.type.displayName.toUpperCase(),
                   ),
                   actions: [
-                    // Save button only when workout is brand new (no saved timer has same config)
-                    if (canSave && !_isSaved && _shouldShowSaveButton(workout))
-                      TextButton.icon(
+                    // Save button for authenticated users (hide for already saved timers)
+                    if (canSave && workout.loadedFromWorkoutId == null)
+                      IconButton(
+                        icon: const Icon(Icons.save_outlined),
+                        tooltip: 'Save timer',
                         onPressed: () => _openSaveModal(context, workout),
-                        icon: const Icon(Icons.save_outlined, size: 20),
-                        label: const Text('Save'),
                       ),
                     // Offline indicator
                     if (_isOffline)
@@ -612,9 +591,11 @@ class _TimerScreenState extends State<TimerScreen> {
     final displayedSaved = _savedWorkouts.take(_maxSavedWorkoutsDisplay).toList();
     final savedOverflow = _savedWorkouts.length - _maxSavedWorkoutsDisplay;
 
-    return GestureDetector(
-      onTap: () => FocusScope.of(context).unfocus(),
-      child: SingleChildScrollView(
+    return Stack(
+      children: [
+        GestureDetector(
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: SingleChildScrollView(
         controller: _scrollController,
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -678,7 +659,17 @@ class _TimerScreenState extends State<TimerScreen> {
 
             // Create Timer button
             ElevatedButton(
-              onPressed: workout.isParsing ? null : () => workout.parseWorkout(),
+              onPressed: workout.isParsing ? null : () {
+                // Redirect to login if not authenticated
+                if (!auth.isAuthenticated) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  );
+                  return;
+                }
+                workout.parseWorkout();
+              },
               child: workout.isParsing
                   ? const Row(
                       mainAxisSize: MainAxisSize.min,
@@ -735,13 +726,55 @@ class _TimerScreenState extends State<TimerScreen> {
                   runSpacing: 8,
                   children: [
                     for (final w in displayedSaved)
-                      _SavedTimerChip(
-                        workout: w,
-                        onTap: () {
-                          workout.setWorkout(w, fromSavedWorkoutId: w.id);
-                          workout.setShowInputOverride(false);
+                      LongPressDraggable<Workout>(
+                        data: w,
+                        onDragStarted: () {
+                          setState(() {
+                            _isDraggingTimer = true;
+                          });
                         },
-                        onLongPress: () => _confirmDeleteSavedWorkout(context, w),
+                        onDragEnd: (_) {
+                          setState(() {
+                            _isDraggingTimer = false;
+                            _isOverTrash = false;
+                          });
+                        },
+                        onDraggableCanceled: (_, __) {
+                          setState(() {
+                            _isDraggingTimer = false;
+                            _isOverTrash = false;
+                          });
+                        },
+                        feedback: Material(
+                          elevation: 4,
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: AppColors.cardBackground,
+                              border: Border.all(color: AppColors.primary),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              displayWorkoutName(w.name),
+                              style: AppTextStyles.bodySmall,
+                            ),
+                          ),
+                        ),
+                        childWhenDragging: Opacity(
+                          opacity: 0.3,
+                          child: _SavedTimerChip(
+                            workout: w,
+                            onTap: () {},
+                          ),
+                        ),
+                        child: _SavedTimerChip(
+                          workout: w,
+                          onTap: () {
+                            workout.setWorkout(w, fromSavedWorkoutId: w.id);
+                            workout.setShowInputOverride(false);
+                          },
+                        ),
                       ),
                   ],
                 ),
@@ -776,47 +809,78 @@ class _TimerScreenState extends State<TimerScreen> {
           ],
         ),
       ),
-    );
+    ),
+    // Trash zone - appears when dragging
+    if (_isDraggingTimer)
+      Positioned(
+        left: 0,
+        right: 0,
+        bottom: 0,
+        child: DragTarget<Workout>(
+          onWillAcceptWithDetails: (details) {
+            setState(() => _isOverTrash = true);
+            return true;
+          },
+          onLeave: (_) {
+            setState(() => _isOverTrash = false);
+          },
+          onAcceptWithDetails: (details) async {
+            setState(() {
+              _isOverTrash = false;
+              _isDraggingTimer = false;
+            });
+            await _deleteWorkoutDirectly(details.data);
+          },
+          builder: (context, candidateData, rejectedData) {
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: EdgeInsets.only(
+                top: 16,
+                bottom: MediaQuery.of(context).padding.bottom + 16,
+              ),
+              decoration: BoxDecoration(
+                color: _isOverTrash
+                    ? AppColors.error.withValues(alpha: 0.3)
+                    : AppColors.error.withValues(alpha: 0.1),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.delete_outline,
+                    color: _isOverTrash ? AppColors.error : AppColors.textMuted,
+                    size: 28,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _isOverTrash ? 'Release to delete' : 'Drag here to delete',
+                    style: AppTextStyles.body.copyWith(
+                      color: _isOverTrash ? AppColors.error : AppColors.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    ],
+  );
   }
 
-  Future<void> _confirmDeleteSavedWorkout(BuildContext context, Workout workout) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete workout?'),
-        content: Text(
-          'Are you sure you want to delete "${displayWorkoutName(workout.name)}"? This cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-    if (confirm == true && mounted) {
-      try {
-        await _storageService.deleteWorkout(workout.id);
-        setState(() {
-          _savedWorkouts.removeWhere((w) => w.id == workout.id);
-        });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Workout deleted')),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to delete: $e')),
-          );
-        }
+  /// Delete workout directly (used by drag-to-delete, no confirmation needed)
+  Future<void> _deleteWorkoutDirectly(Workout workout) async {
+    try {
+      await _storageService.deleteWorkout(workout.id);
+      setState(() {
+        _savedWorkouts.removeWhere((w) => w.id == workout.id);
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to delete: $e')),
+        );
       }
     }
   }
@@ -898,7 +962,7 @@ class _TimerScreenState extends State<TimerScreen> {
                               ? () => workout.skipMovement()
                               : null,
                           onComplete: () {
-                            _openEndSessionSavePrompt(context, workout);
+                            _handleStopTimer(context, workout);
                           },
                           onSkipToRest: workout.isNextRest
                               ? () => workout.completeCurrentInterval()
@@ -909,21 +973,6 @@ class _TimerScreenState extends State<TimerScreen> {
                         ),
                 ),
 
-                if (workout.isCompleted) ...[
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () => _openEndSessionSavePrompt(context, workout),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.timerComplete,
-                        foregroundColor: AppColors.textPrimary,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                      child: const Text('Start New Workout'),
-                    ),
-                  ),
-                ],
 
                 const SizedBox(height: 32),
               ],
@@ -1338,7 +1387,7 @@ class _TimerScreenState extends State<TimerScreen> {
                   workout.resetTimer();
                 },
                 onStop: () {
-                  _openEndSessionSavePrompt(context, workout);
+                  _handleStopTimer(context, workout);
                 },
                 onSkipToRest: workout.isNextRest
                     ? () => workout.completeCurrentInterval()
@@ -1358,12 +1407,10 @@ class _TimerScreenState extends State<TimerScreen> {
 class _SavedTimerChip extends StatelessWidget {
   final Workout workout;
   final VoidCallback onTap;
-  final VoidCallback onLongPress;
 
   const _SavedTimerChip({
     required this.workout,
     required this.onTap,
-    required this.onLongPress,
   });
 
   @override
@@ -1372,7 +1419,6 @@ class _SavedTimerChip extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        onLongPress: onLongPress,
         borderRadius: BorderRadius.circular(8),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

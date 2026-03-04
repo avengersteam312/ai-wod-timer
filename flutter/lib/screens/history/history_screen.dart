@@ -9,7 +9,9 @@ import '../../widgets/auth_button.dart';
 import '../../widgets/session_card.dart';
 
 class HistoryScreen extends StatefulWidget {
-  const HistoryScreen({super.key});
+  final bool isVisible;
+
+  const HistoryScreen({super.key, this.isVisible = false});
 
   @override
   State<HistoryScreen> createState() => _HistoryScreenState();
@@ -25,6 +27,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
   void initState() {
     super.initState();
     _loadHistory();
+  }
+
+  @override
+  void didUpdateWidget(covariant HistoryScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Refresh when tab becomes visible
+    if (widget.isVisible && !oldWidget.isVisible) {
+      _loadHistory();
+    }
   }
 
   Future<void> _loadHistory() async {
@@ -84,12 +95,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('History'),
-        actions: [
-          IconButton(
-            onPressed: _loadHistory,
-            icon: const Icon(Icons.refresh),
-          ),
-          const AuthButton(),
+        actions: const [
+          AuthButton(),
         ],
       ),
       body: SafeArea(
@@ -296,12 +303,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
             ),
             const SizedBox(height: 24),
             Text(
-              'No Workout History',
+              'No History',
               style: AppTextStyles.h3,
             ),
             const SizedBox(height: 8),
             Text(
-              'Your completed workouts will appear here.\nStart a workout to begin tracking your progress.',
+              'Your completed sessions will appear here.',
               style: AppTextStyles.body.copyWith(
                 color: AppColors.textSecondary,
               ),

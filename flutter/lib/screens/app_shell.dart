@@ -81,7 +81,7 @@ class _AppShellState extends State<AppShell> {
             onNavigateToManual: _navigateToManual,
             isDashboardVisible: _currentIndex == 1,
           ),
-          const HistoryScreen(),
+          HistoryScreen(isVisible: _currentIndex == 2),
         ],
       ),
       bottomNavigationBar: Container(

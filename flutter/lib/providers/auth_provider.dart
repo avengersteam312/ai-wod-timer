@@ -29,8 +29,8 @@ class AuthProvider with ChangeNotifier {
   String? get error => _error;
 
   void _init() {
-    // Skip auth initialization if not required
-    if (!AppConfig.authRequired) {
+    // Skip auth initialization if not enabled or Supabase not configured
+    if (!AppConfig.authEnabled || !AppConfig.hasSupabaseConfig) {
       _isLoading = false;
       notifyListeners();
       return;
