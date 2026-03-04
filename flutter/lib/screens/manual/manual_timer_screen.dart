@@ -44,13 +44,6 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
   final _saveForLaterNameController = TextEditingController();
   bool _saveForLaterLoading = false;
   String? _saveForLaterError;
-  bool _saveForLaterSuccess = false;
-
-  void _onConfigChanged() {
-    if (_saveForLaterSuccess) {
-      setState(() => _saveForLaterSuccess = false);
-    }
-  }
 
   @override
   void dispose() {
@@ -64,11 +57,19 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Manual Timer'),
-        actions: const [
-          AuthButton(),
+        actions: [
+          if (auth.isAuthenticated)
+            IconButton(
+              icon: const Icon(Icons.save_outlined),
+              tooltip: 'Save timer',
+              onPressed: _showSaveModal,
+            ),
+          const AuthButton(),
         ],
       ),
       body: SafeArea(
@@ -83,8 +84,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
                 setState(() {
                   _selectedType = type;
                   _setDefaultsForType(type);
-                  _onConfigChanged();
-                });
+                                  });
               },
             ),
 
@@ -130,12 +130,6 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
                         ],
                       ),
                     ),
-
-                    // Save for later (when authenticated and config valid)
-                    if (context.watch<AuthProvider>().isAuthenticated) ...[
-                      const SizedBox(height: 12),
-                      _buildSaveForLaterSection(),
-                    ],
 
                     const SizedBox(height: 16),
                   ],
@@ -248,8 +242,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
           maxValue: 30,
           onChanged: (value) {
             setState(() => _countdownSeconds = value);
-            _onConfigChanged();
-          },
+                      },
         ),
       ],
     );
@@ -343,8 +336,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
                   setState(() {
                     _workoutNotes = _notesController.text;
                   });
-                  _onConfigChanged();
-                  Navigator.pop(ctx);
+                                    Navigator.pop(ctx);
                 },
                 child: const Text('Done'),
               ),
@@ -422,8 +414,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
       step: 60,
       onChanged: (value) {
         setState(() => _totalSeconds = value);
-        _onConfigChanged();
-      },
+              },
     );
   }
 
@@ -446,8 +437,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
           maxValue: 30,
           onChanged: (value) {
             setState(() => _rounds = value);
-            _onConfigChanged();
-          },
+                      },
         ),
         const SizedBox(height: 16),
 
@@ -467,8 +457,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
           step: 30,
           onChanged: (value) {
             setState(() => _intervalSeconds = value);
-            _onConfigChanged();
-          },
+                      },
         ),
       ],
     );
@@ -494,8 +483,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
           step: 5,
           onChanged: (value) {
             setState(() => _workSeconds = value);
-            _onConfigChanged();
-          },
+                      },
         ),
         const SizedBox(height: 16),
 
@@ -515,8 +503,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
           step: 5,
           onChanged: (value) {
             setState(() => _restSeconds = value);
-            _onConfigChanged();
-          },
+                      },
         ),
         const SizedBox(height: 16),
 
@@ -535,8 +522,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
           maxValue: 20,
           onChanged: (value) {
             setState(() => _rounds = value);
-            _onConfigChanged();
-          },
+                      },
         ),
       ],
     );
@@ -561,8 +547,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
           maxValue: 50,
           onChanged: (value) {
             setState(() => _rounds = value);
-            _onConfigChanged();
-          },
+                      },
         ),
         const SizedBox(height: 24),
         // Fixed rest toggle
@@ -592,8 +577,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
                     _restSeconds = 30;
                   }
                 });
-                _onConfigChanged();
-              },
+                              },
             ),
           ],
         ),
@@ -606,8 +590,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
             step: 5,
             onChanged: (value) {
               setState(() => _restSeconds = value);
-              _onConfigChanged();
-            },
+                          },
           ),
         ],
       ],
@@ -634,8 +617,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
           step: 5,
           onChanged: (value) {
             setState(() => _workSeconds = value);
-            _onConfigChanged();
-          },
+                      },
         ),
         const SizedBox(height: 16),
 
@@ -655,8 +637,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
           step: 5,
           onChanged: (value) {
             setState(() => _restSeconds = value);
-            _onConfigChanged();
-          },
+                      },
         ),
         const SizedBox(height: 16),
 
@@ -675,8 +656,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
           maxValue: 99,
           onChanged: (value) {
             setState(() => _rounds = value);
-            _onConfigChanged();
-          },
+                      },
         ),
       ],
     );
@@ -760,8 +740,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
       step: 60,
       onChanged: (value) {
         setState(() => _totalSeconds = value);
-        _onConfigChanged();
-      },
+              },
     );
   }
 
@@ -796,155 +775,203 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
     );
   }
 
-  Widget _buildSaveForLaterSection() {
+  void _showSaveModal() {
     final defaultName = defaultManualWorkoutName(_selectedType);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          'Workout name',
-          style: AppTextStyles.label,
-        ),
-        const SizedBox(height: 6),
-        TextField(
-          controller: _saveForLaterNameController,
-          maxLength: maxWorkoutNameLength,
-          decoration: InputDecoration(
-            hintText: defaultName,
-            border: const OutlineInputBorder(),
+    _saveForLaterNameController.text = defaultName;
+    _saveForLaterError = null;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.cardBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) => Padding(
+          padding: EdgeInsets.only(
+            left: 24,
+            right: 24,
+            top: 24,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
           ),
-        ),
-        const SizedBox(height: 8),
-        TextButton(
-          onPressed: (_saveForLaterLoading || _saveForLaterSuccess)
-              ? null
-              : _saveForLater,
-          child: Text(
-            _saveForLaterLoading
-                ? 'Saving...'
-                : _saveForLaterSuccess
-                    ? 'Saved!'
-                    : 'Save for later',
-            style: TextStyle(
-              color: _saveForLaterSuccess ? AppColors.timerComplete : null,
-            ),
-          ),
-        ),
-        if (_saveForLaterSuccess)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(
-              'Saved! Find it in My Workouts.',
-              style: AppTextStyles.bodySmall.copyWith(
-                color: AppColors.timerComplete,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Text('Save as template?', style: AppTextStyles.h3),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
               ),
-              textAlign: TextAlign.center,
-            ),
+              const SizedBox(height: 24),
+              const Text('Timer name', style: AppTextStyles.label),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _saveForLaterNameController,
+                maxLength: maxWorkoutNameLength,
+                decoration: const InputDecoration(
+                  hintText: 'Enter timer name',
+                ),
+              ),
+              if (_saveForLaterError != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.error.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline, color: AppColors.error, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _saveForLaterError!,
+                          style: AppTextStyles.body.copyWith(color: AppColors.error),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _saveForLaterLoading ? null : () => Navigator.pop(context),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _saveForLaterLoading || _saveForLaterNameController.text.trim().isEmpty
+                          ? null
+                          : () => _saveForLaterFromModal(setModalState),
+                      child: _saveForLaterLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColors.textPrimary,
+                              ),
+                            )
+                          : const Text('Save'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        if (_saveForLaterError != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(
-              _saveForLaterError!,
-              style: AppTextStyles.bodySmall.copyWith(color: AppColors.error),
-              textAlign: TextAlign.center,
-            ),
-          ),
-      ],
+        ),
+      ),
     );
   }
 
-  Future<void> _saveForLater() async {
+  Future<void> _saveForLaterFromModal(void Function(void Function()) setModalState) async {
     final workoutProvider = context.read<WorkoutProvider>();
-    int? totalSeconds;
-    int? workSeconds;
-    int? restSeconds;
-    int? rounds;
-    int? intervalSeconds;
-
-    switch (_selectedType) {
-      case WorkoutType.stopwatch:
-        break;
-      case WorkoutType.amrap:
-      case WorkoutType.forTime:
-        totalSeconds = _totalSeconds;
-        break;
-      case WorkoutType.emom:
-        rounds = _rounds;
-        intervalSeconds = _intervalSeconds;
-        totalSeconds = _rounds * _intervalSeconds;
-        break;
-      case WorkoutType.tabata:
-        workSeconds = _workSeconds;
-        restSeconds = _restSeconds;
-        rounds = _rounds;
-        totalSeconds = (_workSeconds + _restSeconds) * _rounds;
-        break;
-      case WorkoutType.workRest:
-        rounds = _rounds;
-        if (_useFixedRest) restSeconds = _restSeconds;
-        break;
-      case WorkoutType.restTimer:
-        totalSeconds = _totalSeconds;
-        break;
-      case WorkoutType.customInterval:
-        workSeconds = _workSeconds;
-        restSeconds = _restSeconds;
-        rounds = _rounds;
-        totalSeconds = (_workSeconds + _restSeconds) * _rounds;
-        break;
-      default:
-        break;
-    }
 
     final rawName = _saveForLaterNameController.text.trim();
-    final name = rawName.isEmpty
-        ? defaultManualWorkoutName(_selectedType)
-        : (rawName.length > maxWorkoutNameLength
-            ? rawName.substring(0, maxWorkoutNameLength)
-            : rawName);
+    if (rawName.isEmpty) return;
+    final name = rawName.length > maxWorkoutNameLength
+        ? rawName.substring(0, maxWorkoutNameLength)
+        : rawName;
 
     final userId = context.read<AuthProvider>().user?.id;
     if (userId != null) {
       final taken = await workoutProvider.isWorkoutNameTaken(userId, name);
       if (taken) {
-        setState(() {
+        setModalState(() {
           _saveForLaterError = 'This name already exists. Please choose a different name.';
         });
         return;
       }
     }
 
-    final workout = workoutProvider.buildManualWorkoutForSave(
-      type: _selectedType,
-      totalSeconds: totalSeconds,
-      workSeconds: workSeconds,
-      restSeconds: restSeconds,
-      rounds: rounds,
-      intervalSeconds: intervalSeconds,
-      hasCountdown: _showCountdown,
-      countdownSeconds: _countdownSeconds,
-      notes: _workoutNotes.isNotEmpty ? _workoutNotes : null,
-      name: name,
-    );
-
-    setState(() {
+    setModalState(() {
       _saveForLaterLoading = true;
       _saveForLaterError = null;
-      _saveForLaterSuccess = false;
     });
 
     try {
+      int? totalSeconds;
+      int? workSeconds;
+      int? restSeconds;
+      int? rounds;
+      int? intervalSeconds;
+
+      switch (_selectedType) {
+        case WorkoutType.stopwatch:
+          break;
+        case WorkoutType.amrap:
+        case WorkoutType.forTime:
+          totalSeconds = _totalSeconds;
+          break;
+        case WorkoutType.emom:
+          rounds = _rounds;
+          intervalSeconds = _intervalSeconds;
+          totalSeconds = _rounds * _intervalSeconds;
+          break;
+        case WorkoutType.tabata:
+          workSeconds = _workSeconds;
+          restSeconds = _restSeconds;
+          rounds = _rounds;
+          totalSeconds = (_workSeconds + _restSeconds) * _rounds;
+          break;
+        case WorkoutType.workRest:
+          rounds = _rounds;
+          if (_useFixedRest) restSeconds = _restSeconds;
+          break;
+        case WorkoutType.restTimer:
+          totalSeconds = _totalSeconds;
+          break;
+        case WorkoutType.customInterval:
+          workSeconds = _workSeconds;
+          restSeconds = _restSeconds;
+          rounds = _rounds;
+          totalSeconds = (_workSeconds + _restSeconds) * _rounds;
+          break;
+        default:
+          break;
+      }
+
+      final workout = workoutProvider.buildManualWorkoutForSave(
+        type: _selectedType,
+        totalSeconds: totalSeconds,
+        workSeconds: workSeconds,
+        restSeconds: restSeconds,
+        rounds: rounds,
+        intervalSeconds: intervalSeconds,
+        hasCountdown: _showCountdown,
+        countdownSeconds: _countdownSeconds,
+        notes: _workoutNotes.isNotEmpty ? _workoutNotes : null,
+        name: name,
+      );
+
       await workoutProvider.saveWorkout(workout);
+
       if (mounted) {
-        setState(() {
+        setModalState(() {
           _saveForLaterLoading = false;
-          _saveForLaterSuccess = true;
         });
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Saved! Find in dashboard.')),
+        );
       }
     } catch (e) {
       if (mounted) {
-        setState(() {
+        setModalState(() {
           _saveForLaterLoading = false;
           _saveForLaterError = e.toString();
         });

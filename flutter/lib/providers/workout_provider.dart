@@ -287,9 +287,14 @@ class WorkoutProvider with ChangeNotifier {
   double get progress {
     if (_currentWorkout == null) return 0;
 
-    // No progress during countdown
-    if (_timerState == TimerState.countdown) {
+    // No progress during countdown or idle
+    if (_timerState == TimerState.countdown || _timerState == TimerState.idle) {
       return 0;
+    }
+
+    // Full progress when completed
+    if (_timerState == TimerState.completed) {
+      return 1.0;
     }
 
     // Interval-based progress
@@ -300,11 +305,11 @@ class WorkoutProvider with ChangeNotifier {
       return 0;
     }
 
-    // Progress within current interval (0 to 1)
-    // Add 1 second offset only after timer has started (not on initial state)
-    final offset = _intervalElapsedSeconds > 0 ? 1 : 0;
-    final adjustedElapsed = (_intervalElapsedSeconds + offset).clamp(0, effectiveDuration);
-    return adjustedElapsed / effectiveDuration;
+    // When running: add 1 to show where we'll be at end of current second
+    // When paused: show exact position (no offset)
+    final isRunning = _timerState == TimerState.running || _timerState == TimerState.rest;
+    final elapsed = isRunning ? _intervalElapsedSeconds + 1 : _intervalElapsedSeconds;
+    return elapsed.clamp(0, effectiveDuration) / effectiveDuration;
   }
 
   String get formattedTime {
@@ -578,6 +583,21 @@ class WorkoutProvider with ChangeNotifier {
     // Get effective duration (considers dynamic rest for Work/Rest)
     final effectiveDuration = _effectiveIntervalDuration;
 
+    // Halfway announcement - based on current interval duration
+    // Skip if: interval too short, or halfway would conflict with 10s warning
+    if (!_announcedHalfway && effectiveDuration > 0) {
+      final halfwayPoint = effectiveDuration ~/ 2;
+      final remainingAtHalfway = effectiveDuration - halfwayPoint;
+      // Only announce if:
+      // 1. Halfway point exists (duration > 1)
+      // 2. Remaining time at halfway > 10 (don't conflict with 10s warning)
+      // 3. We've reached the halfway point
+      if (halfwayPoint > 0 && remainingAtHalfway > 10 && _intervalElapsedSeconds >= halfwayPoint) {
+        _audioService.playHalfway();
+        _announcedHalfway = true;
+      }
+    }
+
     // For stopwatch intervals (duration 0), just count up
     if (interval.isStopwatch && effectiveDuration == 0) {
       notifyListeners();
@@ -585,17 +605,6 @@ class WorkoutProvider with ChangeNotifier {
     }
 
     final remaining = effectiveDuration - _intervalElapsedSeconds;
-
-    // Halfway announcement - works for all timer types
-    if (!_announcedHalfway) {
-      final totalDuration = _totalWorkoutDuration;
-      final halfwayPoint = totalDuration ~/ 2;
-      // Announce halfway when total elapsed time reaches halfway point
-      if (halfwayPoint > 0 && _elapsedSeconds == halfwayPoint) {
-        _audioService.playHalfway();
-        _announcedHalfway = true;
-      }
-    }
 
     // Warning sounds at 10 seconds remaining in interval
     if (remaining == 10 && !_announcedTenSeconds) {
@@ -635,6 +644,7 @@ class WorkoutProvider with ChangeNotifier {
 
   void _advanceToNextInterval() {
     _intervalElapsedSeconds = 0;
+    _announcedHalfway = false;
     _announcedTenSeconds = false;
     _announcedNextRound = false;
     _currentIntervalIndex++;
@@ -658,7 +668,7 @@ class WorkoutProvider with ChangeNotifier {
       _timerPhase = TimerPhase.work;
       // Increment round when entering a new work interval
       _currentRound++;
-      _audioService.playGo();
+      _audioService.playNextRound();
       _hapticsService.timerAlert();
     }
 
@@ -675,8 +685,8 @@ class WorkoutProvider with ChangeNotifier {
       return;
     }
 
-    _pausedDuringCountdown = _timerState == TimerState.countdown;
     _timer?.cancel();
+    _pausedDuringCountdown = _timerState == TimerState.countdown;
     _timerState = TimerState.paused;
     _hapticsService.buttonTap();
     notifyListeners();
@@ -753,20 +763,24 @@ class WorkoutProvider with ChangeNotifier {
     }
   }
 
-  void _completeWorkout() {
+  void _completeWorkout({bool playSound = true}) {
     _timer?.cancel();
     // Preserve round counts before changing state (getters depend on state)
     _finalWorkRound = currentWorkRound;
     _finalRestRound = currentRestRound;
     _timerState = TimerState.completed;
-    _audioService.playComplete();
+    if (playSound) {
+      // Play the same beep as timer start
+      _audioService.playGo();
+    }
     _hapticsService.workoutComplete();
     _completeSession();
     notifyListeners();
   }
 
+  /// Complete workout early (manual stop) - no sound
   void completeEarly() {
-    _completeWorkout();
+    _completeWorkout(playSound: false);
   }
 
   // Dynamic rest duration for Work/Rest timer (matches previous work duration)

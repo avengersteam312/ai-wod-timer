@@ -8,7 +8,6 @@ import 'theme/app_theme.dart';
 import 'providers/auth_provider.dart';
 import 'providers/workout_provider.dart';
 import 'screens/app_shell.dart';
-import 'screens/auth/login_screen.dart';
 import 'services/audio_service.dart';
 import 'services/offline_storage_service.dart';
 import 'config/app_config.dart';
@@ -81,14 +80,12 @@ class AuthWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Skip auth check if not required (development mode)
-    if (!AppConfig.authRequired) {
-      return const AppShell();
-    }
-
+    // Auth is optional - always show AppShell
+    // Users can sign in via AuthButton if they want
     return Consumer<AuthProvider>(
       builder: (context, auth, _) {
-        if (auth.isLoading) {
+        // Show loading only briefly while checking existing session
+        if (auth.isLoading && AppConfig.authEnabled) {
           return const Scaffold(
             backgroundColor: Color(0xFF0A0A0A),
             body: Center(
@@ -99,11 +96,7 @@ class AuthWrapper extends StatelessWidget {
           );
         }
 
-        if (auth.isAuthenticated) {
-          return const AppShell();
-        }
-
-        return const LoginScreen();
+        return const AppShell();
       },
     );
   }

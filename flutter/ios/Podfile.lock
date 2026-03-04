@@ -1,6 +1,8 @@
 PODS:
   - app_links (6.4.1):
     - Flutter
+  - audio_session (0.0.1):
+    - Flutter
   - audioplayers_darwin (0.0.1):
     - Flutter
   - connectivity_plus (0.0.1):
@@ -22,6 +24,7 @@ PODS:
 
 DEPENDENCIES:
   - app_links (from `.symlinks/plugins/app_links/ios`)
+  - audio_session (from `.symlinks/plugins/audio_session/ios`)
   - audioplayers_darwin (from `.symlinks/plugins/audioplayers_darwin/ios`)
   - connectivity_plus (from `.symlinks/plugins/connectivity_plus/ios`)
   - Flutter (from `Flutter`)
@@ -38,6 +41,8 @@ SPEC REPOS:
 EXTERNAL SOURCES:
   app_links:
     :path: ".symlinks/plugins/app_links/ios"
+  audio_session:
+    :path: ".symlinks/plugins/audio_session/ios"
   audioplayers_darwin:
     :path: ".symlinks/plugins/audioplayers_darwin/ios"
   connectivity_plus:
@@ -57,6 +62,7 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   app_links: 3dbc685f76b1693c66a6d9dd1e9ab6f73d97dc0a
+  audio_session: 9bb7f6c970f21241b19f5a3658097ae459681ba0
   audioplayers_darwin: ccf9c770ee768abb07e26d90af093f7bab1c12ab
   connectivity_plus: 481668c94744c30c53b8895afb39159d1e619bdf
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
