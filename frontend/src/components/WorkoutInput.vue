@@ -226,7 +226,7 @@ const parseAndNavigate = async () => {
 
     <div class="space-y-3">
       <h3 class="text-sm font-medium font-athletic">Saved Timers</h3>
-      <p v-if="authStore.isAuthenticated && myWorkoutsLoading" class="text-sm text-muted-foreground">Loading...</p>
+      <p v-if="authStore.initialized && authStore.isAuthenticated && myWorkoutsLoading" class="text-sm text-muted-foreground">Loading...</p>
       <p v-else-if="myWorkoutsError" class="text-sm text-destructive">{{ myWorkoutsError }}</p>
       <div class="grid grid-cols-2 gap-2">
         <Button
