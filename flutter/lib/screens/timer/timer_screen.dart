@@ -51,6 +51,7 @@ class _TimerScreenState extends State<TimerScreen> {
   final SyncService _syncService = SyncService();
   List<Workout> _savedWorkouts = [];
   bool _savedWorkoutsLoading = false;
+  bool _savedWorkoutsLoaded = false;
   String? _savedWorkoutsError;
 
   // Offline state
@@ -73,6 +74,10 @@ class _TimerScreenState extends State<TimerScreen> {
     final workout = context.read<WorkoutProvider>();
     _inputController.text = workout.workoutInput;
     _checkConnectivity();
+    final userId = context.read<AuthProvider>().user?.id;
+    if (userId != null) {
+      _loadSavedWorkouts(userId);
+    }
   }
 
   @override
@@ -105,6 +110,7 @@ class _TimerScreenState extends State<TimerScreen> {
         setState(() {
           _savedWorkouts = workouts;
           _savedWorkoutsLoading = false;
+          _savedWorkoutsLoaded = true;
         });
       }
     } catch (e) {
@@ -113,6 +119,7 @@ class _TimerScreenState extends State<TimerScreen> {
           _savedWorkoutsError = e.toString();
           _savedWorkouts = [];
           _savedWorkoutsLoading = false;
+          _savedWorkoutsLoaded = true;
         });
       }
     }
@@ -433,6 +440,7 @@ class _TimerScreenState extends State<TimerScreen> {
             auth.isAuthenticated &&
             auth.user != null &&
             !_savedWorkoutsLoading &&
+            !_savedWorkoutsLoaded &&
             _savedWorkoutsError == null &&
             _savedWorkouts.isEmpty) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -582,6 +590,7 @@ class _TimerScreenState extends State<TimerScreen> {
         auth.user != null &&
         _savedWorkouts.isEmpty &&
         !_savedWorkoutsLoading &&
+        !_savedWorkoutsLoaded &&
         _savedWorkoutsError == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _loadSavedWorkouts(auth.user!.id);
