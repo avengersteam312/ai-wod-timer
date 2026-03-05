@@ -7,7 +7,7 @@ import '../models/workout_session.dart';
 import '../services/api_service.dart';
 import '../services/audio_service.dart';
 import '../services/haptics_service.dart';
-import '../services/offline_storage_service.dart';
+import '../services/sync_service.dart';
 import 'auth_provider.dart';
 
 enum TimerState {
@@ -29,7 +29,7 @@ class WorkoutProvider with ChangeNotifier {
   final ApiService _apiService = ApiService();
   final AudioService _audioService = AudioService();
   final HapticsService _hapticsService = HapticsService();
-  final OfflineStorageService _storageService = OfflineStorageService();
+  final SyncService _syncService = SyncService();
   final Uuid _uuid = const Uuid();
 
   // Auth reference
@@ -373,7 +373,20 @@ class WorkoutProvider with ChangeNotifier {
       debugPrint('[WorkoutProvider] parseWorkout error: $e');
       debugPrint('[WorkoutProvider] parseWorkout stackTrace: $stackTrace');
       final msg = e.toString();
-      if (msg.contains('Network error') ||
+
+      // Cold start (Render etc.): only when the error is from our API (ApiException)
+      // with a cold-start status code or timeout message. Avoid treating other
+      // exceptions that happen to mention "timed out" as cold start.
+      final isApiException = e is ApiException;
+      final statusCode = e is ApiException ? e.statusCode : null;
+      final isColdStart =
+          (statusCode != null && (statusCode == 503 || statusCode == 502 || statusCode == 504 || statusCode == 408)) ||
+          (isApiException && (msg.contains('timed out') || msg.contains('Timeout') || msg.contains('starting up')));
+
+      if (isColdStart) {
+        _parseError =
+            'The server is starting up (cold start). This can take a minute on first use—please try again.';
+      } else if (msg.contains('Network error') ||
           msg.contains('Connection') ||
           msg.contains('Connection refused') ||
           msg.contains('Failed host lookup')) {
@@ -817,11 +830,15 @@ class WorkoutProvider with ChangeNotifier {
   // Session tracking
   void _startSession() {
     final userId = _authProvider?.user?.id ?? 'anonymous';
+    // Only link to workout in DB when this workout was loaded from saved (so it exists in Supabase)
+    final workoutIdForSession = (_loadedFromWorkoutId != null && _currentWorkout?.id == _loadedFromWorkoutId)
+        ? _currentWorkout!.id
+        : null;
 
     _currentSession = WorkoutSession(
       id: _uuid.v4(),
       userId: userId,
-      workoutId: _currentWorkout?.id,
+      workoutId: workoutIdForSession,
       workoutName: _currentWorkout?.name ?? 'Workout',
       workoutType: _currentWorkout?.type.name ?? 'custom',
       workoutSnapshot: _currentWorkout?.toJson() ?? {},
@@ -860,7 +877,7 @@ class WorkoutProvider with ChangeNotifier {
 
   Future<void> _saveSession(WorkoutSession session) async {
     try {
-      await _storageService.saveSession(session);
+      await _syncService.saveSession(session);
     } catch (e) {
       debugPrint('Failed to save session: $e');
     }
@@ -869,7 +886,7 @@ class WorkoutProvider with ChangeNotifier {
   /// Returns true if the user already has a saved workout with this name (case-insensitive).
   /// Pass [excludeWorkoutId] when updating an existing workout so the current name is allowed.
   Future<bool> isWorkoutNameTaken(String userId, String name, {String? excludeWorkoutId}) async {
-    final workouts = await _storageService.getWorkouts(userId);
+    final workouts = await _syncService.getWorkouts(userId);
     final normalized = name.trim().toLowerCase();
     if (normalized.isEmpty) return false;
     for (final w in workouts) {
@@ -881,7 +898,12 @@ class WorkoutProvider with ChangeNotifier {
 
   Future<void> saveWorkout(Workout workout) async {
     try {
-      await _storageService.saveWorkout(workout);
+      final syncedToRemote = await _syncService.saveWorkout(workout);
+      // Only link sessions to this workout when it exists in Supabase (avoids
+      // foreign key errors when session syncs before the workout is synced).
+      if (syncedToRemote && _currentWorkout?.id == workout.id) {
+        _loadedFromWorkoutId = workout.id;
+      }
     } catch (e) {
       debugPrint('Failed to save workout: $e');
       rethrow;

@@ -60,21 +60,28 @@ class WorkoutSession {
     this.completedAt,
   });
 
+  /// Sentinel for missing timestamp (do not use DateTime.now() — corrupts sorting/history).
+  static final DateTime _epoch = DateTime.utc(1970, 1, 1);
+
   factory WorkoutSession.fromJson(Map<String, dynamic> json) {
+    final startedAtRaw = json['started_at'] as String?;
+    final completedAtRaw = json['completed_at'] as String?;
     return WorkoutSession(
-      id: json['id'] as String,
-      userId: json['user_id'] as String,
+      id: (json['id'] as String?) ?? '',
+      userId: (json['user_id'] as String?) ?? '',
       workoutId: json['workout_id'] as String?,
-      workoutName: json['workout_name'] as String,
-      workoutType: json['workout_type'] as String,
+      workoutName: (json['workout_name'] as String?) ?? '',
+      workoutType: (json['workout_type'] as String?) ?? 'custom',
       workoutSnapshot: json['workout_snapshot'] as Map<String, dynamic>? ?? {},
-      status: SessionStatusExtension.fromString(json['status'] as String),
+      status: SessionStatusExtension.fromString((json['status'] as String?) ?? 'in_progress'),
       durationSeconds: json['duration_seconds'] as int?,
       roundsCompleted: json['rounds_completed'] as int?,
       notes: json['notes'] as String?,
-      startedAt: DateTime.parse(json['started_at'] as String),
-      completedAt: json['completed_at'] != null
-          ? DateTime.parse(json['completed_at'] as String)
+      startedAt: startedAtRaw != null && startedAtRaw.isNotEmpty
+          ? DateTime.parse(startedAtRaw)
+          : _epoch,
+      completedAt: completedAtRaw != null && completedAtRaw.isNotEmpty
+          ? DateTime.parse(completedAtRaw)
           : null,
     );
   }

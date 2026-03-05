@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/workout.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/workout_provider.dart';
-import '../../services/offline_storage_service.dart';
+import '../../services/sync_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/workout_card.dart';
 
@@ -17,7 +17,7 @@ class MyWorkoutsScreen extends StatefulWidget {
 }
 
 class _MyWorkoutsScreenState extends State<MyWorkoutsScreen> {
-  final OfflineStorageService _storageService = OfflineStorageService();
+  final SyncService _syncService = SyncService();
   bool _isLoading = false;
   List<Workout> _workouts = [];
   String? _error;
@@ -38,7 +38,7 @@ class _MyWorkoutsScreenState extends State<MyWorkoutsScreen> {
       final authProvider = context.read<AuthProvider>();
       final userId = authProvider.user?.id ?? 'anonymous';
 
-      final workouts = await _storageService.getWorkouts(userId);
+      final workouts = await _syncService.getWorkouts(userId);
 
       setState(() {
         _workouts = workouts;
@@ -76,7 +76,7 @@ class _MyWorkoutsScreenState extends State<MyWorkoutsScreen> {
 
     if (confirm == true) {
       try {
-        await _storageService.deleteWorkout(workout.id);
+        await _syncService.deleteWorkout(workout.id);
         setState(() {
           _workouts.removeWhere((w) => w.id == workout.id);
         });
@@ -108,7 +108,7 @@ class _MyWorkoutsScreenState extends State<MyWorkoutsScreen> {
     );
 
     try {
-      await _storageService.saveWorkout(updatedWorkout);
+      await _syncService.updateWorkout(updatedWorkout);
       setState(() {
         final index = _workouts.indexWhere((w) => w.id == workout.id);
         if (index != -1) {

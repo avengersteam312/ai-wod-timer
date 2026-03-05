@@ -10,6 +10,7 @@ import 'providers/workout_provider.dart';
 import 'screens/app_shell.dart';
 import 'services/audio_service.dart';
 import 'services/offline_storage_service.dart';
+import 'services/sync_service.dart';
 import 'config/app_config.dart';
 
 void main() async {
@@ -20,6 +21,9 @@ void main() async {
 
   // Initialize Hive for local storage
   await OfflineStorageService().init();
+
+  // Initialize sync service (connectivity + local cache); uses Supabase when configured
+  await SyncService().init();
 
   // Initialize Supabase whenever both URL and anon key are configured so Sign In/Sign Up work.
   // authRequired only controls whether the app gates access; auth must be initialized if user can log in.

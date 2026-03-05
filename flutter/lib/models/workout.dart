@@ -245,14 +245,19 @@ class Workout {
     this.updatedAt,
   });
 
+  /// Sentinel for missing timestamp (do not use DateTime.now() — corrupts sorting/history).
+  static final DateTime _epoch = DateTime.utc(1970, 1, 1);
+
   factory Workout.fromJson(Map<String, dynamic> json) {
+    final createdAtRaw = json['created_at'] as String?;
+    final updatedAtRaw = json['updated_at'] as String?;
     return Workout(
-      id: json['id'] as String,
-      userId: json['user_id'] as String,
-      name: json['name'] as String,
+      id: (json['id'] as String?) ?? '',
+      userId: (json['user_id'] as String?) ?? '',
+      name: (json['name'] as String?) ?? '',
       rawInput: json['raw_input'] as String?,
       notes: json['notes'] as String?,
-      type: WorkoutTypeExtension.fromString(json['type'] as String),
+      type: WorkoutTypeExtension.fromString((json['type'] as String?) ?? 'custom'),
       timerConfig: TimerConfig.fromJson(
         json['timer_config'] as Map<String, dynamic>? ?? {},
       ),
@@ -261,14 +266,18 @@ class Workout {
               .toList() ??
           [],
       isFavorite: json['is_favorite'] as bool? ?? false,
-      createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: json['updated_at'] != null
-          ? DateTime.parse(json['updated_at'] as String)
+      createdAt: createdAtRaw != null && createdAtRaw.isNotEmpty
+          ? DateTime.parse(createdAtRaw)
+          : _epoch,
+      updatedAt: updatedAtRaw != null && updatedAtRaw.isNotEmpty
+          ? DateTime.parse(updatedAtRaw)
           : null,
     );
   }
 
   Map<String, dynamic> toJson() {
+    // Supabase workouts.updated_at is NOT NULL; send createdAt when updatedAt is null
+    final effectiveUpdatedAt = updatedAt ?? createdAt;
     return {
       'id': id,
       'user_id': userId,
@@ -280,7 +289,7 @@ class Workout {
       'movements': movements.map((m) => m.toJson()).toList(),
       'is_favorite': isFavorite,
       'created_at': createdAt.toIso8601String(),
-      'updated_at': updatedAt?.toIso8601String(),
+      'updated_at': effectiveUpdatedAt.toIso8601String(),
     };
   }
 

@@ -3,7 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../models/workout_session.dart';
 import '../../providers/auth_provider.dart';
-import '../../services/offline_storage_service.dart';
+import '../../services/sync_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/auth_button.dart';
 import '../../widgets/session_card.dart';
@@ -18,7 +18,7 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
-  final OfflineStorageService _storageService = OfflineStorageService();
+  final SyncService _syncService = SyncService();
   bool _isLoading = false;
   List<WorkoutSession> _sessions = [];
   String? _error;
@@ -48,7 +48,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       final authProvider = context.read<AuthProvider>();
       final userId = authProvider.user?.id ?? 'anonymous';
 
-      final sessions = await _storageService.getSessions(userId);
+      final sessions = await _syncService.getSessions(userId);
 
       setState(() {
         _sessions = sessions;
@@ -256,7 +256,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   Future<void> _deleteSession(WorkoutSession session) async {
     try {
-      await _storageService.deleteSession(session.id);
+      await _syncService.deleteSession(session.id);
       setState(() {
         _sessions.removeWhere((s) => s.id == session.id);
       });
