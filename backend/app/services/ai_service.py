@@ -1,4 +1,4 @@
-from openai import OpenAI
+from openai import AsyncOpenAI
 from app.config import settings
 from app.schemas.workout import WorkoutType
 from app.prompts import prompt_manager
@@ -10,7 +10,7 @@ class AIService:
     def __init__(self):
         self.provider = settings.AI_PROVIDER
         self.model = settings.AI_MODEL
-        self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
         self.prompt_manager = prompt_manager
 
     async def parse_workout(
@@ -37,7 +37,7 @@ class AIService:
         user_prompt = self.prompt_manager.get_user_prompt(workout_text)
 
         try:
-            response = self.client.chat.completions.create(
+            response = await self.client.chat.completions.create(
                 model=self.model,
                 max_tokens=2000,  # Reduced for faster responses
                 response_format={"type": "json_object"},
