@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'offline_storage_service.dart';
+import '../config/app_config.dart';
 import '../models/workout.dart';
 import '../models/workout_session.dart';
 
@@ -58,7 +59,7 @@ class SyncService {
 
   // Sync Queue Processing
   Future<void> processSyncQueue() async {
-    if (!_isOnline || _isSyncing) return;
+    if (!_isOnline || _isSyncing || !AppConfig.hasSupabaseConfig) return;
 
     _isSyncing = true;
 
@@ -126,8 +127,8 @@ class SyncService {
 
   // Workout Sync Methods
   Future<List<Workout>> getWorkouts(String userId) async {
-    // Try to get from remote first if online
-    if (_isOnline) {
+    // Try to get from remote first if online and Supabase is configured
+    if (_isOnline && AppConfig.hasSupabaseConfig) {
       try {
         final response = await _client
             .from('workouts')
@@ -152,35 +153,42 @@ class SyncService {
     return _storage.getWorkouts(userId);
   }
 
-  Future<void> saveWorkout(Workout workout) async {
+  /// Saves the workout locally and, when online, to Supabase.
+  /// Returns true only when the workout was successfully written to the remote
+  /// (so it is safe to link sessions to this workout_id). Returns false when
+  /// offline or when remote write failed (workout is queued for later sync).
+  Future<bool> saveWorkout(Workout workout) async {
     // Always save locally first
     await _storage.saveWorkout(workout);
 
-    if (_isOnline) {
+    if (_isOnline && AppConfig.hasSupabaseConfig) {
       try {
         await _client.from('workouts').upsert(workout.toJson());
+        return true;
       } catch (e) {
         debugPrint('Error saving workout to remote: $e');
-        // Queue for later sync
         await _queueWorkoutSync(workout, SyncOperationType.create);
+        return false;
       }
-    } else {
-      // Queue for later sync
+    }
+    if (AppConfig.hasSupabaseConfig) {
       await _queueWorkoutSync(workout, SyncOperationType.create);
     }
+    return false;
   }
 
   Future<void> updateWorkout(Workout workout) async {
     await _storage.saveWorkout(workout);
 
-    if (_isOnline) {
+    if (_isOnline && AppConfig.hasSupabaseConfig) {
       try {
-        await _client.from('workouts').update(workout.toJson()).eq('id', workout.id);
+        // Use upsert so a missing row (e.g. after offline create) is inserted instead of no-op
+        await _client.from('workouts').upsert(workout.toJson());
       } catch (e) {
         debugPrint('Error updating workout on remote: $e');
         await _queueWorkoutSync(workout, SyncOperationType.update);
       }
-    } else {
+    } else if (AppConfig.hasSupabaseConfig) {
       await _queueWorkoutSync(workout, SyncOperationType.update);
     }
   }
@@ -188,14 +196,14 @@ class SyncService {
   Future<void> deleteWorkout(String id) async {
     await _storage.deleteWorkout(id);
 
-    if (_isOnline) {
+    if (_isOnline && AppConfig.hasSupabaseConfig) {
       try {
         await _client.from('workouts').delete().eq('id', id);
       } catch (e) {
         debugPrint('Error deleting workout from remote: $e');
         await _queueWorkoutDelete(id, SyncEntityType.workout);
       }
-    } else {
+    } else if (AppConfig.hasSupabaseConfig) {
       await _queueWorkoutDelete(id, SyncEntityType.workout);
     }
   }
@@ -228,7 +236,7 @@ class SyncService {
 
   // Session Sync Methods
   Future<List<WorkoutSession>> getSessions(String userId) async {
-    if (_isOnline) {
+    if (_isOnline && AppConfig.hasSupabaseConfig) {
       try {
         final response = await _client
             .from('workout_sessions')
@@ -255,14 +263,14 @@ class SyncService {
   Future<void> saveSession(WorkoutSession session) async {
     await _storage.saveSession(session);
 
-    if (_isOnline) {
+    if (_isOnline && AppConfig.hasSupabaseConfig) {
       try {
         await _client.from('workout_sessions').upsert(session.toJson());
       } catch (e) {
         debugPrint('Error saving session to remote: $e');
         await _queueSessionSync(session, SyncOperationType.create);
       }
-    } else {
+    } else if (AppConfig.hasSupabaseConfig) {
       await _queueSessionSync(session, SyncOperationType.create);
     }
   }
@@ -270,17 +278,15 @@ class SyncService {
   Future<void> updateSession(WorkoutSession session) async {
     await _storage.saveSession(session);
 
-    if (_isOnline) {
+    if (_isOnline && AppConfig.hasSupabaseConfig) {
       try {
-        await _client
-            .from('workout_sessions')
-            .update(session.toJson())
-            .eq('id', session.id);
+        // Use upsert so a missing row (e.g. after offline create) is inserted instead of no-op
+        await _client.from('workout_sessions').upsert(session.toJson());
       } catch (e) {
         debugPrint('Error updating session on remote: $e');
         await _queueSessionSync(session, SyncOperationType.update);
       }
-    } else {
+    } else if (AppConfig.hasSupabaseConfig) {
       await _queueSessionSync(session, SyncOperationType.update);
     }
   }
@@ -300,9 +306,38 @@ class SyncService {
     await _storage.addToSyncQueue(operation);
   }
 
+  Future<void> deleteSession(String id) async {
+    await _storage.deleteSession(id);
+
+    if (_isOnline && AppConfig.hasSupabaseConfig) {
+      try {
+        await _client
+            .from('workout_sessions')
+            .delete()
+            .eq('id', id);
+      } catch (e) {
+        debugPrint('Error deleting session from remote: $e');
+        await _queueSessionDelete(id);
+      }
+    } else if (AppConfig.hasSupabaseConfig) {
+      await _queueSessionDelete(id);
+    }
+  }
+
+  Future<void> _queueSessionDelete(String id) async {
+    final operation = SyncOperation(
+      id: '${id}_delete_${DateTime.now().millisecondsSinceEpoch}',
+      type: SyncOperationType.delete,
+      entity: SyncEntityType.session,
+      entityId: id,
+      timestamp: DateTime.now(),
+    );
+    await _storage.addToSyncQueue(operation);
+  }
+
   // Full Sync
   Future<void> fullSync(String userId) async {
-    if (!_isOnline) return;
+    if (!_isOnline || !AppConfig.hasSupabaseConfig) return;
 
     try {
       // Process any pending operations first

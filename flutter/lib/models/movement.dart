@@ -22,7 +22,7 @@ class Movement {
   factory Movement.fromJson(Map<String, dynamic> json) {
     return Movement(
       id: json['id'] as String? ?? '',
-      name: json['name'] as String,
+      name: (json['name'] as String?) ?? '',
       reps: json['reps'] as int?,
       durationSeconds: json['duration_seconds'] as int?,
       unit: json['unit'] as String?,

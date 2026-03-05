@@ -138,8 +138,27 @@ class ApiService {
     throw ApiException(message, statusCode: response.statusCode);
   }
 
-  // AI Workout Parsing
+  // AI Workout Parsing (longer timeout to allow backend cold start, e.g. Render)
   Future<Map<String, dynamic>> parseWorkout(String input) async {
-    return await post('/api/v1/timer/parse', body: {'workout_text': input});
+    try {
+      final uri = Uri.parse('$_baseUrl/api/v1/timer/parse');
+      final response = await http
+          .post(
+            uri,
+            headers: _headers,
+            body: jsonEncode({'workout_text': input}),
+          )
+          .timeout(
+            const Duration(seconds: 60),
+            onTimeout: () => throw ApiException(
+              'Request timed out (server may be starting up). Try again in a moment.',
+              statusCode: 408,
+            ),
+          );
+      return _handleResponse(response);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException('Network error: ${e.toString()}');
+    }
   }
 }

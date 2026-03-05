@@ -7,7 +7,7 @@ import '../../providers/workout_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../models/workout.dart';
 import '../../services/audio_service.dart';
-import '../../services/offline_storage_service.dart';
+import '../../services/sync_service.dart';
 import '../../utils/workout_name.dart';
 import '../../screens/workouts/my_workouts_screen.dart';
 import '../../screens/auth/login_screen.dart';
@@ -48,7 +48,7 @@ class _TimerScreenState extends State<TimerScreen> {
   bool _saveThenExit = false;
 
   // Saved timers (dashboard) state
-  final OfflineStorageService _storageService = OfflineStorageService();
+  final SyncService _syncService = SyncService();
   List<Workout> _savedWorkouts = [];
   bool _savedWorkoutsLoading = false;
   String? _savedWorkoutsError;
@@ -100,7 +100,7 @@ class _TimerScreenState extends State<TimerScreen> {
       _savedWorkoutsError = null;
     });
     try {
-      final workouts = await _storageService.getWorkouts(userId);
+      final workouts = await _syncService.getWorkouts(userId);
       if (mounted) {
         setState(() {
           _savedWorkouts = workouts;
@@ -872,7 +872,7 @@ class _TimerScreenState extends State<TimerScreen> {
   /// Delete workout directly (used by drag-to-delete, no confirmation needed)
   Future<void> _deleteWorkoutDirectly(Workout workout) async {
     try {
-      await _storageService.deleteWorkout(workout.id);
+      await _syncService.deleteWorkout(workout.id);
       setState(() {
         _savedWorkouts.removeWhere((w) => w.id == workout.id);
       });
