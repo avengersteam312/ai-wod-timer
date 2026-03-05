@@ -60,6 +60,13 @@ class _AppShellState extends State<AppShell> {
     });
   }
 
+  void _navigateToManualForEdit() {
+    // Do NOT clear workout — user wants to edit then start from Manual tab
+    setState(() {
+      _currentIndex = 0; // Manual tab
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final workout = context.watch<WorkoutProvider>();
@@ -79,6 +86,7 @@ class _AppShellState extends State<AppShell> {
           ManualTimerScreen(onNavigateToTimer: _navigateToTimer),
           TimerScreen(
             onNavigateToManual: _navigateToManual,
+            onNavigateToManualForEdit: _navigateToManualForEdit,
             isDashboardVisible: _currentIndex == 1,
           ),
           HistoryScreen(isVisible: _currentIndex == 2),

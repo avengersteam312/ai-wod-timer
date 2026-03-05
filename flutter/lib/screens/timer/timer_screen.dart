@@ -19,12 +19,14 @@ enum NotesState { closed, minimized, full }
 
 class TimerScreen extends StatefulWidget {
   final VoidCallback? onNavigateToManual;
+  final VoidCallback? onNavigateToManualForEdit;
   /// True when the Dashboard tab is selected (used to refresh saved workouts when returning to tab).
   final bool isDashboardVisible;
 
   const TimerScreen({
     super.key,
     this.onNavigateToManual,
+    this.onNavigateToManualForEdit,
     this.isDashboardVisible = true,
   });
 
@@ -464,6 +466,16 @@ class _TimerScreenState extends State<TimerScreen> {
                     workout.currentWorkout!.type.displayName.toUpperCase(),
                   ),
                   actions: [
+                    // Edit button - only when timer is idle
+                    if (workout.isIdle && widget.onNavigateToManualForEdit != null)
+                      IconButton(
+                        icon: const Icon(Icons.tune),
+                        tooltip: 'Edit timer',
+                        onPressed: () {
+                          workout.setPendingEdit(workout.currentWorkout!);
+                          widget.onNavigateToManualForEdit!();
+                        },
+                      ),
                     // Save button for authenticated users (hide for already saved timers)
                     if (canSave && workout.loadedFromWorkoutId == null)
                       IconButton(

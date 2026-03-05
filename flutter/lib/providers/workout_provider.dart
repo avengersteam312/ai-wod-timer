@@ -72,6 +72,9 @@ class WorkoutProvider with ChangeNotifier {
   // UI state - show AI input view while timer is running
   bool _showInputOverride = false;
 
+  // Pending edit workout (set when user taps Edit from timer view)
+  Workout? _pendingEditWorkout;
+
   /// Set when workout was loaded from My Workouts (already saved); skip save prompt on end session.
   String? _loadedFromWorkoutId;
 
@@ -98,6 +101,24 @@ class WorkoutProvider with ChangeNotifier {
 
   // UI state for showing input while timer runs
   bool get showInputOverride => _showInputOverride;
+
+  Workout? get pendingEditWorkout => _pendingEditWorkout;
+
+  void setPendingEdit(Workout workout) {
+    _pendingEditWorkout = workout;
+    notifyListeners();
+  }
+
+  void consumePendingEdit() {
+    _pendingEditWorkout = null;
+    // No notifyListeners — called during postFrameCallback
+  }
+
+  void updateCurrentWorkoutMovements(List<Movement> movements) {
+    if (_currentWorkout == null) return;
+    _currentWorkout = _currentWorkout!.copyWith(movements: movements);
+    notifyListeners();
+  }
 
   void setShowInputOverride(bool value) {
     _showInputOverride = value;
