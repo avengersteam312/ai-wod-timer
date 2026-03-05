@@ -554,16 +554,6 @@ class _TimerScreenState extends State<TimerScreen> {
                     workout.currentWorkout!.type.displayName.toUpperCase(),
                   ),
                   actions: [
-                    // Edit button - only when timer is idle
-                    if (workout.isIdle && widget.onNavigateToManualForEdit != null)
-                      IconButton(
-                        icon: const Icon(Icons.tune),
-                        tooltip: 'Edit timer',
-                        onPressed: () {
-                          workout.setPendingEdit(workout.currentWorkout!);
-                          widget.onNavigateToManualForEdit!();
-                        },
-                      ),
                     // Save button for authenticated users (hide for already saved timers)
                     if (canSave && workout.loadedFromWorkoutId == null)
                       IconButton(
@@ -673,7 +663,19 @@ class _TimerScreenState extends State<TimerScreen> {
                 Expanded(
                   child: (workout.currentWorkout == null || workout.showInputOverride)
                       ? _buildInputView(context, workout)
-                      : _buildTimerView(context, workout),
+                      : GestureDetector(
+                          onHorizontalDragEnd: (details) {
+                            final velocity = details.primaryVelocity ?? 0;
+                            // Swipe left → edit timer (only when idle)
+                            if (velocity < -300 &&
+                                workout.isIdle &&
+                                widget.onNavigateToManualForEdit != null) {
+                              workout.setPendingEdit(workout.currentWorkout!);
+                              widget.onNavigateToManualForEdit!();
+                            }
+                          },
+                          child: _buildTimerView(context, workout),
+                        ),
                 ),
               ],
             ),
