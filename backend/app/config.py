@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     AI_PROVIDER: str = "openai"
     AI_MODEL: str = "gpt-4o-mini"  # Fast model for Vercel 10s timeout
+    AI_VISION_MODEL: str = "gpt-4o-mini"  # Model for image text extraction
     AI_CLASSIFIER_MODEL: str = "gpt-4.1-mini"  # Fast, cheap model for classification
     USE_AGENT_WORKFLOW: bool = False  # Set to True to use OpenAI Agents SDK workflow
     USE_CUSTOM_PROMPT_ONLY: bool = False  # Enable type-specific prompts for faster parsing (60-78% token reduction)

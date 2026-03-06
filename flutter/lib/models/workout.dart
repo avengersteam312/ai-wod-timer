@@ -32,7 +32,7 @@ extension WorkoutTypeExtension on WorkoutType {
       case WorkoutType.workRest:
         return 'Work/Rest';
       case WorkoutType.customInterval:
-        return 'Custom Intervals';
+        return 'Intervals';
     }
   }
 

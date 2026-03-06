@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import '../models/workout.dart';
@@ -39,6 +40,7 @@ class WorkoutProvider with ChangeNotifier {
   Workout? _currentWorkout;
   String _workoutInput = '';
   bool _isParsing = false;
+  bool _isExtractingFromImage = false;
   String? _parseError;
 
   // Timer state
@@ -83,6 +85,7 @@ class WorkoutProvider with ChangeNotifier {
   String? get loadedFromWorkoutId => _loadedFromWorkoutId;
   String get workoutInput => _workoutInput;
   bool get isParsing => _isParsing;
+  bool get isExtractingFromImage => _isExtractingFromImage;
   String? get parseError => _parseError;
 
   TimerState get timerState => _timerState;
@@ -393,31 +396,61 @@ class WorkoutProvider with ChangeNotifier {
     } catch (e, stackTrace) {
       debugPrint('[WorkoutProvider] parseWorkout error: $e');
       debugPrint('[WorkoutProvider] parseWorkout stackTrace: $stackTrace');
-      final msg = e.toString();
-
-      // Cold start (Render etc.): only when the error is from our API (ApiException)
-      // with a cold-start status code or timeout message. Avoid treating other
-      // exceptions that happen to mention "timed out" as cold start.
-      final isApiException = e is ApiException;
-      final statusCode = e is ApiException ? e.statusCode : null;
-      final isColdStart =
-          (statusCode != null && (statusCode == 503 || statusCode == 502 || statusCode == 504 || statusCode == 408)) ||
-          (isApiException && (msg.contains('timed out') || msg.contains('Timeout') || msg.contains('starting up')));
-
-      if (isColdStart) {
-        _parseError =
-            'The server is starting up (cold start). This can take a minute on first use—please try again.';
-      } else if (msg.contains('Network error') ||
-          msg.contains('Connection') ||
-          msg.contains('Connection refused') ||
-          msg.contains('Failed host lookup')) {
-        _parseError =
-            'Cannot reach the workout server. Is the backend running? On device/simulator, set API_BASE_URL in .env to your computer\'s IP (e.g. http://192.168.1.x:8000).';
-      } else {
-        _parseError = 'Failed to parse workout. Please try again.';
-      }
+      _parseError = _getParseErrorMessage(e);
       _isParsing = false;
       notifyListeners();
+    }
+  }
+
+  // Parse workout from image using Vision API
+  Future<void> parseWorkoutFromImage(File imageFile) async {
+    try {
+      _isExtractingFromImage = true;
+      _parseError = null;
+      notifyListeners();
+
+      final result = await _apiService.parseWorkoutFromImage(imageFile);
+
+      // Use extracted text from Vision API for notes display
+      _workoutInput = result['raw_text'] as String? ?? '';
+      _currentWorkout = _createWorkoutFromResponse(result);
+      _loadedFromWorkoutId = null;
+      _showInputOverride = false;
+      _isExtractingFromImage = false;
+      notifyListeners();
+    } catch (e, stackTrace) {
+      debugPrint('[WorkoutProvider] parseWorkoutFromImage error: $e');
+      debugPrint('[WorkoutProvider] parseWorkoutFromImage stackTrace: $stackTrace');
+      _parseError = _getParseErrorMessage(e, isImage: true);
+      _isExtractingFromImage = false;
+      notifyListeners();
+    }
+  }
+
+  String _getParseErrorMessage(dynamic e, {bool isImage = false}) {
+    final msg = e.toString();
+
+    // Cold start (Render etc.): only when the error is from our API (ApiException)
+    // with a cold-start status code or timeout message.
+    final isApiException = e is ApiException;
+    final statusCode = e is ApiException ? e.statusCode : null;
+    final isColdStart =
+        (statusCode != null && (statusCode == 503 || statusCode == 502 || statusCode == 504 || statusCode == 408)) ||
+        (isApiException && (msg.contains('timed out') || msg.contains('Timeout') || msg.contains('starting up')));
+
+    if (isColdStart) {
+      return 'The server is starting up (cold start). This can take a minute on first use—please try again.';
+    } else if (msg.contains('Network error') ||
+        msg.contains('Connection') ||
+        msg.contains('Connection refused') ||
+        msg.contains('Failed host lookup')) {
+      return 'Cannot reach the workout server. Is the backend running? On device/simulator, set API_BASE_URL in .env to your computer\'s IP (e.g. http://192.168.1.x:8000).';
+    } else if (isImage && msg.contains('Could not extract')) {
+      return 'Could not read workout from image. Please try a clearer photo.';
+    } else {
+      return isImage
+          ? 'Failed to extract workout from image. Please try again.'
+          : 'Failed to parse workout. Please try again.';
     }
   }
 

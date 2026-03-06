@@ -1,7 +1,8 @@
 import logging
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, UploadFile, File
 from app.schemas.workout import WorkoutParseRequest, ParsedWorkout
 from app.services.workout_parser import workout_parser
+from app.services.ai_service import ai_service
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -60,6 +61,78 @@ async def parse_workout(
         raise HTTPException(
             status_code=500,
             detail="Failed to parse workout. Please check the format and try again."
+        )
+
+
+@router.post("/parse-image", response_model=ParsedWorkout)
+async def parse_workout_from_image(
+    file: UploadFile = File(..., description="Image file containing workout text"),
+    use_agent: bool = Query(
+        default=None,
+        description="Override to use agent-based parser (True) or standard parser (False)"
+    )
+):
+    """
+    Parse workout from an image using a two-step process:
+    1. GPT-4o-mini Vision extracts text from image (token-efficient)
+    2. Existing text parser converts to timer config (reuses optimized logic)
+
+    This endpoint accepts an image (JPEG, PNG, WebP, GIF) containing workout text
+    (e.g., whiteboard photo, printed workout, handwritten notes) and returns
+    a structured workout with timer configuration.
+
+    Supports the same workout types as the text parser:
+    - AMRAP, EMOM, For Time, Tabata, Rounds with rest, Custom intervals
+    """
+    # Validate file type
+    allowed_types = ["image/jpeg", "image/png", "image/webp", "image/gif"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid file type. Allowed types: {', '.join(allowed_types)}"
+        )
+
+    # Limit file size (5MB - reduced since we compress client-side)
+    max_size = 5 * 1024 * 1024
+    content = await file.read()
+    if len(content) > max_size:
+        raise HTTPException(
+            status_code=400,
+            detail="File too large. Maximum size is 5MB."
+        )
+
+    try:
+        # Step 1: Extract text from image using Vision API (cheap, fast)
+        extracted_text, workout_name = await ai_service.extract_text_from_image(
+            content, file.content_type
+        )
+
+        if not extracted_text.strip():
+            raise ValueError("No workout text found in image")
+
+        # Step 2: Parse extracted text using existing parser (reuses all logic)
+        parser = _get_parser(use_agent)
+        result = await parser.parse(extracted_text)
+
+        # Override raw_text with extracted text so it shows in notes
+        result.raw_text = extracted_text
+
+        # Add workout name as interpretation if available
+        if workout_name and workout_name != "Workout":
+            result.ai_interpretation = workout_name
+
+        return result
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Failed to parse workout from image: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to parse workout from image. Please try again with a clearer image."
         )
 
 

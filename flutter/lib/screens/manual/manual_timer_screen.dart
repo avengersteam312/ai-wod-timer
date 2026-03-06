@@ -43,6 +43,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
 
   // Editing from AI timer
   bool _isEditingFromTimer = false;
+  bool _isFromAiTimer = false;
   List<Movement> _pendingMovements = [];
   bool _consumingPendingEdit = false;
   WorkoutProvider? _workoutProvider;
@@ -68,6 +69,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
     if (_workoutProvider?.currentWorkout == null && _isEditingFromTimer) {
       setState(() {
         _isEditingFromTimer = false;
+        _isFromAiTimer = false;
         _pendingMovements = [];
         _selectedType = WorkoutType.restTimer;
         _setDefaultsForType(WorkoutType.restTimer);
@@ -78,6 +80,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
   void _resetForm() {
     setState(() {
       _isEditingFromTimer = false;
+      _isFromAiTimer = false;
       _pendingMovements = [];
       _selectedType = WorkoutType.restTimer;
       _workoutNotes = '';
@@ -113,8 +116,12 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
       _totalSeconds = config.totalDuration > 0 ? config.totalDuration : (config.totalSeconds ?? 600);
       _intervalSeconds = workIntervals.isNotEmpty ? workIntervals.first.duration : (config.intervalSeconds ?? 60);
       _pendingMovements = List.from(pending.movements);
-      _workoutNotes = pending.notes ?? '';
+      // Use rawInput (extracted text from image) if notes is empty
+      _workoutNotes = pending.notes?.isNotEmpty == true
+          ? pending.notes!
+          : (pending.rawInput ?? '');
       _isEditingFromTimer = true;
+      _isFromAiTimer = pending.rawInput?.isNotEmpty == true;
     });
   }
 
@@ -166,84 +173,90 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
           const AuthButton(),
         ],
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            const SizedBox(height: 12),
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
+          child: Stack(
+            children: [
+              Column(
+                children: [
+                  const SizedBox(height: 12),
 
-            // Timer type selector
-            TimerTypeSelector(
-              selectedType: _selectedType,
-              onTypeChanged: (type) {
-                setState(() {
-                  _selectedType = type;
-                  _setDefaultsForType(type);
-                  _isEditingFromTimer = false;
-                });
-              },
-            ),
+                  // Timer type selector
+                  TimerTypeSelector(
+                    selectedType: _selectedType,
+                    onTypeChanged: (type) {
+                      setState(() {
+                        _selectedType = type;
+                        _setDefaultsForType(type);
+                        _isEditingFromTimer = false;
+                      });
+                    },
+                  ),
 
-            const SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
-            // Configuration inputs
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Editing banner
-                    if (_isEditingFromTimer) ...[
-                      _buildEditingBanner(),
-                      const SizedBox(height: 16),
-                    ],
-
-                    // Type description with countdown selector
-                    _buildTypeHeader(),
-                    const SizedBox(height: 16),
-
-                    // Dynamic inputs based on type
-                    _buildConfigInputs(),
-
-                    // Countdown input (not for rest timer)
-                    if (_showCountdown) ...[
-                      const SizedBox(height: 16),
-                      _buildCountdownInput(),
-                    ],
-
-                    const SizedBox(height: 16),
-
-                    // Add note button (not for rest timer)
-                    if (_selectedType != WorkoutType.restTimer)
-                      _buildNotesButton(),
-
-                    // Movements list (when editing from AI timer)
-                    if (_isEditingFromTimer && _pendingMovements.isNotEmpty) ...[
-                      const SizedBox(height: 16),
-                      _buildMovementsList(),
-                    ],
-
-                    const SizedBox(height: 16),
-
-                    // Start button
-                    ElevatedButton(
-                      onPressed: _startTimer,
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
+                  // Configuration inputs
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Icon(Icons.play_arrow),
-                          SizedBox(width: 8),
-                          Text('Start Timer'),
+                          // Editing banner (only show for AI-created timers)
+                          if (_isEditingFromTimer && _isFromAiTimer) ...[
+                            _buildEditingBanner(),
+                            const SizedBox(height: 16),
+                          ],
+
+                          // Type description with countdown selector
+                          _buildTypeHeader(),
+                          const SizedBox(height: 16),
+
+                          // Dynamic inputs based on type
+                          _buildConfigInputs(),
+
+                          // Countdown input (not for rest timer)
+                          if (_showCountdown) ...[
+                            const SizedBox(height: 16),
+                            _buildCountdownInput(),
+                          ],
+
+                          const SizedBox(height: 16),
+
+                          // Add note button (not for rest timer)
+                          if (_selectedType != WorkoutType.restTimer)
+                            _buildNotesButton(),
+
+                          // Extra space for button
+                          const SizedBox(height: 80),
                         ],
                       ),
                     ),
+                  ),
+                ],
+              ),
 
-                    const SizedBox(height: 16),
-                  ],
+              // Start button - fixed at bottom with transparent background
+              Positioned(
+                left: 24,
+                right: 24,
+                bottom: 16,
+                child: ElevatedButton(
+                  onPressed: _startTimer,
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.play_arrow),
+                      SizedBox(width: 8),
+                      Text('Start Timer'),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -739,6 +752,25 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Rounds section (first)
+        Text(
+          'ROUNDS',
+          style: AppTextStyles.labelSmall.copyWith(
+            letterSpacing: 1.5,
+            color: AppColors.textMuted,
+          ),
+        ),
+        const SizedBox(height: 8),
+        NumberStepper(
+          value: _rounds,
+          minValue: 1,
+          maxValue: 20,
+          onChanged: (value) {
+            setState(() => _rounds = value);
+          },
+        ),
+        const SizedBox(height: 16),
+
         // Work section
         Text(
           'WORK',
@@ -755,7 +787,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
           step: 5,
           onChanged: (value) {
             setState(() => _workSeconds = value);
-                      },
+          },
         ),
         const SizedBox(height: 16),
 
@@ -775,26 +807,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
           step: 5,
           onChanged: (value) {
             setState(() => _restSeconds = value);
-                      },
-        ),
-        const SizedBox(height: 16),
-
-        // Rounds section
-        Text(
-          'ROUNDS',
-          style: AppTextStyles.labelSmall.copyWith(
-            letterSpacing: 1.5,
-            color: AppColors.textMuted,
-          ),
-        ),
-        const SizedBox(height: 8),
-        NumberStepper(
-          value: _rounds,
-          minValue: 1,
-          maxValue: 20,
-          onChanged: (value) {
-            setState(() => _rounds = value);
-                      },
+          },
         ),
       ],
     );
@@ -873,47 +886,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Work Duration section
-        Text(
-          'WORK DURATION',
-          style: AppTextStyles.labelSmall.copyWith(
-            letterSpacing: 1.5,
-            color: AppColors.textMuted,
-          ),
-        ),
-        const SizedBox(height: 8),
-        DurationStepper(
-          totalSeconds: _workSeconds,
-          minSeconds: 5,
-          maxSeconds: 600,
-          step: 5,
-          onChanged: (value) {
-            setState(() => _workSeconds = value);
-                      },
-        ),
-        const SizedBox(height: 16),
-
-        // Rest Duration section
-        Text(
-          'REST DURATION',
-          style: AppTextStyles.labelSmall.copyWith(
-            letterSpacing: 1.5,
-            color: AppColors.textMuted,
-          ),
-        ),
-        const SizedBox(height: 8),
-        DurationStepper(
-          totalSeconds: _restSeconds,
-          minSeconds: 0,
-          maxSeconds: 600,
-          step: 5,
-          onChanged: (value) {
-            setState(() => _restSeconds = value);
-                      },
-        ),
-        const SizedBox(height: 16),
-
-        // Rounds section
+        // Rounds section (first, like other timer types)
         Text(
           'ROUNDS',
           style: AppTextStyles.labelSmall.copyWith(
@@ -928,7 +901,47 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
           maxValue: 99,
           onChanged: (value) {
             setState(() => _rounds = value);
-                      },
+          },
+        ),
+        const SizedBox(height: 16),
+
+        // Work section
+        Text(
+          'WORK',
+          style: AppTextStyles.labelSmall.copyWith(
+            letterSpacing: 1.5,
+            color: AppColors.textMuted,
+          ),
+        ),
+        const SizedBox(height: 8),
+        DurationStepper(
+          totalSeconds: _workSeconds,
+          minSeconds: 5,
+          maxSeconds: 600,
+          step: 5,
+          onChanged: (value) {
+            setState(() => _workSeconds = value);
+          },
+        ),
+        const SizedBox(height: 16),
+
+        // Rest section
+        Text(
+          'REST',
+          style: AppTextStyles.labelSmall.copyWith(
+            letterSpacing: 1.5,
+            color: AppColors.textMuted,
+          ),
+        ),
+        const SizedBox(height: 8),
+        DurationStepper(
+          totalSeconds: _restSeconds,
+          minSeconds: 0,
+          maxSeconds: 600,
+          step: 5,
+          onChanged: (value) {
+            setState(() => _restSeconds = value);
+          },
         ),
       ],
     );

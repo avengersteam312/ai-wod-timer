@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/workout_provider.dart';
 import '../../theme/app_theme.dart';
@@ -14,6 +15,7 @@ import '../../screens/auth/login_screen.dart';
 import '../../widgets/auth_button.dart';
 import '../../widgets/timer/circular_timer_ring.dart';
 import '../../widgets/timer/timer_controls.dart';
+import 'dart:io';
 
 enum NotesState { closed, minimized, full }
 
@@ -39,6 +41,7 @@ class _TimerScreenState extends State<TimerScreen> {
   final _scrollController = ScrollController();
   final _workoutNameController = TextEditingController();
   final _audioService = AudioService();
+  final _imagePicker = ImagePicker();
 
   // Save workout state
   bool _isSaving = false;
@@ -403,6 +406,91 @@ class _TimerScreenState extends State<TimerScreen> {
     }
   }
 
+  void _showImagePickerModal(BuildContext context, WorkoutProvider workout) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.cardBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Take Photo option
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.camera_alt, color: AppColors.primary),
+                ),
+                title: const Text('Take Photo'),
+                subtitle: const Text('Use your camera'),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await _pickImage(ImageSource.camera, workout);
+                },
+              ),
+              const SizedBox(height: 8),
+              // Choose from Gallery option
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.photo_library, color: AppColors.primary),
+                ),
+                title: const Text('Choose from Gallery'),
+                subtitle: const Text('Select an existing photo'),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await _pickImage(ImageSource.gallery, workout);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source, WorkoutProvider workout) async {
+    try {
+      // Optimized for token efficiency:
+      // - 70% quality is sufficient for text extraction
+      // - 1536px max matches GPT-4o-mini "auto" detail threshold
+      final XFile? pickedFile = await _imagePicker.pickImage(
+        source: source,
+        imageQuality: 70,
+        maxWidth: 1536,
+        maxHeight: 1536,
+      );
+
+      if (pickedFile != null) {
+        final imageFile = File(pickedFile.path);
+        await workout.parseWorkoutFromImage(imageFile);
+      }
+    } catch (e) {
+      debugPrint('[TimerScreen] Image picker error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to pick image: ${e.toString()}'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
   String _combineNotesWithDescription(Workout workout) {
     final description = workout.rawInput?.trim() ?? '';
     final notes = workout.notes?.trim() ?? '';
@@ -678,50 +766,87 @@ class _TimerScreenState extends State<TimerScreen> {
 
             const SizedBox(height: 16),
 
-            // Create Timer button
-            ElevatedButton(
-              onPressed: workout.isParsing ? null : () {
-                // Redirect to login if not authenticated
-                if (!auth.isAuthenticated) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const LoginScreen()),
-                  );
-                  return;
-                }
-                workout.parseWorkout();
-              },
-              child: workout.isParsing
-                  ? const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.textPrimary,
+            // Create Timer buttons row
+            Row(
+              children: [
+                // AI timer button (text input)
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: (workout.isParsing || workout.isExtractingFromImage) ? null : () {
+                      // Redirect to login if not authenticated
+                      if (!auth.isAuthenticated) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const LoginScreen()),
+                        );
+                        return;
+                      }
+                      workout.parseWorkout();
+                    },
+                    child: (workout.isParsing || workout.isExtractingFromImage)
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              const Text('Creating...'),
+                            ],
+                          )
+                        : const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.auto_awesome),
+                              SizedBox(width: 8),
+                              Text('AI timer'),
+                            ],
                           ),
-                        ),
-                        SizedBox(width: 12),
-                        Text('Creating...'),
-                      ],
-                    )
-                  : const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.auto_awesome),
-                        SizedBox(width: 8),
-                        Text('AI timer'),
-                      ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // Camera button
+                GestureDetector(
+                  onTap: (workout.isParsing || workout.isExtractingFromImage) ? null : () {
+                    // Redirect to login if not authenticated
+                    if (!auth.isAuthenticated) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const LoginScreen()),
+                      );
+                      return;
+                    }
+                    _showImagePickerModal(context, workout);
+                  },
+                  child: Container(
+                    width: 64,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: AppColors.cardBackground,
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(color: AppColors.border),
                     ),
+                    child: Icon(
+                      Icons.camera_alt,
+                      color: (workout.isParsing || workout.isExtractingFromImage)
+                          ? AppColors.textMuted
+                          : AppColors.primary,
+                    ),
+                  ),
+                ),
+              ],
             ),
 
-            // Saved Timers section
+            // Saved timers section
             if (auth.isAuthenticated) ...[
               const SizedBox(height: 24),
               Text(
-                'Saved Timers',
+                'Saved timers',
                 style: AppTextStyles.label,
               ),
               const SizedBox(height: 8),
@@ -942,7 +1067,7 @@ class _TimerScreenState extends State<TimerScreen> {
                   ),
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 32),
 
                 // Timer controls (only show inline when notes not expanded)
                 AnimatedSwitcher(
@@ -1118,24 +1243,48 @@ class _TimerScreenState extends State<TimerScreen> {
             ),
             // Total time display
             Positioned(
-              top: timerSize * 0.22,
-              child: Text(
-                'Total: ${workout.formattedElapsedTime}',
-                style: AppTextStyles.bodySmall.copyWith(
-                  color: AppColors.textMuted,
-                ),
+              top: timerSize * 0.18,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Total: ${workout.formattedElapsedTime}',
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Work: ${workout.formattedTotalWorkTime}',
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                ],
               ),
             ),
           ]
           // Other bottom text (Total, Round X of Y, Counter)
           else if (isWorkRest)
             Positioned(
-              bottom: timerSize * 0.28,
-              child: Text(
-                'Total: ${workout.formattedElapsedTime}',
-                style: AppTextStyles.bodySmall.copyWith(
-                  color: AppColors.textMuted,
-                ),
+              bottom: timerSize * 0.24,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Total: ${workout.formattedElapsedTime}',
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Work: ${workout.formattedTotalWorkTime}',
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                ],
               ),
             )
           else if (showRounds) ...[
@@ -1149,13 +1298,32 @@ class _TimerScreenState extends State<TimerScreen> {
               ),
             ),
             Positioned(
-              top: timerSize * 0.22,
-              child: Text(
-                'Total: ${workout.formattedElapsedTime}',
-                style: AppTextStyles.bodySmall.copyWith(
-                  color: AppColors.textMuted,
-                ),
-              ),
+              top: workout.totalRestRounds > 0 ? timerSize * 0.18 : timerSize * 0.22,
+              child: workout.totalRestRounds > 0
+                  ? Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Total: ${workout.formattedElapsedTime}',
+                          style: AppTextStyles.bodySmall.copyWith(
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Work: ${workout.formattedTotalWorkTime}',
+                          style: AppTextStyles.bodySmall.copyWith(
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                      ],
+                    )
+                  : Text(
+                      'Total: ${workout.formattedElapsedTime}',
+                      style: AppTextStyles.bodySmall.copyWith(
+                        color: AppColors.textMuted,
+                      ),
+                    ),
             ),
           ]
           else if (showManualCounter) ...[

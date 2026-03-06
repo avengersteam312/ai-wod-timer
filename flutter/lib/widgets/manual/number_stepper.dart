@@ -5,8 +5,8 @@ import '../../theme/app_theme.dart';
 /// A number stepper with +/- buttons for single values.
 ///
 /// Displays a number with decrease/increase buttons on sides.
-/// Tap on the value to enter it directly via numeric keyboard.
-class NumberStepper extends StatelessWidget {
+/// Tap on the value to edit it inline with numeric keyboard.
+class NumberStepper extends StatefulWidget {
   final int value;
   final ValueChanged<int> onChanged;
   final int minValue;
@@ -24,68 +24,95 @@ class NumberStepper extends StatelessWidget {
     this.suffix,
   });
 
+  @override
+  State<NumberStepper> createState() => _NumberStepperState();
+}
+
+class _NumberStepperState extends State<NumberStepper> {
+  bool _editing = false;
+  late TextEditingController _controller;
+  final FocusNode _focusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController();
+    _focusNode.addListener(_onFocusChange);
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_onFocusChange);
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _onFocusChange() {
+    if (!_focusNode.hasFocus && _editing) {
+      _submitValue();
+    }
+  }
+
+  int _getCurrentValue() {
+    // If editing, use the current edited value
+    if (_editing) {
+      return int.tryParse(_controller.text) ?? widget.value;
+    }
+    return widget.value;
+  }
+
   void _decrease() {
-    final newValue = value - step;
-    if (newValue >= minValue) {
-      onChanged(newValue);
+    final current = _getCurrentValue();
+    final newValue = current - widget.step;
+    if (newValue >= widget.minValue) {
+      widget.onChanged(newValue);
+      _updateControllerIfEditing(newValue);
     }
   }
 
   void _increase() {
-    final newValue = value + step;
-    if (newValue <= maxValue) {
-      onChanged(newValue);
+    final current = _getCurrentValue();
+    final newValue = current + widget.step;
+    if (newValue <= widget.maxValue) {
+      widget.onChanged(newValue);
+      _updateControllerIfEditing(newValue);
     }
   }
 
-  void _showInputDialog(BuildContext context) {
-    final text = value.toString();
-    final controller = TextEditingController(text: text);
-    controller.selection = TextSelection(baseOffset: 0, extentOffset: text.length);
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.cardBackground,
-        title: Text('Enter Value', style: AppTextStyles.h3),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          autofocus: true,
-          textAlign: TextAlign.center,
-          style: AppTextStyles.h2,
-          decoration: InputDecoration(
-            hintText: '$minValue - $maxValue',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-          onSubmitted: (text) {
-            _submitValue(ctx, text);
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => _submitValue(ctx, controller.text),
-            child: const Text('Done'),
-          ),
-        ],
-      ),
-    );
+  void _updateControllerIfEditing(int newValue) {
+    if (_editing) {
+      _controller.text = newValue.toString();
+      _controller.selection = TextSelection.collapsed(offset: _controller.text.length);
+    }
   }
 
-  void _submitValue(BuildContext context, String text) {
-    final parsed = int.tryParse(text);
+  void _startEditing() {
+    final wasEditing = _editing;
+    setState(() {
+      _editing = true;
+      if (!wasEditing) {
+        _controller.text = widget.value.toString();
+      }
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _focusNode.requestFocus();
+      _controller.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: _controller.text.length,
+      );
+      SystemChannels.textInput.invokeMethod('TextInput.show');
+    });
+  }
+
+  void _submitValue() {
+    if (!_editing) return;
+    final parsed = int.tryParse(_controller.text);
     if (parsed != null) {
-      final clamped = parsed.clamp(minValue, maxValue);
-      onChanged(clamped);
+      final clamped = parsed.clamp(widget.minValue, widget.maxValue);
+      widget.onChanged(clamped);
     }
-    Navigator.pop(context);
+    setState(() => _editing = false);
   }
 
   @override
@@ -93,32 +120,58 @@ class NumberStepper extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        // Decrease button
         _StepperButton(
           icon: Icons.remove,
-          onTap: value > minValue ? _decrease : null,
+          onTap: widget.value > widget.minValue ? _decrease : null,
         ),
         const SizedBox(width: 16),
-        // Value display - tappable for direct input
         GestureDetector(
-          onTap: () => _showInputDialog(context),
+          onTap: _startEditing,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            width: 90,
+            padding: const EdgeInsets.symmetric(vertical: 12),
             decoration: BoxDecoration(
               color: AppColors.cardBackground,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '$value',
-                  style: AppTextStyles.h2,
-                ),
-                if (suffix != null) ...[
+            child: Center(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _editing ? _controller.text : '${widget.value}',
+                    style: AppTextStyles.h2.copyWith(
+                      color: _editing ? AppColors.primary : null,
+                    ),
+                  ),
+                // Hidden EditableText for keyboard input
+                if (_editing)
+                  SizedBox(
+                    width: 0,
+                    height: 0,
+                    child: EditableText(
+                      controller: _controller,
+                      focusNode: _focusNode,
+                      keyboardType: TextInputType.number,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 1),
+                      cursorColor: Colors.transparent,
+                      backgroundCursorColor: Colors.transparent,
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      enableInteractiveSelection: false,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(2),
+                      ],
+                      onSubmitted: (_) => _submitValue(),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ),
+                if (widget.suffix != null) ...[
                   const SizedBox(width: 8),
                   Text(
-                    suffix!,
+                    widget.suffix!,
                     style: AppTextStyles.body.copyWith(
                       color: AppColors.textSecondary,
                     ),
@@ -128,11 +181,11 @@ class NumberStepper extends StatelessWidget {
             ),
           ),
         ),
+        ),
         const SizedBox(width: 16),
-        // Increase button
         _StepperButton(
           icon: Icons.add,
-          onTap: value < maxValue ? _increase : null,
+          onTap: widget.value < widget.maxValue ? _increase : null,
         ),
       ],
     );
