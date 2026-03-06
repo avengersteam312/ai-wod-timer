@@ -14,6 +14,7 @@ from app.schemas.workout import WorkoutType
 from app.prompts import prompt_manager
 from app.prompts.classifier import CLASSIFIER_PROMPT
 from app.config import settings
+from app.services.workout_type_classifier import workout_type_classifier
 
 
 # --- Classification Agent Schemas ---
@@ -136,25 +137,32 @@ async def run_workflow(workflow_input: WorkflowInput) -> dict:
     with trace("AI Workout Timer"):
         workout_text = workflow_input.workout_text
 
-        # Step 1: Classify workout type
-        classify_result = await Runner.run(
-            classify_agent,
-            input=[
-                {
-                    "role": "user",
-                    "content": [{"type": "input_text", "text": workout_text}],
-                }
-            ],
-            run_config=RunConfig(
-                trace_metadata={
-                    "__trace_source__": "workout-parser",
-                    "step": "classify",
-                }
-            ),
-        )
+        # Step 1: Try local regex classifier first (free, instant)
+        local_type = workout_type_classifier.classify(workout_text)
 
-        category = classify_result.final_output.category
-        workout_type = _get_workout_type_from_category(category)
+        if local_type != WorkoutType.CUSTOM:
+            # Confident match — skip AI classifier
+            workout_type = local_type
+        else:
+            # Ambiguous — fall back to AI classifier
+            classify_result = await Runner.run(
+                classify_agent,
+                input=[
+                    {
+                        "role": "user",
+                        "content": [{"type": "input_text", "text": workout_text}],
+                    }
+                ],
+                run_config=RunConfig(
+                    trace_metadata={
+                        "__trace_source__": "workout-parser",
+                        "step": "classify",
+                    }
+                ),
+            )
+
+            category = classify_result.final_output.category
+            workout_type = _get_workout_type_from_category(category)
 
         # Step 2: Get type-specific prompts
         workout_prompt = prompt_manager.get_workout_prompt(workout_type)
