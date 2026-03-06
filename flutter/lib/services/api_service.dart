@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -157,7 +158,9 @@ class ApiService {
               statusCode: 408,
             ),
           );
-      return _handleResponse(response);
+      final result = _handleResponse(response);
+      debugPrint('[parseWorkout] workout_type: ${result['workout_type']}');
+      return result;
     } catch (e) {
       if (e is ApiException) rethrow;
       throw ApiException('Network error: ${e.toString()}');
