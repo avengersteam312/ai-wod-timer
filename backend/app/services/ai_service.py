@@ -3,7 +3,8 @@ from app.config import settings
 from app.schemas.workout import WorkoutType
 from app.prompts import prompt_manager
 import json
-from typing import Dict, Any, Optional
+import base64
+from typing import Dict, Any, Optional, Tuple
 
 
 class AIService:
@@ -64,6 +65,77 @@ class AIService:
 
         except Exception as e:
             raise Exception(f"AI parsing failed: {str(e)}")
+
+    async def extract_text_from_image(self, image_data: bytes, content_type: str) -> Tuple[str, str]:
+        """
+        Use GPT-4o-mini Vision to extract workout text from an image.
+        This is step 1 of a two-step process - just extracts text, doesn't parse.
+
+        Args:
+            image_data: Raw image bytes.
+            content_type: MIME type of the image (e.g., 'image/jpeg', 'image/png').
+
+        Returns:
+            Tuple of (extracted_text, workout_name).
+        """
+        base64_image = base64.b64encode(image_data).decode('utf-8')
+
+        # Minimal prompt - extract PRIMARY workout text only
+        system_prompt = """Extract the PRIMARY workout text from the image.
+Return JSON: {"text": "extracted text here", "name": "workout name if visible"}
+
+IMPORTANT:
+- Extract only the FIRST/MAIN workout if multiple options are shown
+- SKIP sections labeled "Scaling", "Scaled", "Beginner", "Alternative", or similar - choose first/main workout only
+- Preserve line breaks
+- Include: workout name, sets/rounds, work time, rest time, movements
+
+If no workout text is visible, return: {"error": "No workout text found"}"""
+
+        try:
+            response = await self.client.chat.completions.create(
+                model=settings.AI_VISION_MODEL,
+                max_tokens=1000,
+                response_format={"type": "json_object"},
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Extract the workout text from this image."
+                            },
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:{content_type};base64,{base64_image}",
+                                    "detail": "auto"  # Let OpenAI choose optimal resolution
+                                }
+                            }
+                        ]
+                    }
+                ],
+                temperature=0,
+                timeout=15.0,
+            )
+
+            content = response.choices[0].message.content
+
+            if "```json" in content:
+                content = content.split("```json")[1].split("```")[0].strip()
+            elif "```" in content:
+                content = content.split("```")[1].split("```")[0].strip()
+
+            result = json.loads(content)
+
+            if "error" in result:
+                raise ValueError(result["error"])
+
+            return result.get("text", ""), result.get("name", "Workout")
+
+        except Exception as e:
+            raise Exception(f"Text extraction failed: {str(e)}")
 
     async def generate_audio_cues(
         self, workout_type: str, duration: int, intervals: list

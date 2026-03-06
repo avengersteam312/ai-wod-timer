@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/app_config.dart';
 
@@ -155,6 +157,70 @@ class ApiService {
               statusCode: 408,
             ),
           );
+      return _handleResponse(response);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException('Network error: ${e.toString()}');
+    }
+  }
+
+  // AI Workout Parsing from Image (Vision API)
+  Future<Map<String, dynamic>> parseWorkoutFromImage(File imageFile) async {
+    try {
+      final uri = Uri.parse('$_baseUrl/api/v1/timer/parse-image');
+
+      // Create multipart request
+      final request = http.MultipartRequest('POST', uri);
+
+      // Add auth header if available
+      try {
+        final session = Supabase.instance.client.auth.currentSession;
+        if (session != null) {
+          request.headers['Authorization'] = 'Bearer ${session.accessToken}';
+        }
+      } catch (_) {
+        // Supabase not initialized, skip auth header
+      }
+
+      // Add the image file
+      final fileName = imageFile.path.split('/').last;
+      final extension = fileName.split('.').last.toLowerCase();
+      String mimeType;
+      switch (extension) {
+        case 'jpg':
+        case 'jpeg':
+          mimeType = 'image/jpeg';
+          break;
+        case 'png':
+          mimeType = 'image/png';
+          break;
+        case 'webp':
+          mimeType = 'image/webp';
+          break;
+        case 'gif':
+          mimeType = 'image/gif';
+          break;
+        default:
+          mimeType = 'image/jpeg';
+      }
+
+      request.files.add(await http.MultipartFile.fromPath(
+        'file',
+        imageFile.path,
+        contentType: MediaType.parse(mimeType),
+      ));
+
+      // Send request with timeout
+      final streamedResponse = await request.send().timeout(
+        const Duration(seconds: 60),
+        onTimeout: () => throw ApiException(
+          'Request timed out. The image may be too large or the server is busy.',
+          statusCode: 408,
+        ),
+      );
+
+      // Convert streamed response to regular response
+      final response = await http.Response.fromStream(streamedResponse);
       return _handleResponse(response);
     } catch (e) {
       if (e is ApiException) rethrow;
