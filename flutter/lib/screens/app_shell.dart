@@ -40,9 +40,10 @@ class _AppShellState extends State<AppShell> {
       return;
     }
 
-    // If coming back to AI Timer tab with active timer, show timer view
+    // Returning to Dashboard with an active workout should show the dashboard
+    // with a clear resume card instead of jumping straight into the timer view.
     if (index == 1 && _currentIndex != 1 && workout.currentWorkout != null) {
-      workout.setShowInputOverride(false);
+      workout.setShowInputOverride(true);
     }
 
     setState(() {
