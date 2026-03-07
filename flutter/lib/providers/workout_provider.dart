@@ -5,7 +5,7 @@ import 'package:uuid/uuid.dart';
 import '../models/workout.dart';
 import '../models/movement.dart';
 import '../models/workout_session.dart';
-import '../services/api_service.dart';
+import '../services/api_service.dart' show ApiService, ApiException;
 import '../services/audio_service.dart';
 import '../services/haptics_service.dart';
 import '../services/sync_service.dart';
@@ -427,42 +427,20 @@ class WorkoutProvider with ChangeNotifier {
     }
   }
 
-  // Parse workout from image using Vision API
+  /// Parse workout from an image file (e.g. whiteboard photo). Stub until backend supports it.
   Future<void> parseWorkoutFromImage(File imageFile) async {
     try {
       _isExtractingFromImage = true;
       _parseError = null;
       notifyListeners();
-
-      final result = await _apiService.parseWorkoutFromImage(imageFile);
-
-      // Validate raw API response for invalid durations
-      if (_hasInvalidApiResponse(result)) {
-        _parseError = 'Invalid timer configuration. Please try again.';
-        _isExtractingFromImage = false;
-        notifyListeners();
-        return;
-      }
-
-      // Use extracted text from Vision API for notes display
-      _workoutInput = result['raw_text'] as String? ?? '';
-      final workout = _createWorkoutFromResponse(result);
-
-      _currentWorkout = workout;
-      _loadedFromWorkoutId = null;
-      _showInputOverride = false;
-      _isExtractingFromImage = false;
-      notifyListeners();
-    } catch (e, stackTrace) {
-      debugPrint('[WorkoutProvider] parseWorkoutFromImage error: $e');
-      debugPrint('[WorkoutProvider] parseWorkoutFromImage stackTrace: $stackTrace');
-      _parseError = _getParseErrorMessage(e, isImage: true);
+      // TODO: when backend has an image parse endpoint, send image (e.g. base64) and set _currentWorkout from response
+      _parseError = 'Image parsing is not yet supported. Use text input or paste a WOD.';
+    } finally {
       _isExtractingFromImage = false;
       notifyListeners();
     }
   }
 
-  /// Helper to check if a duration value is invalid (1-4 seconds)
   bool _isInvalidDuration(dynamic value) {
     if (value == null) return false;
     int? duration;
@@ -475,17 +453,11 @@ class WorkoutProvider with ChangeNotifier {
     return duration > 0 && duration < 5;
   }
 
-  /// Checks if API response has invalid or missing timer configuration
-  /// Returns true if the configuration is invalid
   bool _hasInvalidApiResponse(Map<String, dynamic> response) {
-    // Check for invalid durations (1-4 seconds)
     if (_isInvalidDuration(response['duration'])) return true;
     if (_isInvalidDuration(response['duration_seconds'])) return true;
 
-    // Check timer_config fields
     final timerConfig = response['timer_config'] as Map<String, dynamic>?;
-
-    // Reject if no timer_config at all
     if (timerConfig == null) return true;
 
     if (_isInvalidDuration(timerConfig['duration'])) return true;
@@ -494,7 +466,6 @@ class WorkoutProvider with ChangeNotifier {
     if (_isInvalidDuration(timerConfig['rest_seconds'])) return true;
     if (_isInvalidDuration(timerConfig['interval_seconds'])) return true;
 
-    // Check intervals array
     final intervals = timerConfig['intervals'] as List<dynamic>?;
     if (intervals != null) {
       for (final interval in intervals) {
@@ -504,8 +475,6 @@ class WorkoutProvider with ChangeNotifier {
       }
     }
 
-    // Reject if no valid duration configuration exists
-    // Must have either: intervals with duration, or total_seconds, or work_seconds
     final hasIntervals = intervals != null && intervals.isNotEmpty;
     final hasTotalSeconds = timerConfig['total_seconds'] != null;
     final hasWorkSeconds = timerConfig['work_seconds'] != null;
@@ -521,8 +490,6 @@ class WorkoutProvider with ChangeNotifier {
   String _getParseErrorMessage(dynamic e, {bool isImage = false}) {
     final msg = e.toString();
 
-    // Cold start (Render etc.): only when the error is from our API (ApiException)
-    // with a cold-start status code or timeout message.
     final isApiException = e is ApiException;
     final statusCode = e is ApiException ? e.statusCode : null;
     final isColdStart =
@@ -1033,7 +1000,9 @@ class WorkoutProvider with ChangeNotifier {
     return false;
   }
 
-  Future<void> saveWorkout(Workout workout) async {
+  /// Saves the workout locally and, when online, to Supabase.
+  /// Returns true if synced to remote, false if saved offline (will sync later).
+  Future<bool> saveWorkout(Workout workout) async {
     try {
       final syncedToRemote = await _syncService.saveWorkout(workout);
       // Only link sessions to this workout when it exists in Supabase (avoids
@@ -1041,6 +1010,7 @@ class WorkoutProvider with ChangeNotifier {
       if (syncedToRemote && _currentWorkout?.id == workout.id) {
         _loadedFromWorkoutId = workout.id;
       }
+      return syncedToRemote;
     } catch (e) {
       debugPrint('Failed to save workout: $e');
       rethrow;

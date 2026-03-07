@@ -1,11 +1,10 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:image_picker/image_picker.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/workout_provider.dart';
 import '../../providers/video_provider.dart';
@@ -24,6 +23,8 @@ import '../../utils/snackbar_utils.dart';
 import '../../screens/video/video_recording_screen.dart';
 
 enum NotesState { closed, minimized, full }
+
+enum DashboardCreateMode { text, image }
 
 class TimerScreen extends StatefulWidget {
   final VoidCallback? onNavigateToManual;
@@ -53,6 +54,11 @@ class _TimerScreenState extends State<TimerScreen> {
 
   // Save workout state
   bool _isSaved = false;
+  bool _showSaveSuccess = false;
+  /// True when the last save was offline (toast shows "Saved offline. Will sync when online.").
+  bool _savedOffline = false;
+  String? _saveError;
+
   /// When true, after save or "Don't save" we go back to input view.
   bool _saveThenExit = false;
 
@@ -72,12 +78,15 @@ class _TimerScreenState extends State<TimerScreen> {
 
   // Drag-to-delete state
   bool _isDraggingTimer = false;
+  bool _isOverTrash = false;
 
   // Swipe to edit animation
   double _swipeOffset = 0;
   bool _isSwipingToEdit = false;
 
-  static const int _maxSavedWorkoutsDisplay = 12;
+  static const int _maxSavedWorkoutsDisplay = 9;
+
+  DashboardCreateMode _createMode = DashboardCreateMode.text;
 
   // Track previous parseError to detect changes
   String? _lastParseError;
@@ -99,7 +108,8 @@ class _TimerScreenState extends State<TimerScreen> {
   void didUpdateWidget(covariant TimerScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     // Refresh saved workouts when user returns to Dashboard tab so list is up to date
-    final becameVisible = widget.isDashboardVisible && !oldWidget.isDashboardVisible;
+    final becameVisible =
+        widget.isDashboardVisible && !oldWidget.isDashboardVisible;
     if (becameVisible && mounted) {
       // Clear old status messages
       setState(() {
@@ -175,7 +185,8 @@ class _TimerScreenState extends State<TimerScreen> {
   }
 
   /// Open save prompt when ending session (X button).
-  void _openEndSessionSavePrompt(BuildContext context, WorkoutProvider workout) {
+  void _openEndSessionSavePrompt(
+      BuildContext context, WorkoutProvider workout) {
     // If workout is still running, pause it first
     if (workout.isRunning || workout.isRest || workout.isCountdown) {
       workout.pauseTimer();
@@ -229,12 +240,19 @@ class _TimerScreenState extends State<TimerScreen> {
           createdAt: currentWorkout.createdAt,
           isFavorite: false,
         );
-        await workout.saveWorkout(workoutToSave).timeout(const Duration(seconds: 10));
+        final synced = await workout
+            .saveWorkout(workoutToSave)
+            .timeout(const Duration(seconds: 10));
+        if (mounted) {
+          setState(() => _savedOffline = !synced);
+        }
         return true;
       },
       onSaveSuccess: () {
         _isSaved = true;
-        // Refresh saved workouts list
+        if (mounted) {
+          setState(() => _showSaveSuccess = true);
+        }
         if (userId != null && mounted) {
           _loadSavedWorkouts(userId);
         }
@@ -332,6 +350,47 @@ class _TimerScreenState extends State<TimerScreen> {
     }
   }
 
+  List<Workout> get _prioritizedSavedWorkouts {
+    final workouts = List<Workout>.from(_savedWorkouts);
+    workouts.sort((a, b) {
+      if (a.isFavorite != b.isFavorite) {
+        return a.isFavorite ? -1 : 1;
+      }
+
+      final bTimestamp = _primaryWorkoutTimestamp(b);
+      final aTimestamp = _primaryWorkoutTimestamp(a);
+      final byDate = bTimestamp.compareTo(aTimestamp);
+      if (byDate != 0) return byDate;
+
+      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
+    return workouts;
+  }
+
+  DateTime _primaryWorkoutTimestamp(Workout workout) {
+    return workout.updatedAt ?? workout.createdAt;
+  }
+
+  bool _ensureAuthenticated() {
+    final auth = context.read<AuthProvider>();
+    if (auth.isAuthenticated) return true;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+    );
+    return false;
+  }
+
+  String _activeWorkoutStateLabel(WorkoutProvider workout) {
+    if (workout.isCompleted) return 'Completed';
+    if (workout.isPaused) return 'Paused';
+    if (workout.isCountdown) return 'Countdown';
+    if (workout.isRest) return 'Rest';
+    if (workout.isRunning) return 'In progress';
+    return 'Ready to start';
+  }
+
   String _combineNotesWithDescription(Workout workout) {
     final description = workout.rawInput?.trim() ?? '';
     final notes = workout.notes?.trim() ?? '';
@@ -402,7 +461,8 @@ class _TimerScreenState extends State<TimerScreen> {
                   leading: IconButton(
                     icon: const Icon(Icons.close),
                     tooltip: 'Cancel timer',
-                    onPressed: () => _openEndSessionSavePrompt(context, workout),
+                    onPressed: () =>
+                        _openEndSessionSavePrompt(context, workout),
                   ),
                   title: Text(
                     workout.currentWorkout!.type.displayName.toUpperCase(),
@@ -435,7 +495,8 @@ class _TimerScreenState extends State<TimerScreen> {
                     if (_isOffline)
                       Container(
                         margin: const EdgeInsets.symmetric(horizontal: 4),
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
                           color: AppColors.warning.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(12),
@@ -443,7 +504,7 @@ class _TimerScreenState extends State<TimerScreen> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(
+                            const Icon(
                               Icons.cloud_off,
                               size: 14,
                               color: AppColors.warning,
@@ -461,7 +522,9 @@ class _TimerScreenState extends State<TimerScreen> {
                     // Voice toggle button
                     IconButton(
                       icon: Icon(
-                        _audioService.isMuted ? Icons.volume_off : Icons.volume_up,
+                        _audioService.isMuted
+                            ? Icons.volume_off
+                            : Icons.volume_up,
                       ),
                       tooltip: _audioService.isMuted ? 'Unmute' : 'Mute',
                       onPressed: () {
@@ -483,77 +546,127 @@ class _TimerScreenState extends State<TimerScreen> {
               SafeArea(
                 child: Column(
               children: [
+                // Save success toast
+                if (_showSaveSuccess)
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    margin:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: _savedOffline
+                          ? AppColors.warning.withValues(alpha: 0.2)
+                          : AppColors.success.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: _savedOffline
+                            ? AppColors.warning.withValues(alpha: 0.3)
+                            : AppColors.success.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          _savedOffline ? Icons.cloud_off : Icons.check_circle,
+                          color: _savedOffline
+                              ? AppColors.warning
+                              : AppColors.success,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            _savedOffline
+                                ? 'Saved offline. Will sync when online.'
+                                : 'Workout saved successfully!',
+                            style: AppTextStyles.body.copyWith(
+                              color: _savedOffline
+                                  ? AppColors.warning
+                                  : AppColors.success,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 18),
+                          onPressed: () {
+                            setState(() => _showSaveSuccess = false);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                // Main content
                 Expanded(
-                  child: (workout.currentWorkout == null || workout.showInputOverride)
+                  child: (workout.currentWorkout == null ||
+                          workout.showInputOverride)
                       ? _buildInputView(context, workout)
                       : GestureDetector(
-                          onHorizontalDragStart: (details) {
+                          onHorizontalDragStart: (_) {
                             setState(() => _isSwipingToEdit = true);
                           },
                           onHorizontalDragUpdate: (details) {
                             if (_isSwipingToEdit) {
-                              final screenWidth = MediaQuery.of(context).size.width;
+                              final screenWidth =
+                                  MediaQuery.of(context).size.width;
                               setState(() {
-                                // Track swipes in both directions
-                                _swipeOffset = (_swipeOffset + details.delta.dx).clamp(
-                                  workout.isIdle ? -screenWidth : 0.0,  // Left only when idle
-                                  screenWidth,  // Right always allowed
+                                _swipeOffset = (_swipeOffset + details.delta.dx)
+                                    .clamp(
+                                  workout.isIdle ? -screenWidth : 0.0,
+                                  screenWidth,
                                 );
                               });
                             }
                           },
                           onHorizontalDragEnd: (details) {
-                            final screenWidth = MediaQuery.of(context).size.width;
+                            final screenWidth =
+                                MediaQuery.of(context).size.width;
                             final swipeThreshold = screenWidth * 0.5;
 
-                            // Swipe right → go to camera (animate off screen first)
                             if (_swipeOffset >= swipeThreshold ||
-                                (details.primaryVelocity != null && details.primaryVelocity! > 300)) {
-                              // Animate off screen to the right
+                                (details.primaryVelocity != null &&
+                                    details.primaryVelocity! > 300)) {
                               setState(() {
                                 _swipeOffset = screenWidth;
                                 _isSwipingToEdit = false;
                               });
-                              // Navigate after animation completes
-                              Future.delayed(const Duration(milliseconds: 200), () {
+                              Future.delayed(
+                                  const Duration(milliseconds: 200), () {
                                 if (mounted) {
                                   Navigator.push(
                                     context,
                                     PageRouteBuilder(
-                                      pageBuilder: (context, animation, secondaryAnimation) =>
+                                      pageBuilder: (context, animation,
+                                              secondaryAnimation) =>
                                           const VideoRecordingScreen(),
-                                      transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                                        return child; // No animation needed, timer already slid out
-                                      },
+                                      transitionsBuilder: (context, animation,
+                                              secondaryAnimation, child) =>
+                                          child,
                                     ),
                                   );
-                                  // Reset for when returning
                                   setState(() => _swipeOffset = 0);
                                 }
                               });
                               return;
                             }
 
-                            // Swipe left → edit timer (only when idle and swiped >= threshold)
                             if (_swipeOffset.abs() >= swipeThreshold &&
                                 workout.isIdle &&
                                 widget.onNavigateToManualForEdit != null) {
-                              // Animate off screen first
                               setState(() {
                                 _swipeOffset = -screenWidth;
                                 _isSwipingToEdit = false;
                               });
-                              // Navigate after animation completes
-                              Future.delayed(const Duration(milliseconds: 200), () {
+                              Future.delayed(
+                                  const Duration(milliseconds: 200), () {
                                 if (mounted) {
-                                  workout.setPendingEdit(workout.currentWorkout!);
+                                  workout.setPendingEdit(
+                                      workout.currentWorkout!);
                                   widget.onNavigateToManualForEdit!();
-                                  // Reset for when returning
                                   setState(() => _swipeOffset = 0);
                                 }
                               });
                             } else {
-                              // Reset swipe state
                               setState(() {
                                 _swipeOffset = 0;
                                 _isSwipingToEdit = false;
@@ -567,10 +680,14 @@ class _TimerScreenState extends State<TimerScreen> {
                             });
                           },
                           child: AnimatedContainer(
-                            duration: _isSwipingToEdit ? Duration.zero : const Duration(milliseconds: 200),
+                            duration: _isSwipingToEdit
+                                ? Duration.zero
+                                : const Duration(milliseconds: 200),
                             curve: Curves.easeOut,
-                            transform: Matrix4.translationValues(_swipeOffset, 0, 0),
-                            child: _buildTimerView(context, workout, videoProvider),
+                            transform: Matrix4.translationValues(
+                                _swipeOffset, 0, 0),
+                            child: _buildTimerView(
+                                context, workout, videoProvider),
                           ),
                         ),
                 ),
@@ -598,8 +715,12 @@ class _TimerScreenState extends State<TimerScreen> {
       });
     }
 
-    final displayedSaved = _savedWorkouts.take(_maxSavedWorkoutsDisplay).toList();
-    final savedOverflow = _savedWorkouts.length - _maxSavedWorkoutsDisplay;
+    final prioritizedSaved = _prioritizedSavedWorkouts;
+    final displayedSaved =
+        prioritizedSaved.take(_maxSavedWorkoutsDisplay).toList();
+    final hasSavedTimers = auth.isAuthenticated &&
+        _savedWorkoutsLoaded &&
+        prioritizedSaved.isNotEmpty;
 
     return Stack(
       children: [
@@ -607,228 +728,614 @@ class _TimerScreenState extends State<TimerScreen> {
           behavior: HitTestBehavior.opaque,
           onTap: () => FocusScope.of(context).unfocus(),
           child: SingleChildScrollView(
-        controller: _scrollController,
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Section label
-            Text(
-              'Create your timer.',
-              style: AppTextStyles.h4,
+            controller: _scrollController,
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (workout.currentWorkout != null) ...[
+                  _buildActiveWorkoutCard(workout),
+                  const SizedBox(height: 24),
+                ],
+                _buildCreateTimerCard(context, workout, auth.isAuthenticated),
+                if (auth.isAuthenticated) ...[
+                  const SizedBox(height: 28),
+                  const Text(
+                    'Saved timers',
+                    style: AppTextStyles.label,
+                  ),
+                  const SizedBox(height: 10),
+                  if (_savedWorkoutsLoading)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Text(
+                        'Loading your saved timers...',
+                        style: AppTextStyles.bodySmall.copyWith(
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                    )
+                  else if (_savedWorkoutsError != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Text(
+                        _savedWorkoutsError!,
+                        style: AppTextStyles.bodySmall.copyWith(
+                          color: AppColors.error,
+                        ),
+                      ),
+                    )
+                  else if (hasSavedTimers)
+                    GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: displayedSaved.length,
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 3,
+                        crossAxisSpacing: 10,
+                        mainAxisSpacing: 10,
+                        childAspectRatio: 1.25,
+                      ),
+                      itemBuilder: (context, index) {
+                        final savedWorkout = displayedSaved[index];
+                        return LongPressDraggable<Workout>(
+                          data: savedWorkout,
+                          onDragStarted: () {
+                            setState(() {
+                              _isDraggingTimer = true;
+                            });
+                          },
+                          onDragEnd: (_) {
+                            setState(() {
+                              _isDraggingTimer = false;
+                              _isOverTrash = false;
+                            });
+                          },
+                          onDraggableCanceled: (_, __) {
+                            setState(() {
+                              _isDraggingTimer = false;
+                              _isOverTrash = false;
+                            });
+                          },
+                          feedback: Material(
+                            color: Colors.transparent,
+                            child: SizedBox(
+                              width: 110,
+                              child: _SavedTimerQuickCard(
+                                workout: savedWorkout,
+                                onTap: () {},
+                              ),
+                            ),
+                          ),
+                          childWhenDragging: Opacity(
+                            opacity: 0.25,
+                            child: _SavedTimerQuickCard(
+                              workout: savedWorkout,
+                              onTap: () {},
+                            ),
+                          ),
+                          child: _SavedTimerQuickCard(
+                            workout: savedWorkout,
+                            onTap: () {
+                              workout.setWorkout(
+                                savedWorkout,
+                                fromSavedWorkoutId: savedWorkout.id,
+                              );
+                              workout.setShowInputOverride(false);
+                            },
+                          ),
+                        );
+                      },
+                    )
+                  else
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.cardBackground,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Text(
+                        'No saved timers yet. Your reusable templates will show up here.',
+                        style: AppTextStyles.body.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  if (prioritizedSaved.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    GestureDetector(
+                      onTap: () async {
+                        final authProvider = context.read<AuthProvider>();
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => MyWorkoutsScreen(
+                              onNavigateToTimer: () => Navigator.pop(context),
+                            ),
+                          ),
+                        );
+                        if (mounted) {
+                          final userId = authProvider.user?.id;
+                          if (userId != null) {
+                            _loadSavedWorkouts(userId);
+                          }
+                        }
+                      },
+                      child: Row(
+                        children: [
+                          Text(
+                            'View all saved timers',
+                            style: AppTextStyles.body.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          const Icon(
+                            Icons.arrow_forward,
+                            size: 16,
+                            color: AppColors.textMuted,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ],
             ),
-            const SizedBox(height: 12),
-
-            // Input field
-            TextField(
-              controller: _inputController,
-              maxLines: 5,
-              decoration: InputDecoration(
-                hintText: 'Describe your workout and we\'ll generate a custom timer for you.',
-                alignLabelWithHint: true,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              onChanged: (value) {
-                workout.setWorkoutInput(value);
+          ),
+        ),
+        if (_isDraggingTimer)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: DragTarget<Workout>(
+              onWillAcceptWithDetails: (details) {
+                setState(() => _isOverTrash = true);
+                return true;
+              },
+              onLeave: (_) {
+                setState(() => _isOverTrash = false);
+              },
+              onAcceptWithDetails: (details) async {
+                setState(() {
+                  _isOverTrash = false;
+                  _isDraggingTimer = false;
+                });
+                await _deleteWorkoutDirectly(details.data);
+              },
+              builder: (context, candidateData, rejectedData) {
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: EdgeInsets.only(
+                    top: 16,
+                    bottom: MediaQuery.of(context).padding.bottom + 16,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _isOverTrash
+                        ? AppColors.error.withValues(alpha: 0.3)
+                        : AppColors.error.withValues(alpha: 0.1),
+                    borderRadius:
+                        const BorderRadius.vertical(top: Radius.circular(20)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.delete_outline,
+                        color: _isOverTrash
+                            ? AppColors.error
+                            : AppColors.textMuted,
+                        size: 28,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _isOverTrash
+                            ? 'Release to delete'
+                            : 'Drag here to delete',
+                        style: AppTextStyles.body.copyWith(
+                          color: _isOverTrash
+                              ? AppColors.error
+                              : AppColors.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
               },
             ),
+          ),
+      ],
+    );
+  }
 
-            const SizedBox(height: 16),
+  Widget _buildActiveWorkoutCard(WorkoutProvider workout) {
+    final currentWorkout = workout.currentWorkout!;
 
-            // Create Timer buttons row
-            Row(
-              children: [
-                // AI timer button (text input)
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: (workout.isParsing || workout.isExtractingFromImage) ? null : () {
-                      // Redirect to login if not authenticated
-                      if (!auth.isAuthenticated) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const LoginScreen()),
-                        );
-                        return;
-                      }
-                      // Validate input
-                      if (workout.workoutInput.trim().isEmpty) {
-                        AppSnackBar.showError(context, 'Please enter a workout description');
-                        return;
-                      }
-                      workout.parseWorkout();
-                    },
-                    child: (workout.isParsing || workout.isExtractingFromImage)
-                        ? Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              const Text('Creating...'),
-                            ],
-                          )
-                        : const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.auto_awesome),
-                              SizedBox(width: 8),
-                              Text('AI timer'),
-                            ],
-                          ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                // Camera button
-                GestureDetector(
-                  onTap: (workout.isParsing || workout.isExtractingFromImage) ? null : () {
-                    // Redirect to login if not authenticated
-                    if (!auth.isAuthenticated) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const LoginScreen()),
-                      );
-                      return;
-                    }
-                    _showImagePickerModal(context, workout);
-                  },
-                  child: Container(
-                    width: 64,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      color: AppColors.cardBackground,
-                      borderRadius: BorderRadius.circular(22),
-                      border: Border.all(color: AppColors.border),
-                    ),
-                    child: Icon(
-                      Icons.camera_alt,
-                      color: (workout.isParsing || workout.isExtractingFromImage)
-                          ? AppColors.textMuted
-                          : AppColors.primary,
-                    ),
-                  ),
-                ),
-              ],
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.borderLight),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Current workout',
+            style: AppTextStyles.labelSmall.copyWith(
+              color: AppColors.textMuted,
             ),
-
-            // Saved timers section
-            if (auth.isAuthenticated) ...[
-              const SizedBox(height: 24),
-              Text(
-                'Saved templates',
-                style: AppTextStyles.label,
-              ),
-              const SizedBox(height: 8),
-              if (_savedWorkoutsLoading)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Text(
-                    'Loading...',
-                    style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
-                  ),
-                )
-              else if (_savedWorkoutsError != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Text(
-                    _savedWorkoutsError!,
-                    style: AppTextStyles.bodySmall.copyWith(color: AppColors.error),
-                  ),
-                )
-              else
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+          ),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    for (final w in displayedSaved)
-                      LongPressDraggable<Workout>(
-                        data: w,
-                        onDragStarted: () {
-                          setState(() => _isDraggingTimer = true);
-                          widget.onDragStateChanged?.call(true, onDelete: _deleteWorkoutDirectly);
-                        },
-                        onDragEnd: (_) {
-                          setState(() => _isDraggingTimer = false);
-                          widget.onDragStateChanged?.call(false);
-                        },
-                        onDraggableCanceled: (_, __) {
-                          setState(() => _isDraggingTimer = false);
-                          widget.onDragStateChanged?.call(false);
-                        },
-                        feedback: Material(
-                          elevation: 4,
-                          borderRadius: BorderRadius.circular(8),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: AppColors.cardBackground,
-                              border: Border.all(color: AppColors.primary),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              displayWorkoutName(w.name),
-                              style: AppTextStyles.bodySmall,
-                            ),
-                          ),
-                        ),
-                        childWhenDragging: Opacity(
-                          opacity: 0.3,
-                          child: _SavedTimerChip(
-                            workout: w,
-                            onTap: () {},
-                          ),
-                        ),
-                        child: _SavedTimerChip(
-                          workout: w,
-                          onTap: () {
-                            workout.setWorkout(w, fromSavedWorkoutId: w.id);
-                            workout.setShowInputOverride(false);
-                          },
-                        ),
+                    Text(
+                      currentWorkout.name,
+                      style: AppTextStyles.h4,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '${currentWorkout.type.displayName} • ${_activeWorkoutStateLabel(workout)}',
+                      style: AppTextStyles.body.copyWith(
+                        color: AppColors.textSecondary,
                       ),
+                    ),
                   ],
                 ),
-              if (auth.isAuthenticated && savedOverflow > 0) ...[
-                const SizedBox(height: 8),
-                GestureDetector(
-                  onTap: () async {
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => MyWorkoutsScreen(
-                          onNavigateToTimer: () => Navigator.pop(context),
-                        ),
-                      ),
-                    );
-                    // Refresh list when returning from My Workouts (e.g. after delete or view)
-                    if (mounted) {
-                      final userId = context.read<AuthProvider>().user?.id;
-                      if (userId != null) _loadSavedWorkouts(userId);
-                    }
-                  },
-                  child: Text(
-                    'View all ${_savedWorkouts.length} workouts',
-                    style: AppTextStyles.bodySmall.copyWith(
-                      color: AppColors.textMuted,
-                      decoration: TextDecoration.underline,
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    workout.formattedTime,
+                    style: AppTextStyles.h3.copyWith(
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 4),
+                  Text(
+                    workout.isCompleted ? 'Done' : 'Tap to resume',
+                    style: AppTextStyles.bodySmall,
+                  ),
+                ],
+              ),
             ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                workout.setShowInputOverride(false);
+              },
+              icon: const Icon(Icons.play_circle_outline),
+              label: Text(
+                workout.isCompleted
+                    ? 'View completed timer'
+                    : 'Resume current timer',
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCreateTimerCard(
+    BuildContext context,
+    WorkoutProvider workout,
+    bool isAuthenticated,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.45)),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.primary.withValues(alpha: 0.18),
+            AppColors.cardBackground,
+            AppColors.cardBackground,
           ],
         ),
       ),
-    ),
-    ],
-  );
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildCreateModeToggle(),
+          const SizedBox(height: 18),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 180),
+            switchInCurve: Curves.easeOut,
+            switchOutCurve: Curves.easeIn,
+            child: _createMode == DashboardCreateMode.text
+                ? _buildTextCreationPane(context, workout, isAuthenticated)
+                : _buildImageCreationPane(context, workout, isAuthenticated),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCreateModeToggle() {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _DashboardModeButton(
+              label: 'Write',
+              icon: Icons.edit_outlined,
+              isSelected: _createMode == DashboardCreateMode.text,
+              onTap: () {
+                setState(() {
+                  _createMode = DashboardCreateMode.text;
+                });
+              },
+            ),
+          ),
+          Expanded(
+            child: _DashboardModeButton(
+              label: 'Photo',
+              icon: Icons.photo_camera_outlined,
+              isSelected: _createMode == DashboardCreateMode.image,
+              onTap: () {
+                setState(() {
+                  _createMode = DashboardCreateMode.image;
+                });
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTextCreationPane(
+    BuildContext context,
+    WorkoutProvider workout,
+    bool isAuthenticated,
+  ) {
+    final isBusy = workout.isParsing || workout.isExtractingFromImage;
+
+    return Column(
+      key: const ValueKey('dashboard_text_mode'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: _inputController,
+          minLines: 3,
+          maxLines: 10,
+          decoration: InputDecoration(
+            hintText:
+                'Paste a WOD, describe the workout, or add notes for the timer.',
+            alignLabelWithHint: true,
+            fillColor: AppColors.inputBackground.withValues(alpha: 0.9),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+          ),
+          onChanged: (value) {
+            workout.setWorkoutInput(value);
+          },
+        ),
+        if (workout.parseError != null) ...[
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.error.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.error_outline,
+                  color: AppColors.error,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    workout.parseError!,
+                    style: AppTextStyles.body.copyWith(
+                      color: AppColors.error,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        const SizedBox(height: 18),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: isBusy
+                ? null
+                : () {
+                    if (!isAuthenticated && !_ensureAuthenticated()) return;
+                    workout.parseWorkout();
+                  },
+            icon: isBusy
+                ? const SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.textPrimary,
+                    ),
+                  )
+                : const Icon(Icons.auto_awesome),
+            label: Text(isBusy ? 'Creating...' : 'Create timer'),
+            style: ElevatedButton.styleFrom(
+              minimumSize: const Size.fromHeight(56),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildImageCreationPane(
+    BuildContext context,
+    WorkoutProvider workout,
+    bool isAuthenticated,
+  ) {
+    final isBusy = workout.isParsing || workout.isExtractingFromImage;
+
+    Widget buildAction({
+      required IconData icon,
+      required String title,
+      required String subtitle,
+      required VoidCallback onTap,
+    }) {
+      return SizedBox(
+        width: double.infinity,
+        child: OutlinedButton(
+          onPressed: isBusy
+              ? null
+              : () {
+                  if (!isAuthenticated && !_ensureAuthenticated()) return;
+                  onTap();
+                },
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: AppColors.primary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: AppTextStyles.buttonSmall),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: AppTextStyles.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right,
+                color: AppColors.textMuted,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      key: const ValueKey('dashboard_image_mode'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        buildAction(
+          icon: Icons.photo_camera_outlined,
+          title: 'Take photo',
+          subtitle: 'Use the camera for a new whiteboard photo.',
+          onTap: () => _pickImage(ImageSource.camera, workout),
+        ),
+        const SizedBox(height: 12),
+        buildAction(
+          icon: Icons.photo_library_outlined,
+          title: 'Choose from gallery',
+          subtitle: 'Import an existing image or screenshot.',
+          onTap: () => _pickImage(ImageSource.gallery, workout),
+        ),
+        if (workout.parseError != null) ...[
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.error.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.error_outline,
+                  color: AppColors.error,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    workout.parseError!,
+                    style: AppTextStyles.body.copyWith(
+                      color: AppColors.error,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        if (isBusy) ...[
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              const SizedBox(
+                height: 18,
+                width: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'Reading your image...',
+                style: AppTextStyles.body.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
   }
 
   /// Delete workout directly (used by drag-to-delete, no confirmation needed)
@@ -853,117 +1360,95 @@ class _TimerScreenState extends State<TimerScreen> {
       children: [
         // Main content
         SingleChildScrollView(
-            controller: _scrollController,
-            physics: _notesState != NotesState.closed
-                ? const NeverScrollableScrollPhysics()
-                : null,
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-            child: Column(
-              children: [
-                const SizedBox(height: 16),
-
-                // Timer ring with vertical swipe hints at screen edges
-                SizedBox(
-                  width: MediaQuery.of(context).size.width - 48, // Full width minus padding
-                  child: Stack(
-                    alignment: Alignment.center,
-                    clipBehavior: Clip.none,
-                    children: [
-                      // Timer ring (tappable for manual counter)
-                      GestureDetector(
-                        onTap: workout.shouldShowManualCounter && workout.isRunning
-                            ? () => workout.incrementCounter()
-                            : null,
-                        child: AnimatedTimerRing(
-                          progress: workout.progress,
-                          time: workout.formattedTime,
-                          progressColor: _getTimerColor(workout),
-                          size: 300,
-                          isAnimating: workout.isRunning || workout.isRest || workout.isCountdown,
-                          centerWidget: _buildTimerCenterContent(workout, currentWorkout),
-                        ),
-                      ),
-
-                      // Left: Swipe right for camera (at left screen edge)
-                      Positioned(
-                        left: -24,
-                        child: const _VerticalSwipeHint(
-                          text: 'Swipe right for camera',
-                          isLeft: true,
-                        ),
-                      ),
-
-                      // Right: Swipe left to edit (at right screen edge, inactive when timer running)
-                      Positioned(
-                        right: -24,
-                        child: Opacity(
-                          opacity: workout.isIdle ? 1.0 : 0.3,
-                          child: const _VerticalSwipeHint(
-                            text: 'Swipe left to edit',
-                            isLeft: false,
-                          ),
-                        ),
-                      ),
-                    ],
+          controller: _scrollController,
+          physics: _notesState != NotesState.closed
+              ? const NeverScrollableScrollPhysics()
+              : null,
+          padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+          child: Column(
+            children: [
+              // Timer ring (tappable for manual counter)
+              SizedBox(
+                width: 320,
+                height: 320,
+                child: Center(
+                  child: GestureDetector(
+                    onTap: workout.shouldShowManualCounter && workout.isRunning
+                        ? () => workout.incrementCounter()
+                        : null,
+                    child: AnimatedTimerRing(
+                      progress: workout.progress,
+                      time: workout.formattedTime,
+                      progressColor: _getTimerColor(workout),
+                      size: 300,
+                      isAnimating: workout.isRunning ||
+                          workout.isRest ||
+                          workout.isCountdown,
+                      centerWidget:
+                          _buildTimerCenterContent(workout, currentWorkout),
+                    ),
                   ),
                 ),
+              ),
 
-                const SizedBox(height: 32),
+              const SizedBox(height: 32),
 
-                // Timer controls (only show inline when notes not expanded)
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 200),
-                  transitionBuilder: (child, animation) {
-                    return FadeTransition(
-                      opacity: animation,
-                      child: SlideTransition(
-                        position: Tween<Offset>(
-                          begin: const Offset(0, 0.3),
-                          end: Offset.zero,
-                        ).animate(CurvedAnimation(
-                          parent: animation,
-                          curve: Curves.easeOut,
-                        )),
-                        child: child,
+              // Timer controls (only show inline when notes not expanded)
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                transitionBuilder: (child, animation) {
+                  return FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(0, 0.3),
+                        end: Offset.zero,
+                      ).animate(CurvedAnimation(
+                        parent: animation,
+                        curve: Curves.easeOut,
+                      )),
+                      child: child,
+                    ),
+                  );
+                },
+                child: _notesState != NotesState.closed
+                    ? const SizedBox.shrink()
+                    : TimerControls(
+                        key: const ValueKey('inline_controls'),
+                        isRunning: workout.isRunning ||
+                            workout.isRest ||
+                            workout.isCountdown,
+                        isPaused: workout.isPaused,
+                        isIdle: workout.isIdle,
+                        isCompleted: workout.isCompleted,
+                        isCountdown: workout.isCountdown,
+                        isRest: workout.isRest,
+                        isNextRest: workout.isNextRest && workout.isCurrentWork,
+                        onPlayPause: () {
+                          workout.toggleTimer();
+                        },
+                        onReset: () {
+                          workout.resetTimer();
+                        },
+                        onSkip: currentWorkout.movements.isNotEmpty
+                            ? () => workout.skipMovement()
+                            : null,
+                        onComplete: () {
+                          _handleStopTimer(context, workout);
+                        },
+                        onSkipToRest: workout.isNextRest
+                            ? () => workout.completeCurrentInterval()
+                            : null,
+                        onSkipRest: workout.isRest
+                            ? () => workout.completeCurrentInterval()
+                            : null,
                       ),
-                    );
-                  },
-                  child: _notesState != NotesState.closed
-                      ? const SizedBox.shrink()
-                      : TimerControls(
-                          key: const ValueKey('inline_controls'),
-                          isRunning: workout.isRunning || workout.isRest || workout.isCountdown,
-                          isPaused: workout.isPaused,
-                          isIdle: workout.isIdle,
-                          isCompleted: workout.isCompleted,
-                          isCountdown: workout.isCountdown,
-                          isRest: workout.isRest,
-                          isNextRest: workout.isNextRest && workout.isCurrentWork,
-                          onPlayPause: () {
-                            workout.toggleTimer();
-                          },
-                          onReset: () {
-                            workout.resetTimer();
-                          },
-                          onSkip: currentWorkout.movements.isNotEmpty
-                              ? () => workout.skipMovement()
-                              : null,
-                          onComplete: () {
-                            _handleStopTimer(context, workout);
-                          },
-                          onSkipToRest: workout.isNextRest
-                              ? () => workout.completeCurrentInterval()
-                              : null,
-                          onSkipRest: workout.isRest
-                              ? () => workout.completeCurrentInterval()
-                              : null,
-                        ),
-                ),
+              ),
 
-                const SizedBox(height: 32),
-              ],
-            ),
+              const SizedBox(height: 32),
+            ],
           ),
+        ),
 
         // Notes toggle and panel (slides up from bottom)
         AnimatedPositioned(
@@ -977,7 +1462,9 @@ class _TimerScreenState extends State<TimerScreen> {
               ? 0
               : (_notesState == NotesState.minimized ? 400 : null),
           child: Column(
-            mainAxisSize: _notesState != NotesState.closed ? MainAxisSize.max : MainAxisSize.min,
+            mainAxisSize: _notesState != NotesState.closed
+                ? MainAxisSize.max
+                : MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.end,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -991,9 +1478,11 @@ class _TimerScreenState extends State<TimerScreen> {
                     builder: (context) {
                       // Only animate slide when opening or closing completely
                       // Full → Minimized is handled by AnimatedPositioned
-                      final isExitingToClose = _isNotesExiting && _notesState == NotesState.minimized;
+                      final isExitingToClose = _isNotesExiting &&
+                          _notesState == NotesState.minimized;
                       return TweenAnimationBuilder<double>(
-                        key: ValueKey('notes_panel_${isExitingToClose ? 'closing' : 'open'}'),
+                        key: ValueKey(
+                            'notes_panel_${isExitingToClose ? 'closing' : 'open'}'),
                         duration: const Duration(milliseconds: 300),
                         tween: Tween<double>(
                           begin: isExitingToClose ? 0.0 : 1.0,
@@ -1001,7 +1490,8 @@ class _TimerScreenState extends State<TimerScreen> {
                         ),
                         curve: Curves.easeInOut,
                         builder: (context, value, child) {
-                          final screenHeight = MediaQuery.of(context).size.height;
+                          final screenHeight =
+                              MediaQuery.of(context).size.height;
                           return Transform.translate(
                             offset: Offset(0, value * screenHeight * 0.6),
                             child: child,
@@ -1023,14 +1513,19 @@ class _TimerScreenState extends State<TimerScreen> {
     );
   }
 
-  Widget? _buildTimerCenterContent(WorkoutProvider workout, Workout currentWorkout) {
+  Widget? _buildTimerCenterContent(
+      WorkoutProvider workout, Workout currentWorkout) {
     final showRoundCounter = workout.shouldShowRoundCounter;
-    final showRounds = workout.totalRounds > 1 && currentWorkout.type != WorkoutType.workRest && !showRoundCounter;
+    final showRounds = workout.totalRounds > 1 &&
+        currentWorkout.type != WorkoutType.workRest &&
+        !showRoundCounter;
     final isWorkRest = currentWorkout.type == WorkoutType.workRest;
     final showManualCounter = workout.shouldShowManualCounter;
 
     // If nothing extra to show, return null (default time display)
-    if (!showRounds && !isWorkRest && !showManualCounter && !showRoundCounter) return null;
+    if (!showRounds && !isWorkRest && !showManualCounter && !showRoundCounter) {
+      return null;
+    }
 
     const double timerSize = 300;
     return SizedBox(
@@ -1057,7 +1552,9 @@ class _TimerScreenState extends State<TimerScreen> {
                   Text(
                     'Round ${workout.currentWorkRound}/${workout.totalWorkRounds}',
                     style: AppTextStyles.bodySmall.copyWith(
-                      color: workout.isCurrentWork && !workout.isIdle && !workout.isCountdown
+                      color: workout.isCurrentWork &&
+                              !workout.isIdle &&
+                              !workout.isCountdown
                           ? AppColors.timerWork
                           : AppColors.textMuted,
                     ),
@@ -1138,7 +1635,9 @@ class _TimerScreenState extends State<TimerScreen> {
               ),
             ),
             Positioned(
-              top: workout.totalRestRounds > 0 ? timerSize * 0.18 : timerSize * 0.22,
+              top: workout.totalRestRounds > 0
+                  ? timerSize * 0.18
+                  : timerSize * 0.22,
               child: workout.totalRestRounds > 0
                   ? Column(
                       mainAxisSize: MainAxisSize.min,
@@ -1165,8 +1664,7 @@ class _TimerScreenState extends State<TimerScreen> {
                       ),
                     ),
             ),
-          ]
-          else if (showManualCounter) ...[
+          ] else if (showManualCounter) ...[
             Positioned(
               bottom: timerSize * 0.28,
               child: Text(
@@ -1182,7 +1680,7 @@ class _TimerScreenState extends State<TimerScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.touch_app,
                     size: 28,
                     color: AppColors.textSecondary,
@@ -1259,7 +1757,8 @@ class _TimerScreenState extends State<TimerScreen> {
     );
   }
 
-  Widget _buildUnifiedNotesPanel(WorkoutProvider workout, String notes, bool isFull) {
+  Widget _buildUnifiedNotesPanel(
+      WorkoutProvider workout, String notes, bool isFull) {
     final notesContent = SingleChildScrollView(
       child: Align(
         alignment: Alignment.topLeft,
@@ -1402,7 +1901,8 @@ class _TimerScreenState extends State<TimerScreen> {
                 ),
               ),
               child: CompactTimerControls(
-                isRunning: workout.isRunning || workout.isRest || workout.isCountdown,
+                isRunning:
+                    workout.isRunning || workout.isRest || workout.isCountdown,
                 isPaused: workout.isPaused,
                 isIdle: workout.isIdle,
                 isCompleted: workout.isCompleted,
@@ -1433,102 +1933,81 @@ class _TimerScreenState extends State<TimerScreen> {
   }
 }
 
-/// Vertical swipe hint (like "Swipe up for notes" but rotated for sides)
-class _VerticalSwipeHint extends StatelessWidget {
-  final String text;
-  final bool isLeft; // true = left side (swipe right), false = right side (swipe left)
+class _DashboardModeButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool isSelected;
+  final VoidCallback onTap;
 
-  const _VerticalSwipeHint({
-    required this.text,
-    required this.isLeft,
+  const _DashboardModeButton({
+    required this.label,
+    required this.icon,
+    required this.isSelected,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Rotate the entire hint: left side rotates counter-clockwise, right side clockwise
-    return RotatedBox(
-      quarterTurns: isLeft ? 3 : 1,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Text first (same style as "Swipe up for notes")
-          Text(
-            text,
-            style: AppTextStyles.bodySmall,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.primary : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
           ),
-          const SizedBox(height: 8),
-          // Drag handle (like the notes handle)
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: AppColors.textMuted,
-              borderRadius: BorderRadius.circular(2),
-            ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 18,
+                color: isSelected
+                    ? AppColors.textPrimary
+                    : AppColors.textSecondary,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: AppTextStyles.buttonSmall.copyWith(
+                  color: isSelected
+                      ? AppColors.textPrimary
+                      : AppColors.textSecondary,
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 }
 
-/// Minimalistic pulsing recording dot indicator
-class _RecordingDot extends StatefulWidget {
-  @override
-  State<_RecordingDot> createState() => _RecordingDotState();
-}
-
-class _RecordingDotState extends State<_RecordingDot>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _animation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1000),
-    )..repeat(reverse: true);
-    _animation = Tween<double>(begin: 0.5, end: 1.0).animate(_controller);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+class _RecordingDot extends StatelessWidget {
+  const _RecordingDot();
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _animation,
-      builder: (context, child) {
-        return Container(
-          width: 16,
-          height: 16,
-          decoration: BoxDecoration(
-            color: AppColors.error.withValues(alpha: _animation.value),
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.error.withValues(alpha: 0.4),
-                blurRadius: 8,
-                spreadRadius: 2,
-              ),
-            ],
-          ),
-        );
-      },
+    return Container(
+      width: 10,
+      height: 10,
+      decoration: const BoxDecoration(
+        color: AppColors.error,
+        shape: BoxShape.circle,
+      ),
     );
   }
 }
 
-class _SavedTimerChip extends StatelessWidget {
+class _SavedTimerQuickCard extends StatelessWidget {
   final Workout workout;
   final VoidCallback onTap;
 
-  const _SavedTimerChip({
+  const _SavedTimerQuickCard({
     required this.workout,
     required this.onTap,
   });
@@ -1539,17 +2018,59 @@ class _SavedTimerChip extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
+            color: AppColors.cardBackground,
             border: Border.all(color: AppColors.border),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(16),
           ),
-          child: Text(
-            displayWorkoutName(workout.name),
-            style: AppTextStyles.bodySmall,
-            overflow: TextOverflow.ellipsis,
+          child: Stack(
+            children: [
+              if (workout.isFavorite)
+                const Positioned(
+                  top: 0,
+                  right: 0,
+                  child: Icon(
+                    Icons.star,
+                    size: 16,
+                    color: Colors.amber,
+                  ),
+                ),
+              Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      displayWorkoutName(workout.name),
+                      style: AppTextStyles.bodySmall.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.timer_outlined,
+                          size: 14,
+                          color: AppColors.textMuted,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          workout.formattedDuration,
+                          style: AppTextStyles.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
