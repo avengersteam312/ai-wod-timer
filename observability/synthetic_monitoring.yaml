@@ -1,0 +1,74 @@
+# Grafana Cloud Synthetic Monitoring
+# Free tier: 1-minute check interval, integrates natively with Grafana dashboards.
+# Alerts route through existing Grafana Alerting contact points — no separate channel needed.
+#
+# This file is a reference config, NOT auto-applied.
+# Apply via Option A (UI) or Option B (API) below.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# SETUP
+# ─────────────────────────────────────────────────────────────────────────────
+# 1. Create a free Grafana Cloud account at https://grafana.com/auth/sign-up
+# 2. In your stack, go to: Apps → Synthetic Monitoring → Get Started
+# 3. Enable the plugin (one-click, free)
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# OPTION A — Grafana Cloud UI (recommended, no scripting needed)
+# ─────────────────────────────────────────────────────────────────────────────
+# For each check below:
+#   Synthetic Monitoring → New Check → HTTP
+#   Fill in: Job name, Target URL, Frequency (60s), probe region, assertions
+
+# ─────────────────────────────────────────────────────────────────────────────
+# OPTION B — REST API
+# ─────────────────────────────────────────────────────────────────────────────
+# Prerequisites:
+#   GRAFANA_SM_API_KEY   — from Synthetic Monitoring → Config → API key
+#   GRAFANA_SM_TENANT_ID — from Synthetic Monitoring → Config → Tenant ID
+#   PROBE_ID             — list available probes:
+#     curl -H "Authorization: Bearer $GRAFANA_SM_API_KEY" \
+#          https://synthetic-monitoring-api.grafana.net/api/v1/probe/list
+#
+# Apply a check:
+#   curl -X POST https://synthetic-monitoring-api.grafana.net/api/v1/check/add \
+#     -H "Authorization: Bearer $GRAFANA_SM_API_KEY" \
+#     -H "Content-Type: application/json" \
+#     -d @- <<EOF
+#   <paste check payload below>
+#   EOF
+
+checks:
+  - job: backend-health
+    target: "https://YOUR_DOMAIN/health"
+    frequency: 60000    # 1 minute (milliseconds)
+    timeout: 10000      # 10 seconds
+    enabled: true
+    probes:
+      - 1               # Replace with probe ID for your preferred region
+    settings:
+      http:
+        method: GET
+        validStatusCodes:
+          - 200
+        failIfBodyNotMatchesRegexp:
+          - '"status"'  # Asserts the JSON body contains "status" key
+
+  - job: frontend
+    target: "https://YOUR_FRONTEND_DOMAIN"
+    frequency: 60000
+    timeout: 10000
+    enabled: true
+    probes:
+      - 1
+    settings:
+      http:
+        method: GET
+        validStatusCodes:
+          - 200
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ALERTS
+# ─────────────────────────────────────────────────────────────────────────────
+# Synthetic Monitoring auto-creates alert rules in Grafana Alerting.
+# Route them to your contact point (Slack / email) under:
+#   Alerting → Notification policies → Add matcher: grafana_folder = "Synthetic Monitoring"

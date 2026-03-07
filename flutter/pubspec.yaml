@@ -50,6 +50,9 @@ dependencies:
   # Environment Variables
   flutter_dotenv: ^5.1.0
 
+  # Observability
+  sentry_flutter: ^8.0.0
+
   # Video Recording
   camera: ^0.11.0+2
   video_player: ^2.9.2

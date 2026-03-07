@@ -1,21 +1,31 @@
-import logging
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.config import settings
-from app.api.v1.router import api_router
 
-logger = logging.getLogger(__name__)
+# ── OTel metrics provider must be configured BEFORE metrics.py is imported ──
+# metrics.py calls get_meter() at module level; it must find the real provider.
+from app.observability.tracing import configure_metrics, configure_tracing
+configure_metrics()
+
+# ── Structured logging ───────────────────────────────────────────────────────
+from app.observability.logging import configure_logging
+from app.config import settings
+configure_logging(log_level="DEBUG" if settings.DEBUG else "INFO")
+
+import structlog
+log = structlog.get_logger()
+
+# ── App routes (imports metrics.py transitively — provider already set) ──────
+from app.api.v1.router import api_router
+from app.observability.health import router as health_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifespan context manager for startup and shutdown events."""
-    # Startup
-    logger.info("Application starting up")
+    log.info("app.startup", service=settings.PROJECT_NAME)
     yield
-    # Shutdown
-    logger.info("Application shutting down")
+    log.info("app.shutdown", service=settings.PROJECT_NAME)
 
 
 app = FastAPI(
@@ -26,8 +36,21 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS middleware
-# Tightened configuration: only allow necessary methods and headers
+# OTel tracing — no-op when OTEL_EXPORTER_OTLP_ENDPOINT is unset
+configure_tracing(app)
+
+# Sentry — no-op when SENTRY_DSN is unset
+_sentry_dsn = os.getenv("SENTRY_DSN")
+if _sentry_dsn:
+    import sentry_sdk
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
+    sentry_sdk.init(
+        dsn=_sentry_dsn,
+        environment=os.getenv("ENV", "production"),
+        traces_sample_rate=0.1,
+        integrations=[FastApiIntegration()],
+    )
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.BACKEND_CORS_ORIGINS,
@@ -37,7 +60,10 @@ app.add_middleware(
     expose_headers=["Content-Type"],
 )
 
-# Include API router
+# Health check — used by Grafana Cloud Synthetic Monitoring + CI deploy gate
+app.include_router(health_router)
+
+# API routes
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 
 
@@ -45,10 +71,5 @@ app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 async def root():
     return {
         "message": "AI Workout Timer API",
-        "docs": f"{settings.API_V1_PREFIX}/docs"
+        "docs": f"{settings.API_V1_PREFIX}/docs",
     }
-
-
-@app.get("/health")
-async def health():
-    return {"status": "healthy"}

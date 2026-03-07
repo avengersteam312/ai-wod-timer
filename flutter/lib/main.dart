@@ -13,6 +13,7 @@ import 'services/audio_service.dart';
 import 'services/offline_storage_service.dart';
 import 'services/sync_service.dart';
 import 'config/app_config.dart';
+import 'observability/observability.dart';
 
 /// Global key for the root ScaffoldMessenger to show snackbars above bottom navigation
 final rootScaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
@@ -20,44 +21,43 @@ final rootScaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Load environment variables
-  await dotenv.load(fileName: '.env');
+  // Sentry wraps everything: Zone (async errors), FlutterError.onError (widget errors),
+  // and PlatformDispatcher.onError (platform channel errors) are all covered by appRunner.
+  await configureObservability(() async {
+    await dotenv.load(fileName: '.env');
 
-  // Initialize Hive for local storage
-  await OfflineStorageService().init();
+    await OfflineStorageService().init();
 
-  // Initialize sync service (connectivity + local cache); uses Supabase when configured
-  await SyncService().init();
+    // Connectivity + local cache; uses Supabase when configured
+    await SyncService().init();
 
-  // Initialize Supabase whenever both URL and anon key are configured so Sign In/Sign Up work.
-  // authRequired only controls whether the app gates access; auth must be initialized if user can log in.
-  if (AppConfig.hasSupabaseConfig) {
-    await Supabase.initialize(
-      url: AppConfig.supabaseUrl,
-      anonKey: AppConfig.supabaseAnonKey,
+    // Initialize Supabase whenever both URL and anon key are configured so Sign In/Sign Up work.
+    // authRequired only controls whether the app gates access; auth must be initialized if user can log in.
+    if (AppConfig.hasSupabaseConfig) {
+      await Supabase.initialize(
+        url: AppConfig.supabaseUrl,
+        anonKey: AppConfig.supabaseAnonKey,
+      );
+    }
+
+    await AudioService.instance.init();
+
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        systemNavigationBarColor: Color(0xFF0A0A0A),
+        systemNavigationBarIconBrightness: Brightness.light,
+      ),
     );
-  }
 
-  // Initialize audio service
-  await AudioService.instance.init();
-
-  // Set preferred orientations
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
-
-  // Set system UI overlay style
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-      systemNavigationBarColor: Color(0xFF0A0A0A),
-      systemNavigationBarIconBrightness: Brightness.light,
-    ),
-  );
-
-  runApp(const MyApp());
+    runApp(const MyApp());
+  });
 }
 
 class MyApp extends StatelessWidget {
