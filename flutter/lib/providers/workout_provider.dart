@@ -1197,6 +1197,11 @@ class WorkoutProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  void clearParseError() {
+    _parseError = null;
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     _timer?.cancel();

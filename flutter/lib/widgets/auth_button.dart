@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/app_config.dart';
 import '../providers/auth_provider.dart';
+import '../providers/workout_provider.dart';
 import '../screens/auth/login_screen.dart';
 import '../theme/app_theme.dart';
 
@@ -37,6 +38,8 @@ class AuthButton extends StatelessWidget {
         ),
         onSelected: (value) async {
           if (value == 'signout') {
+            // Clear any workout errors before signing out
+            context.read<WorkoutProvider>().clearParseError();
             await auth.signOut();
           }
         },

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AuthException implements Exception {
@@ -73,15 +74,48 @@ class AuthService {
     }
   }
 
-  // Sign in with Google
+  // Sign in with Google (native + Supabase)
   Future<bool> signInWithGoogle() async {
     try {
-      final success = await _client.auth.signInWithOAuth(
-        OAuthProvider.google,
-        redirectTo: kIsWeb ? null : 'com.wodtimer.aiwodtimer://login-callback',
+      // For web, use the default OAuth flow
+      if (kIsWeb) {
+        return await _client.auth.signInWithOAuth(OAuthProvider.google);
+      }
+
+      // For mobile, use native Google Sign-In
+      // The serverClientId is your Web OAuth Client ID from Google Cloud Console
+      // This is required to get the idToken for Supabase
+      final googleSignIn = GoogleSignIn(
+        serverClientId: const String.fromEnvironment(
+          'GOOGLE_WEB_CLIENT_ID',
+          defaultValue: '',
+        ),
       );
-      return success;
+
+      final googleUser = await googleSignIn.signIn();
+      if (googleUser == null) {
+        // User cancelled
+        return false;
+      }
+
+      final googleAuth = await googleUser.authentication;
+      final idToken = googleAuth.idToken;
+      final accessToken = googleAuth.accessToken;
+
+      if (idToken == null) {
+        throw AuthException('Failed to get Google credentials.');
+      }
+
+      // Sign in to Supabase with the Google ID token
+      await _client.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+        accessToken: accessToken,
+      );
+
+      return true;
     } catch (e) {
+      debugPrint('[AuthService] Google sign in error: $e');
       throw AuthException('Failed to sign in with Google. Please try again.');
     }
   }
@@ -100,7 +134,7 @@ class AuthService {
     try {
       await _client.auth.resetPasswordForEmail(
         email,
-        redirectTo: kIsWeb ? null : 'com.wodtimer.aiwodtimer://reset-callback',
+        redirectTo: kIsWeb ? null : 'com.aiwodtimer.app://reset-callback',
       );
     } on AuthException catch (e) {
       throw AuthException(_mapAuthError(e.message));
