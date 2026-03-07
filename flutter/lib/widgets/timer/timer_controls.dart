@@ -61,12 +61,15 @@ class TimerControls extends StatelessWidget {
   }
 
   Widget _buildResetButton() {
+    // Disable reset while timer is running (allow when paused, idle, or completed)
+    final isDisabled = isRunning && !isPaused;
     return CircularControlButton(
       icon: Icons.refresh,
-      onPressed: onReset,
+      onPressed: isDisabled ? () {} : onReset,
       size: secondaryButtonSize,
       backgroundColor: AppColors.inputBackground,
       iconColor: AppColors.textSecondary,
+      disabled: isDisabled,
     );
   }
 
@@ -241,12 +244,15 @@ class CompactTimerControls extends StatelessWidget {
   }
 
   Widget _buildResetButton() {
+    // Disable reset while timer is running (allow when paused, idle, or completed)
+    final isDisabled = isRunning && !isPaused;
     return CircularControlButton(
       icon: Icons.refresh,
-      onPressed: onReset,
+      onPressed: isDisabled ? () {} : onReset,
       size: secondaryButtonSize,
       backgroundColor: AppColors.inputBackground,
       iconColor: AppColors.textSecondary,
+      disabled: isDisabled,
     );
   }
 

@@ -7,12 +7,16 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'theme/app_theme.dart';
 import 'providers/auth_provider.dart';
 import 'providers/workout_provider.dart';
+import 'providers/video_provider.dart';
 import 'screens/app_shell.dart';
 import 'services/audio_service.dart';
 import 'services/offline_storage_service.dart';
 import 'services/sync_service.dart';
 import 'config/app_config.dart';
 import 'observability/observability.dart';
+
+/// Global key for the root ScaffoldMessenger to show snackbars above bottom navigation
+final rootScaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -68,11 +72,13 @@ class MyApp extends StatelessWidget {
           create: (_) => WorkoutProvider(),
           update: (_, auth, workout) => workout!..updateAuth(auth),
         ),
+        ChangeNotifierProvider(create: (_) => VideoProvider()),
       ],
       child: MaterialApp(
         title: 'AI WOD Timer',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.darkTheme,
+        scaffoldMessengerKey: rootScaffoldMessengerKey,
         home: const AuthWrapper(),
       ),
     );

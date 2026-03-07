@@ -5,6 +5,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/workout_provider.dart';
 import '../../services/sync_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/snackbar_utils.dart';
 import '../../widgets/workout_card.dart';
 
 class MyWorkoutsScreen extends StatefulWidget {
@@ -46,7 +47,7 @@ class _MyWorkoutsScreenState extends State<MyWorkoutsScreen> {
       });
     } catch (e) {
       setState(() {
-        _error = 'Failed to load workouts';
+        _error = 'Failed to load templates';
         _isLoading = false;
       });
     }
@@ -56,7 +57,7 @@ class _MyWorkoutsScreenState extends State<MyWorkoutsScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Workout'),
+        title: const Text('Delete Template'),
         content: Text('Are you sure you want to delete "${workout.name}"?'),
         actions: [
           TextButton(
@@ -82,21 +83,11 @@ class _MyWorkoutsScreenState extends State<MyWorkoutsScreen> {
         });
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Workout deleted'),
-              backgroundColor: AppColors.success,
-            ),
-          );
+          AppSnackBar.showSuccess(context, 'Template deleted');
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Failed to delete workout'),
-              backgroundColor: AppColors.error,
-            ),
-          );
+          AppSnackBar.showError(context, 'Failed to delete template');
         }
       }
     }
@@ -117,12 +108,7 @@ class _MyWorkoutsScreenState extends State<MyWorkoutsScreen> {
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to update workout'),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        AppSnackBar.showError(context, 'Failed to update timer');
       }
     }
   }

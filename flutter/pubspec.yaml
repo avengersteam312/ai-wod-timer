@@ -42,7 +42,7 @@ dependencies:
 
   # Utilities
   uuid: ^4.3.3
-  intl: ^0.19.0
+  intl: ^0.20.2
 
   # Image Picker
   image_picker: ^1.0.7
@@ -52,6 +52,12 @@ dependencies:
 
   # Observability
   sentry_flutter: ^8.0.0
+
+  # Video Recording
+  camera: ^0.11.0+2
+  video_player: ^2.9.2
+  share_plus: ^10.0.0
+  gallery_saver_plus: ^3.0.0
 
 dev_dependencies:
   flutter_test:

@@ -368,6 +368,21 @@ class WorkoutProvider with ChangeNotifier {
     return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 
+  /// Returns the formatted initial time (what timer shows when it starts)
+  /// - AMRAP/countdown timers: show total duration (e.g., 10:00)
+  /// - For Time/count-up timers: show 00:00
+  String get formattedInitialTime {
+    final interval = currentInterval;
+    final effectiveDuration = _effectiveIntervalDuration;
+
+    // If there's an interval with duration, show that duration (countdown timer)
+    // Otherwise show 00:00 (count-up timer)
+    final displaySeconds = (interval != null && effectiveDuration > 0) ? effectiveDuration : 0;
+    final minutes = displaySeconds ~/ 60;
+    final seconds = displaySeconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+
   void updateAuth(AuthProvider auth) {
     _authProvider = auth;
   }
@@ -387,8 +402,18 @@ class WorkoutProvider with ChangeNotifier {
 
       final result = await _apiService.parseWorkout(_workoutInput);
 
+      // Validate raw API response for invalid durations
+      if (_hasInvalidApiResponse(result)) {
+        _parseError = 'Invalid timer configuration. Please try again.';
+        _isParsing = false;
+        notifyListeners();
+        return;
+      }
+
       // Convert API response to Workout model (new workout from AI, not from saved)
-      _currentWorkout = _createWorkoutFromResponse(result);
+      final workout = _createWorkoutFromResponse(result);
+
+      _currentWorkout = workout;
       _loadedFromWorkoutId = null;
       _showInputOverride = false; // Ensure timer view is shown after creating
       _isParsing = false;
@@ -411,9 +436,19 @@ class WorkoutProvider with ChangeNotifier {
 
       final result = await _apiService.parseWorkoutFromImage(imageFile);
 
+      // Validate raw API response for invalid durations
+      if (_hasInvalidApiResponse(result)) {
+        _parseError = 'Invalid timer configuration. Please try again.';
+        _isExtractingFromImage = false;
+        notifyListeners();
+        return;
+      }
+
       // Use extracted text from Vision API for notes display
       _workoutInput = result['raw_text'] as String? ?? '';
-      _currentWorkout = _createWorkoutFromResponse(result);
+      final workout = _createWorkoutFromResponse(result);
+
+      _currentWorkout = workout;
       _loadedFromWorkoutId = null;
       _showInputOverride = false;
       _isExtractingFromImage = false;
@@ -425,6 +460,62 @@ class WorkoutProvider with ChangeNotifier {
       _isExtractingFromImage = false;
       notifyListeners();
     }
+  }
+
+  /// Helper to check if a duration value is invalid (1-4 seconds)
+  bool _isInvalidDuration(dynamic value) {
+    if (value == null) return false;
+    int? duration;
+    if (value is int) {
+      duration = value;
+    } else if (value is String) {
+      duration = int.tryParse(value);
+    }
+    if (duration == null) return false;
+    return duration > 0 && duration < 5;
+  }
+
+  /// Checks if API response has invalid or missing timer configuration
+  /// Returns true if the configuration is invalid
+  bool _hasInvalidApiResponse(Map<String, dynamic> response) {
+    // Check for invalid durations (1-4 seconds)
+    if (_isInvalidDuration(response['duration'])) return true;
+    if (_isInvalidDuration(response['duration_seconds'])) return true;
+
+    // Check timer_config fields
+    final timerConfig = response['timer_config'] as Map<String, dynamic>?;
+
+    // Reject if no timer_config at all
+    if (timerConfig == null) return true;
+
+    if (_isInvalidDuration(timerConfig['duration'])) return true;
+    if (_isInvalidDuration(timerConfig['total_seconds'])) return true;
+    if (_isInvalidDuration(timerConfig['work_seconds'])) return true;
+    if (_isInvalidDuration(timerConfig['rest_seconds'])) return true;
+    if (_isInvalidDuration(timerConfig['interval_seconds'])) return true;
+
+    // Check intervals array
+    final intervals = timerConfig['intervals'] as List<dynamic>?;
+    if (intervals != null) {
+      for (final interval in intervals) {
+        if (interval is Map<String, dynamic>) {
+          if (_isInvalidDuration(interval['duration'])) return true;
+        }
+      }
+    }
+
+    // Reject if no valid duration configuration exists
+    // Must have either: intervals with duration, or total_seconds, or work_seconds
+    final hasIntervals = intervals != null && intervals.isNotEmpty;
+    final hasTotalSeconds = timerConfig['total_seconds'] != null;
+    final hasWorkSeconds = timerConfig['work_seconds'] != null;
+    final hasRounds = timerConfig['rounds'] != null;
+
+    if (!hasIntervals && !hasTotalSeconds && !hasWorkSeconds && !hasRounds) {
+      return true;
+    }
+
+    return false;
   }
 
   String _getParseErrorMessage(dynamic e, {bool isImage = false}) {
@@ -444,7 +535,7 @@ class WorkoutProvider with ChangeNotifier {
         msg.contains('Connection') ||
         msg.contains('Connection refused') ||
         msg.contains('Failed host lookup')) {
-      return 'Cannot reach the workout server. Is the backend running? On device/simulator, set API_BASE_URL in .env to your computer\'s IP (e.g. http://192.168.1.x:8000).';
+      return 'Cannot reach the server. Is the backend running? On device/simulator, set API_BASE_URL in .env to your computer\'s IP (e.g. http://192.168.1.x:8000).';
     } else if (isImage && msg.contains('Could not extract')) {
       return 'Could not read workout from image. Please try a clearer photo.';
     } else {
@@ -572,13 +663,17 @@ class WorkoutProvider with ChangeNotifier {
   void _startCountdownTimer() {
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      _remainingSeconds--;
+      // Calculate new value first
+      final newRemaining = _remainingSeconds - 1;
 
-      // Play countdown sounds
-      if (_remainingSeconds <= 3 && _remainingSeconds >= 0) {
-        _audioService.playCountdown(_remainingSeconds);
+      // Play sound IMMEDIATELY before any state changes
+      if (newRemaining <= 3 && newRemaining >= 0) {
+        _audioService.playCountdown(newRemaining);
         _hapticsService.countdown();
       }
+
+      // Now update state
+      _remainingSeconds = newRemaining;
 
       if (_remainingSeconds <= 0) {
         timer.cancel();
@@ -617,18 +712,6 @@ class WorkoutProvider with ChangeNotifier {
   bool _announcedHalfway = false;
   bool _announcedTenSeconds = false;
   bool _announcedNextRound = false;
-
-  /// Calculate total workout duration in seconds
-  int get _totalWorkoutDuration {
-    int total = 0;
-    for (final interval in intervals) {
-      // Skip stopwatch intervals (duration 0)
-      if (interval.duration > 0) {
-        total += interval.duration;
-      }
-    }
-    return total;
-  }
 
   void _tick() {
     _elapsedSeconds++;
@@ -893,7 +976,7 @@ class WorkoutProvider with ChangeNotifier {
       id: _uuid.v4(),
       userId: userId,
       workoutId: workoutIdForSession,
-      workoutName: _currentWorkout?.name ?? 'Workout',
+      workoutName: _currentWorkout?.name ?? 'Timer',
       workoutType: _currentWorkout?.type.name ?? 'custom',
       workoutSnapshot: _currentWorkout?.toJson() ?? {},
       status: SessionStatus.inProgress,
