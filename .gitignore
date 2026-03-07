@@ -91,3 +91,4 @@ supabase/.temp/
 *.p8
 ExportOptions.plist
 PrivateKeys/
+.claude/settings.local.json
