@@ -87,3 +87,8 @@ tasks/
 
 # Supabase
 supabase/.temp/
+
+# Apple credentials — never commit
+*.p8
+ExportOptions.plist
+PrivateKeys/
