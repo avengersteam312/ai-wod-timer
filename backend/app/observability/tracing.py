@@ -40,6 +40,6 @@ def configure_tracing(app) -> None:
 
     provider = TracerProvider()
     provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
-    trace.set_global_tracer_provider(provider)
+    trace.set_tracer_provider(provider)
     FastAPIInstrumentor.instrument_app(app)
     HTTPXClientInstrumentor().instrument()  # auto-traces OpenAI + Supabase HTTP calls
