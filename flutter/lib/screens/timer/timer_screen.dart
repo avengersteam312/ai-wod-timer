@@ -552,6 +552,7 @@ class _TimerScreenState extends State<TimerScreen> {
     return Stack(
       children: [
         GestureDetector(
+          behavior: HitTestBehavior.opaque,
           onTap: () => FocusScope.of(context).unfocus(),
           child: SingleChildScrollView(
         controller: _scrollController,
