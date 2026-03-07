@@ -33,6 +33,18 @@ class Settings(BaseSettings):
     # Supabase
     SUPABASE_JWT_SECRET: str = ""  # Get from Supabase Dashboard > Settings > API > JWT Secret
 
+    # Observability
+    SENTRY_DSN: str = ""
+    ENV: str = "development"
+    GRAFANA_CLOUD_LOKI_URL: str = ""
+    GRAFANA_CLOUD_LOKI_USER: str = ""
+    GRAFANA_CLOUD_LOKI_API_KEY: str = ""
+    OTEL_EXPORTER_OTLP_ENDPOINT: str = ""
+    OTEL_EXPORTER_OTLP_HEADERS: str = ""
+
+    # Frontend (ignored by backend, kept here to avoid extra_forbidden errors)
+    VITE_SENTRY_DSN: str = ""
+
     class Config:
         env_file = ".env"
         case_sensitive = True
