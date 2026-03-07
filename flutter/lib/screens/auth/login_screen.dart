@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/snackbar_utils.dart';
 import 'forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -45,12 +46,7 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Account created! Please check your email to verify.'),
-            backgroundColor: AppColors.success,
-          ),
-        );
+        AppSnackBar.showInfo(context, 'Account created! Please check your email to verify.');
       }
     } else {
       success = await authProvider.signIn(
@@ -69,12 +65,7 @@ class _LoginScreenState extends State<LoginScreen> {
         }
         // Otherwise, AuthWrapper will automatically rebuild and show AppShell
       } else if (authProvider.error != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(authProvider.error!),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        AppSnackBar.showError(context, authProvider.error!);
         authProvider.clearError();
       }
     }
@@ -90,12 +81,7 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _isLoading = false);
 
       if (!success && authProvider.error != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(authProvider.error!),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        AppSnackBar.showError(context, authProvider.error!);
         authProvider.clearError();
       }
     }

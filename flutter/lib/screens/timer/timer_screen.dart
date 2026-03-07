@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -15,7 +18,8 @@ import '../../screens/auth/login_screen.dart';
 import '../../widgets/auth_button.dart';
 import '../../widgets/timer/circular_timer_ring.dart';
 import '../../widgets/timer/timer_controls.dart';
-import 'dart:io';
+import '../../widgets/save_template_modal.dart';
+import '../../utils/snackbar_utils.dart';
 
 enum NotesState { closed, minimized, full }
 
@@ -24,12 +28,15 @@ class TimerScreen extends StatefulWidget {
   final VoidCallback? onNavigateToManualForEdit;
   /// True when the Dashboard tab is selected (used to refresh saved workouts when returning to tab).
   final bool isDashboardVisible;
+  /// Callback to show/hide the delete zone in AppShell (covers nav bar)
+  final void Function(bool show, {void Function(Workout)? onDelete})? onDragStateChanged;
 
   const TimerScreen({
     super.key,
     this.onNavigateToManual,
     this.onNavigateToManualForEdit,
     this.isDashboardVisible = true,
+    this.onDragStateChanged,
   });
 
   @override
@@ -39,16 +46,11 @@ class TimerScreen extends StatefulWidget {
 class _TimerScreenState extends State<TimerScreen> {
   final _inputController = TextEditingController();
   final _scrollController = ScrollController();
-  final _workoutNameController = TextEditingController();
   final _audioService = AudioService();
   final _imagePicker = ImagePicker();
 
   // Save workout state
-  bool _isSaving = false;
   bool _isSaved = false;
-  bool _savedOffline = false;
-  bool _showSaveSuccess = false;
-  String? _saveError;
   /// When true, after save or "Don't save" we go back to input view.
   bool _saveThenExit = false;
 
@@ -68,9 +70,15 @@ class _TimerScreenState extends State<TimerScreen> {
 
   // Drag-to-delete state
   bool _isDraggingTimer = false;
-  bool _isOverTrash = false;
+
+  // Swipe to edit animation
+  double _swipeOffset = 0;
+  bool _isSwipingToEdit = false;
 
   static const int _maxSavedWorkoutsDisplay = 12;
+
+  // Track previous parseError to detect changes
+  String? _lastParseError;
 
   @override
   void initState() {
@@ -93,8 +101,6 @@ class _TimerScreenState extends State<TimerScreen> {
     if (becameVisible && mounted) {
       // Clear old status messages
       setState(() {
-        _showSaveSuccess = false;
-        _saveError = null;
       });
       final userId = context.read<AuthProvider>().user?.id;
       if (userId != null) {
@@ -147,7 +153,6 @@ class _TimerScreenState extends State<TimerScreen> {
   void dispose() {
     _inputController.dispose();
     _scrollController.dispose();
-    _workoutNameController.dispose();
     WakelockPlus.disable();
     super.dispose();
   }
@@ -157,18 +162,8 @@ class _TimerScreenState extends State<TimerScreen> {
     _inputController.clear();
     setState(() {
       _isSaved = false;
-      _showSaveSuccess = false;
       _saveThenExit = false;
     });
-  }
-
-  /// Close save modal. If triggered from Stop/X, go back to input.
-  void _handleDontSave(WorkoutProvider workout) {
-    Navigator.pop(context);
-    if (_saveThenExit) {
-      _saveThenExit = false;
-      _goBackToInput(workout);
-    }
   }
 
   /// Handle Stop button press: complete and stay on screen.
@@ -192,9 +187,7 @@ class _TimerScreenState extends State<TimerScreen> {
     // Show save prompt for authenticated users (unless already saved)
     if (auth.isAuthenticated && workout.currentWorkout != null && !_isSaved) {
       _saveThenExit = true;
-      _workoutNameController.text = proposeWorkoutName(workout.currentWorkout);
-      _saveError = null;
-      _showSaveWorkoutModal(context, workout);
+      _showSaveWorkoutModal(workout);
     } else {
       _goBackToInput(workout);
     }
@@ -204,205 +197,56 @@ class _TimerScreenState extends State<TimerScreen> {
   void _openSaveModal(BuildContext context, WorkoutProvider workout) {
     if (workout.currentWorkout == null) return;
     _saveThenExit = false;
-    _workoutNameController.text = proposeWorkoutName(workout.currentWorkout);
-    _saveError = null;
-    _showSaveWorkoutModal(context, workout);
+    _showSaveWorkoutModal(workout);
   }
 
-  void _showSaveWorkoutModal(BuildContext context, WorkoutProvider workout) {
+  Future<void> _showSaveWorkoutModal(WorkoutProvider workout) async {
     final currentWorkout = workout.currentWorkout!;
-    if (_workoutNameController.text.isEmpty) {
-      _workoutNameController.text = proposeWorkoutName(currentWorkout);
-    }
-    _saveError = null;
+    final userId = context.read<AuthProvider>().user?.id;
+    final shouldExitAfterSave = _saveThenExit;
 
-    showModalBottomSheet(
+    final saved = await SaveTemplateModal.show(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.cardBackground,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setModalState) => Padding(
-          padding: EdgeInsets.only(
-            left: 24,
-            right: 24,
-            top: 24,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Text('Save as template?', style: AppTextStyles.h3),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => _handleDontSave(workout),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'Timer name',
-                style: AppTextStyles.label,
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _workoutNameController,
-                maxLength: maxWorkoutNameLength,
-                decoration: const InputDecoration(
-                  hintText: 'Enter timer name',
-                ),
-                onSubmitted: (_) => _handleSaveWorkout(context, workout, setModalState),
-              ),
-              if (_saveError != null) ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.error.withValues(alpha:0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.error.withValues(alpha:0.3)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.error_outline, color: AppColors.error, size: 20),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _saveError!,
-                          style: AppTextStyles.body.copyWith(color: AppColors.error),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _isSaving ? null : () => _handleDontSave(workout),
-                      child: const Text('Cancel'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _isSaving || _workoutNameController.text.trim().isEmpty
-                          ? null
-                          : () => _handleSaveWorkout(context, workout, setModalState),
-                      child: _isSaving
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.textPrimary,
-                              ),
-                            )
-                          : const Text('Save'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _handleSaveWorkout(
-    BuildContext context,
-    WorkoutProvider workout,
-    void Function(void Function()) setModalState,
-  ) async {
-    final rawName = _workoutNameController.text.trim();
-    if (rawName.isEmpty || workout.currentWorkout == null) return;
-    final name = rawName.length > maxWorkoutNameLength
-        ? rawName.substring(0, maxWorkoutNameLength)
-        : rawName;
-
-    setModalState(() {
-      _isSaving = true;
-      _saveError = null;
-    });
-
-    try {
-      final userId = context.read<AuthProvider>().user?.id;
-      if (userId != null) {
-        final taken = await workout.isWorkoutNameTaken(
-          userId,
-          name,
-          excludeWorkoutId: workout.loadedFromWorkoutId,
+      defaultName: proposeWorkoutName(currentWorkout),
+      onCheckNameTaken: userId != null
+          ? (name) => workout.isWorkoutNameTaken(
+                userId,
+                name,
+                excludeWorkoutId: workout.loadedFromWorkoutId,
+              ).timeout(const Duration(seconds: 10), onTimeout: () => false)
+          : null,
+      onSave: (name) async {
+        final workoutToSave = Workout(
+          id: currentWorkout.id,
+          userId: currentWorkout.userId,
+          name: name,
+          rawInput: currentWorkout.rawInput,
+          type: currentWorkout.type,
+          timerConfig: currentWorkout.timerConfig,
+          movements: currentWorkout.movements,
+          createdAt: currentWorkout.createdAt,
+          isFavorite: false,
         );
-        if (taken) {
-          setModalState(() {
-            _saveError = 'This name already exists. Please choose a different name.';
-            _isSaving = false;
-          });
-          return;
-        }
-      }
-
-      // Create a copy of the workout with the new name
-      final workoutToSave = Workout(
-        id: workout.currentWorkout!.id,
-        userId: workout.currentWorkout!.userId,
-        name: name,
-        rawInput: workout.currentWorkout!.rawInput,
-        type: workout.currentWorkout!.type,
-        timerConfig: workout.currentWorkout!.timerConfig,
-        movements: workout.currentWorkout!.movements,
-        createdAt: workout.currentWorkout!.createdAt,
-        isFavorite: false,
-      );
-
-      await workout.saveWorkout(workoutToSave);
-
-      setState(() {
+        await workout.saveWorkout(workoutToSave).timeout(const Duration(seconds: 10));
+        return true;
+      },
+      onSaveSuccess: () {
         _isSaved = true;
-        _savedOffline = _isOffline;
-        _showSaveSuccess = true;
-      });
-
-      if (context.mounted) {
-        Navigator.pop(context);
-      }
-
-      // Refresh saved workouts list so the new workout appears on dashboard
-      if (userId != null && mounted) {
-        _loadSavedWorkouts(userId);
-      }
-
-      if (_saveThenExit) {
-        _saveThenExit = false;
-        _goBackToInput(workout);
-        return;
-      }
-
-      // Clear success message after 3 seconds
-      Future.delayed(const Duration(seconds: 3), () {
-        if (mounted) {
-          setState(() {
-            _showSaveSuccess = false;
-          });
+        // Refresh saved workouts list
+        if (userId != null && mounted) {
+          _loadSavedWorkouts(userId);
         }
-      });
-    } catch (e) {
-      setModalState(() {
-        _saveError = e.toString();
-      });
-    } finally {
-      setModalState(() {
-        _isSaving = false;
-      });
+      },
+    );
+
+    // Handle "save then exit" flow
+    if (saved && shouldExitAfterSave) {
+      _saveThenExit = false;
+      _goBackToInput(workout);
+    } else if (!saved && shouldExitAfterSave) {
+      // User cancelled - still exit without saving
+      _saveThenExit = false;
+      _goBackToInput(workout);
     }
   }
 
@@ -481,12 +325,7 @@ class _TimerScreenState extends State<TimerScreen> {
     } catch (e) {
       debugPrint('[TimerScreen] Image picker error: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to pick image: ${e.toString()}'),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        AppSnackBar.showError(context, 'Failed to pick image');
       }
     }
   }
@@ -524,6 +363,19 @@ class _TimerScreenState extends State<TimerScreen> {
       builder: (context, workout, _) {
         // Handle wake lock
         _handleWakeLock(workout);
+
+        // Show error snackbar when parseError changes
+        final parseError = workout.parseError;
+        if (parseError != null && parseError != _lastParseError) {
+          _lastParseError = parseError;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              AppSnackBar.showError(context, parseError);
+            }
+          });
+        } else if (parseError == null && _lastParseError != null) {
+          _lastParseError = null;
+        }
 
         // When on timer view and authenticated, ensure we have saved workouts so we can hide Save when config already exists
         if (workout.currentWorkout != null &&
@@ -611,70 +463,65 @@ class _TimerScreenState extends State<TimerScreen> {
           body: SafeArea(
             child: Column(
               children: [
-                // Save success toast
-                if (_showSaveSuccess)
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: _savedOffline
-                          ? AppColors.warning.withValues(alpha:0.2)
-                          : AppColors.success.withValues(alpha:0.2),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: _savedOffline
-                            ? AppColors.warning.withValues(alpha:0.3)
-                            : AppColors.success.withValues(alpha:0.3),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          _savedOffline ? Icons.cloud_off : Icons.check_circle,
-                          color: _savedOffline ? AppColors.warning : AppColors.success,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            _savedOffline
-                                ? 'Saved offline. Will sync when online.'
-                                : 'Workout saved successfully!',
-                            style: AppTextStyles.body.copyWith(
-                              color: _savedOffline ? AppColors.warning : AppColors.success,
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.close, size: 18),
-                          onPressed: () {
-                            setState(() {
-                              _showSaveSuccess = false;
-                            });
-                          },
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                        ),
-                      ],
-                    ),
-                  ),
-                // Main content
                 Expanded(
                   child: (workout.currentWorkout == null || workout.showInputOverride)
                       ? _buildInputView(context, workout)
                       : GestureDetector(
-                          onHorizontalDragEnd: (details) {
-                            final velocity = details.primaryVelocity ?? 0;
-                            // Swipe left → edit timer (only when idle)
-                            if (velocity < -300 &&
-                                workout.isIdle &&
-                                widget.onNavigateToManualForEdit != null) {
-                              workout.setPendingEdit(workout.currentWorkout!);
-                              widget.onNavigateToManualForEdit!();
+                          onHorizontalDragStart: (details) {
+                            if (workout.isIdle) {
+                              setState(() => _isSwipingToEdit = true);
                             }
                           },
-                          child: _buildTimerView(context, workout),
+                          onHorizontalDragUpdate: (details) {
+                            if (workout.isIdle && _isSwipingToEdit) {
+                              final screenWidth = MediaQuery.of(context).size.width;
+                              setState(() {
+                                // Track left swipes up to full screen width
+                                _swipeOffset = (_swipeOffset + details.delta.dx).clamp(-screenWidth, 0.0);
+                              });
+                            }
+                          },
+                          onHorizontalDragEnd: (details) {
+                            final screenWidth = MediaQuery.of(context).size.width;
+                            final swipeThreshold = screenWidth * 0.3;
+                            // Swipe left → edit timer (only when swiped >= 50%)
+                            if (_swipeOffset.abs() >= swipeThreshold &&
+                                workout.isIdle &&
+                                widget.onNavigateToManualForEdit != null) {
+                              // Animate off screen first
+                              setState(() {
+                                _swipeOffset = -screenWidth;
+                                _isSwipingToEdit = false;
+                              });
+                              // Navigate after animation completes
+                              Future.delayed(const Duration(milliseconds: 200), () {
+                                if (mounted) {
+                                  workout.setPendingEdit(workout.currentWorkout!);
+                                  widget.onNavigateToManualForEdit!();
+                                  // Reset for when returning
+                                  setState(() => _swipeOffset = 0);
+                                }
+                              });
+                            } else {
+                              // Reset swipe state
+                              setState(() {
+                                _swipeOffset = 0;
+                                _isSwipingToEdit = false;
+                              });
+                            }
+                          },
+                          onHorizontalDragCancel: () {
+                            setState(() {
+                              _swipeOffset = 0;
+                              _isSwipingToEdit = false;
+                            });
+                          },
+                          child: AnimatedContainer(
+                            duration: _isSwipingToEdit ? Duration.zero : const Duration(milliseconds: 200),
+                            curve: Curves.easeOut,
+                            transform: Matrix4.translationValues(_swipeOffset, 0, 0),
+                            child: _buildTimerView(context, workout),
+                          ),
                         ),
                 ),
               ],
@@ -737,37 +584,6 @@ class _TimerScreenState extends State<TimerScreen> {
 
             const SizedBox(height: 16),
 
-            // Error message
-            if (workout.parseError != null)
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.error.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.error_outline,
-                      color: AppColors.error,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        workout.parseError!,
-                        style: AppTextStyles.body.copyWith(
-                          color: AppColors.error,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-            const SizedBox(height: 16),
-
             // Create Timer buttons row
             Row(
               children: [
@@ -781,6 +597,11 @@ class _TimerScreenState extends State<TimerScreen> {
                           context,
                           MaterialPageRoute(builder: (_) => const LoginScreen()),
                         );
+                        return;
+                      }
+                      // Validate input
+                      if (workout.workoutInput.trim().isEmpty) {
+                        AppSnackBar.showError(context, 'Please enter a workout description');
                         return;
                       }
                       workout.parseWorkout();
@@ -848,7 +669,7 @@ class _TimerScreenState extends State<TimerScreen> {
             if (auth.isAuthenticated) ...[
               const SizedBox(height: 24),
               Text(
-                'Saved timers',
+                'Saved templates',
                 style: AppTextStyles.label,
               ),
               const SizedBox(height: 8),
@@ -877,21 +698,16 @@ class _TimerScreenState extends State<TimerScreen> {
                       LongPressDraggable<Workout>(
                         data: w,
                         onDragStarted: () {
-                          setState(() {
-                            _isDraggingTimer = true;
-                          });
+                          setState(() => _isDraggingTimer = true);
+                          widget.onDragStateChanged?.call(true, onDelete: _deleteWorkoutDirectly);
                         },
                         onDragEnd: (_) {
-                          setState(() {
-                            _isDraggingTimer = false;
-                            _isOverTrash = false;
-                          });
+                          setState(() => _isDraggingTimer = false);
+                          widget.onDragStateChanged?.call(false);
                         },
                         onDraggableCanceled: (_, __) {
-                          setState(() {
-                            _isDraggingTimer = false;
-                            _isOverTrash = false;
-                          });
+                          setState(() => _isDraggingTimer = false);
+                          widget.onDragStateChanged?.call(false);
                         },
                         feedback: Material(
                           elevation: 4,
@@ -958,61 +774,6 @@ class _TimerScreenState extends State<TimerScreen> {
         ),
       ),
     ),
-    // Trash zone - appears when dragging
-    if (_isDraggingTimer)
-      Positioned(
-        left: 0,
-        right: 0,
-        bottom: 0,
-        child: DragTarget<Workout>(
-          onWillAcceptWithDetails: (details) {
-            setState(() => _isOverTrash = true);
-            return true;
-          },
-          onLeave: (_) {
-            setState(() => _isOverTrash = false);
-          },
-          onAcceptWithDetails: (details) async {
-            setState(() {
-              _isOverTrash = false;
-              _isDraggingTimer = false;
-            });
-            await _deleteWorkoutDirectly(details.data);
-          },
-          builder: (context, candidateData, rejectedData) {
-            return AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: EdgeInsets.only(
-                top: 16,
-                bottom: MediaQuery.of(context).padding.bottom + 16,
-              ),
-              decoration: BoxDecoration(
-                color: _isOverTrash
-                    ? AppColors.error.withValues(alpha: 0.3)
-                    : AppColors.error.withValues(alpha: 0.1),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.delete_outline,
-                    color: _isOverTrash ? AppColors.error : AppColors.textMuted,
-                    size: 28,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    _isOverTrash ? 'Release to delete' : 'Drag here to delete',
-                    style: AppTextStyles.body.copyWith(
-                      color: _isOverTrash ? AppColors.error : AppColors.textMuted,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-      ),
     ],
   );
   }
@@ -1026,9 +787,7 @@ class _TimerScreenState extends State<TimerScreen> {
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to delete: $e')),
-        );
+        AppSnackBar.showError(context, 'Failed to delete');
       }
     }
   }
@@ -1045,9 +804,36 @@ class _TimerScreenState extends State<TimerScreen> {
             physics: _notesState != NotesState.closed
                 ? const NeverScrollableScrollPhysics()
                 : null,
-            padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
             child: Column(
               children: [
+                // Swipe to edit hint (invisible when not idle to maintain layout)
+                Opacity(
+                  opacity: workout.isIdle ? 1.0 : 0.0,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Column(
+                      children: [
+                        Text(
+                          'Swipe left to edit',
+                          style: AppTextStyles.bodySmall.copyWith(
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: AppColors.textMuted,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
                 // Timer ring (tappable for manual counter)
                 SizedBox(
                   width: 320,
@@ -1120,7 +906,6 @@ class _TimerScreenState extends State<TimerScreen> {
                               : null,
                         ),
                 ),
-
 
                 const SizedBox(height: 32),
               ],

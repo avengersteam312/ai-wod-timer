@@ -158,7 +158,7 @@ class _WorkRestTimerScreenState extends State<WorkRestTimerScreen> {
     if (config == null) return const SizedBox.shrink();
 
     return ExpandableSection(
-      title: 'Show workout',
+      title: 'Show timer',
       initiallyExpanded: _showWorkoutDetails,
       onToggle: () {
         setState(() {
@@ -199,7 +199,7 @@ class _WorkRestTimerScreenState extends State<WorkRestTimerScreen> {
 
   Widget _buildCompletedSection(WorkoutProvider workout) {
     return CompletionCard(
-      title: 'Workout Complete!',
+      title: 'Timer Complete!',
       elapsedTime: workout.formattedElapsedTime,
       accentColor: _workColor,
       onNewWorkout: () {

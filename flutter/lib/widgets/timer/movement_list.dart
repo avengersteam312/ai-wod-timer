@@ -40,7 +40,7 @@ class MovementList extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text(
-              'Workout Progress',
+              'Timer Progress',
               style: AppTextStyles.bodySmall.copyWith(
                 color: AppColors.textMuted,
               ),
