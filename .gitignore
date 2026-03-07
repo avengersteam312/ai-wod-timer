@@ -56,8 +56,6 @@ build/
 # Claude/Ralph Code
 .ralph/
 .ralphrc
-.claude/
-CLAUDE*.md
 
 # Promptfoo
 promptfoo/prompts/
@@ -92,3 +90,4 @@ supabase/.temp/
 *.p8
 ExportOptions.plist
 PrivateKeys/
+.claude/settings.local.json
