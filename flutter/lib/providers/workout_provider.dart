@@ -368,6 +368,21 @@ class WorkoutProvider with ChangeNotifier {
     return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 
+  /// Returns the formatted initial time (what timer shows when it starts)
+  /// - AMRAP/countdown timers: show total duration (e.g., 10:00)
+  /// - For Time/count-up timers: show 00:00
+  String get formattedInitialTime {
+    final interval = currentInterval;
+    final effectiveDuration = _effectiveIntervalDuration;
+
+    // If there's an interval with duration, show that duration (countdown timer)
+    // Otherwise show 00:00 (count-up timer)
+    final displaySeconds = (interval != null && effectiveDuration > 0) ? effectiveDuration : 0;
+    final minutes = displaySeconds ~/ 60;
+    final seconds = displaySeconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+
   void updateAuth(AuthProvider auth) {
     _authProvider = auth;
   }
