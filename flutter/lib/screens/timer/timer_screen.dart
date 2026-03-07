@@ -8,6 +8,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/workout_provider.dart';
+import '../../providers/video_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../models/workout.dart';
 import '../../services/audio_service.dart';
@@ -20,6 +21,7 @@ import '../../widgets/timer/circular_timer_ring.dart';
 import '../../widgets/timer/timer_controls.dart';
 import '../../widgets/save_template_modal.dart';
 import '../../utils/snackbar_utils.dart';
+import '../../screens/video/video_recording_screen.dart';
 
 enum NotesState { closed, minimized, full }
 
@@ -359,8 +361,8 @@ class _TimerScreenState extends State<TimerScreen> {
     final auth = context.watch<AuthProvider>();
     final canSave = auth.isAuthenticated;
 
-    return Consumer<WorkoutProvider>(
-      builder: (context, workout, _) {
+    return Consumer2<WorkoutProvider, VideoProvider>(
+      builder: (context, workout, videoProvider, _) {
         // Handle wake lock
         _handleWakeLock(workout);
 
@@ -406,6 +408,22 @@ class _TimerScreenState extends State<TimerScreen> {
                     workout.currentWorkout!.type.displayName.toUpperCase(),
                   ),
                   actions: [
+                    // Recording indicator (only when recording)
+                    if (videoProvider.isRecording)
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const VideoRecordingScreen(),
+                            ),
+                          );
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: _RecordingDot(),
+                        ),
+                      ),
                     // Save button for authenticated users (hide for already saved timers)
                     if (canSave && workout.loadedFromWorkoutId == null)
                       IconButton(
@@ -460,31 +478,63 @@ class _TimerScreenState extends State<TimerScreen> {
                     AuthButton(),
                   ],
                 ),
-          body: SafeArea(
-            child: Column(
+          body: Stack(
+            children: [
+              SafeArea(
+                child: Column(
               children: [
                 Expanded(
                   child: (workout.currentWorkout == null || workout.showInputOverride)
                       ? _buildInputView(context, workout)
                       : GestureDetector(
                           onHorizontalDragStart: (details) {
-                            if (workout.isIdle) {
-                              setState(() => _isSwipingToEdit = true);
-                            }
+                            setState(() => _isSwipingToEdit = true);
                           },
                           onHorizontalDragUpdate: (details) {
-                            if (workout.isIdle && _isSwipingToEdit) {
+                            if (_isSwipingToEdit) {
                               final screenWidth = MediaQuery.of(context).size.width;
                               setState(() {
-                                // Track left swipes up to full screen width
-                                _swipeOffset = (_swipeOffset + details.delta.dx).clamp(-screenWidth, 0.0);
+                                // Track swipes in both directions
+                                _swipeOffset = (_swipeOffset + details.delta.dx).clamp(
+                                  workout.isIdle ? -screenWidth : 0.0,  // Left only when idle
+                                  screenWidth,  // Right always allowed
+                                );
                               });
                             }
                           },
                           onHorizontalDragEnd: (details) {
                             final screenWidth = MediaQuery.of(context).size.width;
-                            final swipeThreshold = screenWidth * 0.3;
-                            // Swipe left → edit timer (only when swiped >= 50%)
+                            final swipeThreshold = screenWidth * 0.5;
+
+                            // Swipe right → go to camera (animate off screen first)
+                            if (_swipeOffset >= swipeThreshold ||
+                                (details.primaryVelocity != null && details.primaryVelocity! > 300)) {
+                              // Animate off screen to the right
+                              setState(() {
+                                _swipeOffset = screenWidth;
+                                _isSwipingToEdit = false;
+                              });
+                              // Navigate after animation completes
+                              Future.delayed(const Duration(milliseconds: 200), () {
+                                if (mounted) {
+                                  Navigator.push(
+                                    context,
+                                    PageRouteBuilder(
+                                      pageBuilder: (context, animation, secondaryAnimation) =>
+                                          const VideoRecordingScreen(),
+                                      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                                        return child; // No animation needed, timer already slid out
+                                      },
+                                    ),
+                                  );
+                                  // Reset for when returning
+                                  setState(() => _swipeOffset = 0);
+                                }
+                              });
+                              return;
+                            }
+
+                            // Swipe left → edit timer (only when idle and swiped >= threshold)
                             if (_swipeOffset.abs() >= swipeThreshold &&
                                 workout.isIdle &&
                                 widget.onNavigateToManualForEdit != null) {
@@ -520,12 +570,14 @@ class _TimerScreenState extends State<TimerScreen> {
                             duration: _isSwipingToEdit ? Duration.zero : const Duration(milliseconds: 200),
                             curve: Curves.easeOut,
                             transform: Matrix4.translationValues(_swipeOffset, 0, 0),
-                            child: _buildTimerView(context, workout),
+                            child: _buildTimerView(context, workout, videoProvider),
                           ),
                         ),
                 ),
               ],
             ),
+          ),
+            ],
           ),
         );
       },
@@ -793,7 +845,7 @@ class _TimerScreenState extends State<TimerScreen> {
     }
   }
 
-  Widget _buildTimerView(BuildContext context, WorkoutProvider workout) {
+  Widget _buildTimerView(BuildContext context, WorkoutProvider workout, VideoProvider videoProvider) {
     final currentWorkout = workout.currentWorkout!;
 
     return Stack(
@@ -808,51 +860,51 @@ class _TimerScreenState extends State<TimerScreen> {
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
             child: Column(
               children: [
-                // Swipe to edit hint (invisible when not idle to maintain layout)
-                Opacity(
-                  opacity: workout.isIdle ? 1.0 : 0.0,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Column(
-                      children: [
-                        Text(
-                          'Swipe left to edit',
-                          style: AppTextStyles.bodySmall.copyWith(
-                            color: AppColors.textMuted,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Container(
-                          width: 40,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: AppColors.textMuted,
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                const SizedBox(height: 16),
 
-                // Timer ring (tappable for manual counter)
+                // Timer ring with vertical swipe hints at screen edges
                 SizedBox(
-                  width: 320,
-                  height: 320,
-                  child: Center(
-                    child: GestureDetector(
-                      onTap: workout.shouldShowManualCounter && workout.isRunning
-                          ? () => workout.incrementCounter()
-                          : null,
-                      child: AnimatedTimerRing(
-                        progress: workout.progress,
-                        time: workout.formattedTime,
-                        progressColor: _getTimerColor(workout),
-                        size: 300,
-                        isAnimating: workout.isRunning || workout.isRest || workout.isCountdown,
-                        centerWidget: _buildTimerCenterContent(workout, currentWorkout),
+                  width: MediaQuery.of(context).size.width - 48, // Full width minus padding
+                  child: Stack(
+                    alignment: Alignment.center,
+                    clipBehavior: Clip.none,
+                    children: [
+                      // Timer ring (tappable for manual counter)
+                      GestureDetector(
+                        onTap: workout.shouldShowManualCounter && workout.isRunning
+                            ? () => workout.incrementCounter()
+                            : null,
+                        child: AnimatedTimerRing(
+                          progress: workout.progress,
+                          time: workout.formattedTime,
+                          progressColor: _getTimerColor(workout),
+                          size: 300,
+                          isAnimating: workout.isRunning || workout.isRest || workout.isCountdown,
+                          centerWidget: _buildTimerCenterContent(workout, currentWorkout),
+                        ),
                       ),
-                    ),
+
+                      // Left: Swipe right for camera (at left screen edge)
+                      Positioned(
+                        left: -24,
+                        child: const _VerticalSwipeHint(
+                          text: 'Swipe right for camera',
+                          isLeft: true,
+                        ),
+                      ),
+
+                      // Right: Swipe left to edit (at right screen edge, inactive when timer running)
+                      Positioned(
+                        right: -24,
+                        child: Opacity(
+                          opacity: workout.isIdle ? 1.0 : 0.3,
+                          child: const _VerticalSwipeHint(
+                            text: 'Swipe left to edit',
+                            isLeft: false,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
 
@@ -1377,6 +1429,97 @@ class _TimerScreenState extends State<TimerScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Vertical swipe hint (like "Swipe up for notes" but rotated for sides)
+class _VerticalSwipeHint extends StatelessWidget {
+  final String text;
+  final bool isLeft; // true = left side (swipe right), false = right side (swipe left)
+
+  const _VerticalSwipeHint({
+    required this.text,
+    required this.isLeft,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Rotate the entire hint: left side rotates counter-clockwise, right side clockwise
+    return RotatedBox(
+      quarterTurns: isLeft ? 3 : 1,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Text first (same style as "Swipe up for notes")
+          Text(
+            text,
+            style: AppTextStyles.bodySmall,
+          ),
+          const SizedBox(height: 8),
+          // Drag handle (like the notes handle)
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppColors.textMuted,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Minimalistic pulsing recording dot indicator
+class _RecordingDot extends StatefulWidget {
+  @override
+  State<_RecordingDot> createState() => _RecordingDotState();
+}
+
+class _RecordingDotState extends State<_RecordingDot>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    )..repeat(reverse: true);
+    _animation = Tween<double>(begin: 0.5, end: 1.0).animate(_controller);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return Container(
+          width: 16,
+          height: 16,
+          decoration: BoxDecoration(
+            color: AppColors.error.withValues(alpha: _animation.value),
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.error.withValues(alpha: 0.4),
+                blurRadius: 8,
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
