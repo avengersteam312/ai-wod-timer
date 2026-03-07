@@ -1,10 +1,22 @@
-from openai import AsyncOpenAI
-from app.config import settings
-from app.schemas.workout import WorkoutType
-from app.prompts import prompt_manager
+import time
 import json
 import base64
 from typing import Dict, Any, Optional, Tuple
+
+import structlog
+from openai import AsyncOpenAI
+
+from app.config import settings
+from app.schemas.workout import WorkoutType
+from app.prompts import prompt_manager
+from app.observability.metrics import (
+    ai_vision_requests_total,
+    ai_vision_errors_total,
+    ai_vision_duration,
+)
+from app.observability.openai_utils import record_openai_usage
+
+log = structlog.get_logger(__name__)
 
 
 class AIService:
@@ -79,6 +91,8 @@ class AIService:
             Tuple of (extracted_text, workout_name).
         """
         base64_image = base64.b64encode(image_data).decode('utf-8')
+        ai_vision_requests_total.add(1, {"content_type": content_type})
+        t_start = time.perf_counter()
 
         # Minimal prompt - extract PRIMARY workout text only
         system_prompt = """Extract the PRIMARY workout text from the image.
@@ -120,6 +134,20 @@ If no workout text is visible, return: {"error": "No workout text found"}"""
                 timeout=15.0,
             )
 
+            duration = time.perf_counter() - t_start
+            ai_vision_duration.record(duration)
+
+            tokens_in, tokens_out = record_openai_usage(response, settings.AI_VISION_MODEL)
+            log.info(
+                "vision.extract_success",
+                model=settings.AI_VISION_MODEL,
+                content_type=content_type,
+                image_bytes=len(image_data),
+                duration_s=round(duration, 3),
+                tokens_in=tokens_in,
+                tokens_out=tokens_out,
+            )
+
             content = response.choices[0].message.content
 
             if "```json" in content:
@@ -135,6 +163,12 @@ If no workout text is visible, return: {"error": "No workout text found"}"""
             return result.get("text", ""), result.get("name", "Workout")
 
         except Exception as e:
+            ai_vision_duration.record(time.perf_counter() - t_start)
+            ai_vision_errors_total.add(
+                1,
+                {"error_type": "no_text" if isinstance(e, ValueError) else "api_error"},
+            )
+            log.error("vision.extract_failed", error=str(e), content_type=content_type)
             raise Exception(f"Text extraction failed: {str(e)}")
 
     async def generate_audio_cues(

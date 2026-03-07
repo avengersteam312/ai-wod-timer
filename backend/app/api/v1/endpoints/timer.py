@@ -1,11 +1,12 @@
-import logging
+import structlog
 from fastapi import APIRouter, HTTPException, Query, UploadFile, File
 from app.schemas.workout import WorkoutParseRequest, ParsedWorkout
 from app.services.workout_parser import workout_parser
 from app.services.ai_service import ai_service
 from app.config import settings
+from app.observability.metrics import ai_parse_errors_total
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger(__name__)
 router = APIRouter()
 
 
@@ -50,14 +51,14 @@ async def parse_workout(
         parsed = await parser.parse(request.workout_text)
         return parsed
     except ValueError as e:
-        # Validation errors - can expose to user
+        ai_parse_errors_total.add(1, {"workout_type": "unknown", "error_type": "validation"})
         raise HTTPException(
             status_code=400,
             detail=f"Invalid workout format: {str(e)}"
         )
     except Exception as e:
-        # Log internal errors but don't expose details
-        logger.error(f"Failed to parse workout: {e}", exc_info=True)
+        ai_parse_errors_total.add(1, {"workout_type": "unknown", "error_type": "internal"})
+        log.error("parse.failed", exc_info=True, error=str(e))
         raise HTTPException(
             status_code=500,
             detail="Failed to parse workout. Please check the format and try again."
@@ -129,7 +130,8 @@ async def parse_workout_from_image(
             detail=str(e)
         )
     except Exception as e:
-        logger.error(f"Failed to parse workout from image: {e}", exc_info=True)
+        ai_parse_errors_total.add(1, {"workout_type": "unknown", "error_type": "image_parse"})
+        log.error("parse_image.failed", exc_info=True, error=str(e))
         raise HTTPException(
             status_code=500,
             detail="Failed to parse workout from image. Please try again with a clearer image."

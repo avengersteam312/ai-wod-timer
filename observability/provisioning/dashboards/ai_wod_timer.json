@@ -1,0 +1,376 @@
+{
+  "__inputs": [],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.4.0" },
+    { "type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" }
+  ],
+  "annotations": { "list": [] },
+  "description": "AI WOD Timer — parse success rate, latency by workout type, token usage, security",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "type": "row",
+      "title": "AI Parse Pipeline",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "collapsed": false
+    },
+    {
+      "type": "stat",
+      "title": "Parse Success Rate (5m)",
+      "description": "Fraction of parse requests that succeeded in the last 5 minutes",
+      "id": 2,
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "textMode": "auto" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": 0 }, { "color": "yellow", "value": 0.9 }, { "color": "green", "value": 0.99 }] },
+          "mappings": []
+        }
+      },
+      "targets": [
+        {
+          "expr": "1 - (sum(rate(ai_parse_errors_total[5m])) / (sum(rate(ai_parse_requests_total[5m])) + 0.001))",
+          "legendFormat": "success rate",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Workouts Parsed (24h)",
+      "id": 3,
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+      "options": { "reduceOptions": { "calcs": ["sum"] }, "colorMode": "none", "graphMode": "none" },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "targets": [
+        {
+          "expr": "increase(workouts_parsed_total[24h])",
+          "legendFormat": "{{workout_type}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Parse P95 Latency",
+      "id": 4,
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 5 }, { "color": "red", "value": 10 }] }
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(ai_parse_duration_seconds_bucket{stage='total'}[5m])) by (le))",
+          "legendFormat": "p95",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Parse Errors (5m)",
+      "id": 5,
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+      "options": { "reduceOptions": { "calcs": ["sum"] }, "colorMode": "background" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 }] }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(increase(ai_parse_errors_total[5m])) by (error_type)",
+          "legendFormat": "{{error_type}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Parse Latency by Workout Type (p50 / p95)",
+      "id": 6,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(ai_parse_duration_seconds_bucket{stage='total'}[5m])) by (le, workout_type))",
+          "legendFormat": "p50 {{workout_type}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(ai_parse_duration_seconds_bucket{stage='total'}[5m])) by (le, workout_type))",
+          "legendFormat": "p95 {{workout_type}}",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Workouts Parsed per Minute by Type",
+      "id": 7,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+      "fieldConfig": { "defaults": { "unit": "reqps" } },
+      "targets": [
+        {
+          "expr": "sum(rate(workouts_parsed_total[1m])) by (workout_type)",
+          "legendFormat": "{{workout_type}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Parse Stage Latency: Classify vs Parse",
+      "id": 8,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(ai_parse_duration_seconds_bucket{stage='classify'}[5m])) by (le))",
+          "legendFormat": "p95 classify",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(ai_parse_duration_seconds_bucket{stage='parse'}[5m])) by (le))",
+          "legendFormat": "p95 parse",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "type": "piechart",
+      "title": "Classifier Source: Local vs AI",
+      "description": "1.0 = local regex hit (free). 0.0 = AI fallback (costs tokens).",
+      "id": 9,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
+      "targets": [
+        {
+          "expr": "sum(increase(ai_classifier_confidence_count[1h])) by (workout_type)",
+          "legendFormat": "{{workout_type}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "OpenAI Cost & Token Usage",
+      "id": 40,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 21 },
+      "collapsed": false
+    },
+    {
+      "type": "stat",
+      "title": "Estimated Cost Today (USD)",
+      "description": "Cumulative estimated OpenAI spend based on token counts × model pricing",
+      "id": 41,
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 22 },
+      "options": { "reduceOptions": { "calcs": ["sum"] }, "colorMode": "background", "graphMode": "none" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 4,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 }] }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(increase(ai_estimated_cost_usd_total[24h])) by (model)",
+          "legendFormat": "{{model}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Local Classifier Hit Rate",
+      "description": "% of requests served by free local regex — higher is better (saves OpenAI calls)",
+      "id": 42,
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 22 },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": 0 }, { "color": "yellow", "value": 0.5 }, { "color": "green", "value": 0.8 }] }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(ai_classifier_local_hits_total[1h])) / (sum(rate(ai_classifier_local_hits_total[1h])) + sum(rate(ai_classifier_ai_fallbacks_total[1h])) + 0.001)",
+          "legendFormat": "hit rate",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Tokens Used Today",
+      "id": 43,
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 22 },
+      "options": { "reduceOptions": { "calcs": ["sum"] }, "colorMode": "none", "graphMode": "none" },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "targets": [
+        {
+          "expr": "sum(increase(ai_tokens_used_total[24h])) by (model, direction)",
+          "legendFormat": "{{model}} {{direction}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "AI Classifier Fallbacks (1h)",
+      "description": "Requests that couldn't be classified locally and required an OpenAI call",
+      "id": 44,
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 22 },
+      "options": { "reduceOptions": { "calcs": ["sum"] }, "colorMode": "background" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 10 }, { "color": "red", "value": 50 }] }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(increase(ai_classifier_ai_fallbacks_total[1h]))",
+          "legendFormat": "fallbacks",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Token Rate by Model & Direction (input vs output)",
+      "id": 45,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 26 },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "targets": [
+        {
+          "expr": "sum(rate(ai_tokens_used_total[5m])) by (model, direction)",
+          "legendFormat": "{{model}} {{direction}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Local Hit Rate vs AI Fallback Rate",
+      "id": 46,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 26 },
+      "fieldConfig": { "defaults": { "unit": "reqps" } },
+      "targets": [
+        {
+          "expr": "sum(rate(ai_classifier_local_hits_total[5m]))",
+          "legendFormat": "local hits (free)",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(ai_classifier_ai_fallbacks_total[5m]))",
+          "legendFormat": "AI fallbacks (cost)",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Security",
+      "id": 20,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 21 },
+      "collapsed": false
+    },
+    {
+      "type": "timeseries",
+      "title": "Auth Failures per Minute",
+      "id": 21,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": 0 }, { "color": "red", "value": 10 }] }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(security_auth_failures_total[1m])) by (ip)",
+          "legendFormat": "{{ip}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Auth Failures (24h)",
+      "id": 22,
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 22 },
+      "options": { "reduceOptions": { "calcs": ["sum"] }, "colorMode": "background" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 50 }, { "color": "red", "value": 200 }] }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(increase(security_auth_failures_total[24h]))",
+          "legendFormat": "failures",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "HTTP",
+      "id": 30,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 30 },
+      "collapsed": false
+    },
+    {
+      "type": "timeseries",
+      "title": "HTTP Request Rate",
+      "id": 31,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 31 },
+      "fieldConfig": { "defaults": { "unit": "reqps" } },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total[1m])) by (endpoint, status)",
+          "legendFormat": "{{endpoint}} {{status}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "HTTP P95 Latency",
+      "id": 32,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 31 },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, endpoint))",
+          "legendFormat": "p95 {{endpoint}}",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["ai-wod-timer", "observability"],
+  "templating": { "list": [] },
+  "time": { "from": "now-3h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "AI WOD Timer",
+  "uid": "ai-wod-timer-main",
+  "version": 1
+}

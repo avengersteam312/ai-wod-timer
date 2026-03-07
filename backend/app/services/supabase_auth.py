@@ -3,10 +3,11 @@ Supabase JWT verification service.
 Verifies access tokens sent from the frontend.
 """
 import jwt
+import structlog
 from app.config import settings
-import logging
+from app.observability.security import log_security_event
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger(__name__)
 
 
 def verify_supabase_token(token: str) -> dict:
@@ -37,8 +38,10 @@ def verify_supabase_token(token: str) -> dict:
         )
         return decoded
     except jwt.ExpiredSignatureError:
-        logger.warning("Token has expired")
+        log.warning("auth.token_expired")
+        log_security_event("auth.failure", ip="unknown", detail="token_expired")
         raise ValueError("Token has expired")
     except jwt.InvalidTokenError as e:
-        logger.warning(f"Invalid token: {e}")
+        log.warning("auth.token_invalid", reason=str(e))
+        log_security_event("auth.failure", ip="unknown", detail="invalid_token")
         raise ValueError("Invalid token")

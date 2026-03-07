@@ -1,0 +1,113 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: slo
+    folder: AI WOD Timer Alerts
+    interval: 1m
+    rules:
+      - uid: parse-error-rate-high
+        title: ParseErrorRateHigh
+        condition: C
+        for: 2m
+        labels:
+          severity: warning
+          owner: backend
+        annotations:
+          summary: "Parse error rate > 5% over last 5 min"
+          runbook: >
+            Check Sentry for recent exceptions.
+            Query Loki: {job="backend"} |= "parse.failed"
+            Check OpenAI status: https://status.openai.com
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum(rate(ai_parse_errors_total[5m]))
+                /
+                (sum(rate(ai_parse_requests_total[5m])) + 0.001)
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    params: [0.05]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+
+      - uid: parse-latency-p95-high
+        title: ParseLatencyP95High
+        condition: C
+        for: 5m
+        labels:
+          severity: warning
+          owner: backend
+        annotations:
+          summary: "Parse pipeline P95 latency > 10s"
+          runbook: >
+            Check Tempo traces for slow spans: ai.classify and ai.parse.
+            Verify OpenAI API latency at https://status.openai.com.
+            Consider switching to gpt-4o-mini if using a larger model.
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: |
+                histogram_quantile(
+                  0.95,
+                  sum(rate(ai_parse_duration_seconds_bucket{stage="total"}[5m])) by (le)
+                )
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    params: [10]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+
+      - uid: backend-down
+        title: BackendDown
+        condition: C
+        for: 1m
+        labels:
+          severity: critical
+          owner: infra
+        annotations:
+          summary: "Backend /health is unreachable"
+          runbook: >
+            SSH to VPS, run: docker compose ps
+            Check logs: docker compose logs -f backend
+            Restart if needed: docker compose restart backend
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: up{job="backend"}
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    params: [1]
+                    type: lt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
