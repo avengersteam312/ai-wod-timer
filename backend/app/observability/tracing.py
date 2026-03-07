@@ -1,3 +1,4 @@
+import logging
 import os
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
@@ -5,6 +6,8 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+
+_log = logging.getLogger(__name__)
 
 
 def _otlp_headers() -> dict:
@@ -28,7 +31,9 @@ def configure_metrics() -> None:
     """
     otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
     if not otlp_endpoint:
+        _log.info("OTLP metrics disabled: OTEL_EXPORTER_OTLP_ENDPOINT not set")
         return
+    _log.info("OTLP metrics exporter configured: endpoint=%s", otlp_endpoint)
 
     from opentelemetry import metrics as metrics_api
     from opentelemetry.sdk.metrics import MeterProvider
@@ -48,7 +53,9 @@ def configure_tracing(app) -> None:
     """Call once in main.py — never instantiate TracerProvider anywhere else."""
     otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
     if not otlp_endpoint:
+        _log.info("OTLP tracing disabled: OTEL_EXPORTER_OTLP_ENDPOINT not set")
         return
+    _log.info("OTLP tracing exporter configured: endpoint=%s", otlp_endpoint)
 
     provider = TracerProvider()
     provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(
