@@ -5,6 +5,7 @@ import '../../models/workout_session.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/sync_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/snackbar_utils.dart';
 import '../../widgets/auth_button.dart';
 import '../../widgets/session_card.dart';
 
@@ -166,7 +167,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         children: [
           Expanded(
             child: SessionStatCard(
-              label: 'Workouts',
+              label: 'Timers',
               value: '${completedSessions.length}',
               icon: Icons.fitness_center,
             ),
@@ -262,12 +263,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to delete session'),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        AppSnackBar.showError(context, 'Failed to delete session');
       }
     }
   }

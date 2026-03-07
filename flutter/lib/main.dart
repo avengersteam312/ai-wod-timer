@@ -13,6 +13,9 @@ import 'services/offline_storage_service.dart';
 import 'services/sync_service.dart';
 import 'config/app_config.dart';
 
+/// Global key for the root ScaffoldMessenger to show snackbars above bottom navigation
+final rootScaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -73,6 +76,7 @@ class MyApp extends StatelessWidget {
         title: 'AI WOD Timer',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.darkTheme,
+        scaffoldMessengerKey: rootScaffoldMessengerKey,
         home: const AuthWrapper(),
       ),
     );

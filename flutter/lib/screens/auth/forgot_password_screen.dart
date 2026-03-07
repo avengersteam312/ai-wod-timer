@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/snackbar_utils.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -39,12 +40,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       });
 
       if (!success && authProvider.error != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(authProvider.error!),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        AppSnackBar.showError(context, authProvider.error!);
         authProvider.clearError();
       }
     }

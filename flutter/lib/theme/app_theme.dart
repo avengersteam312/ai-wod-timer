@@ -284,14 +284,11 @@ class AppTheme {
         thickness: 1,
       ),
 
-      // Snackbar theme
-      snackBarTheme: SnackBarThemeData(
+      // Snackbar theme - full width, no rounded corners, at bottom
+      snackBarTheme: const SnackBarThemeData(
         backgroundColor: AppColors.cardBackground,
         contentTextStyle: AppTextStyles.body,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        behavior: SnackBarBehavior.floating,
+        behavior: SnackBarBehavior.fixed,
       ),
 
       // Dialog theme

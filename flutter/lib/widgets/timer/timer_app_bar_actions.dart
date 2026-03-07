@@ -33,7 +33,7 @@ class TimerAppBarActions extends StatelessWidget {
         if (showSave && !isSaved)
           IconButton(
             icon: const Icon(Icons.save_outlined),
-            tooltip: 'Save workout',
+            tooltip: 'Save as template',
             onPressed: onSave,
           ),
         if (showSave && isSaved)

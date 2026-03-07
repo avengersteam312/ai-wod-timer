@@ -216,20 +216,20 @@ class AudioService {
   }
 
   /// Play a beep sound (always plays, not affected by mute)
-  Future<void> _playBeep(SoundType sound) async {
+  void _playBeep(SoundType sound) {
     if (!_isInitialized) return;
 
     final player = _beepPlayers[sound];
-    if (player == null) {
+    final filePath = _beepFilePaths[sound];
+    if (player == null || filePath == null) {
       debugPrint('Beep player not available: $sound');
       return;
     }
 
     try {
-      // Seek to start and play - source is already loaded for instant playback
+      // Play directly from file source - most reliable for instant playback
       player.setVolume(_volume);
-      player.seek(Duration.zero);
-      player.resume();
+      player.play(DeviceFileSource(filePath));
     } catch (e) {
       debugPrint('Failed to play beep $sound: $e');
     }
@@ -278,7 +278,7 @@ class AudioService {
     if (!_isInitialized) return;
 
     if (_isBeepSound(sound)) {
-      await _playBeep(sound);
+      _playBeep(sound);
     } else {
       await _playVoice(sound);
     }

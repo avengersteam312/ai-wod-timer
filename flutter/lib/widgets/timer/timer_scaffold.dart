@@ -124,7 +124,7 @@ class CompletionCard extends StatelessWidget {
 
   const CompletionCard({
     super.key,
-    this.title = 'Workout Complete!',
+    this.title = 'Timer Complete!',
     this.subtitle,
     this.elapsedTime,
     this.onNewWorkout,
@@ -192,7 +192,7 @@ class CompletionCard extends StatelessWidget {
                   Expanded(
                     child: ElevatedButton(
                       onPressed: onNewWorkout,
-                      child: const Text('New Workout'),
+                      child: const Text('New Timer'),
                     ),
                   ),
               ],
