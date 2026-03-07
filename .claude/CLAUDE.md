@@ -143,3 +143,34 @@ Project-specific skills in `.claude/skills/`:
 | `sentinel` | logging, metrics, tracing, alerting, monitoring, Sentry, Grafana, health check, auth failures, brute-force, observability | Staff observability engineer — builds and deploys the full prod observability stack from scratch |
 | `ios-setup` | first ios deploy, setup ios deployment, ios app store setup, configure ios signing, first time app store | First-time Flutter iOS App Store setup: bundle ID, team ID, Podfile signing, ExportOptions, build → archive → export → upload |
 | `ios-deploy` | deploy ios, release ios, upload to app store, new ios build, ios release, bump version ios, ship ios | Subsequent Flutter iOS deployments: bump version, build, archive, export IPA, upload to App Store Connect |
+
+### Flutter iOS — App Store
+
+**Identifiers:**
+- Bundle ID: `com.aiwodtimer.app`
+- Team ID: `X4J5J2543A`
+- App display name: `AI WOD Timer`
+
+**Archive & export approach** (CocoaPods signing conflict workaround):
+```bash
+# Step 1 — archive without codesign (avoids Development profile / device requirement)
+xcodebuild -workspace Runner.xcworkspace -scheme Runner -configuration Release \
+  -destination "generic/platform=iOS" -archivePath ../build/Runner.xcarchive \
+  archive CODE_SIGNING_ALLOWED=NO
+
+# Step 2 — export with App Store Distribution signing
+xcodebuild -exportArchive -archivePath flutter/build/Runner.xcarchive \
+  -exportPath flutter/build/ipa \
+  -exportOptionsPlist flutter/ios/ExportOptions.plist -allowProvisioningUpdates
+
+# Step 3 — upload
+xcrun altool --upload-app --type ios --file flutter/build/ipa/ai_wod_timer.ipa \
+  --apiKey <KEY_ID> --apiIssuer <ISSUER_ID>
+```
+
+**Credentials (never commit):**
+- App Store Connect API key: `~/.appstoreconnect/private_keys/AuthKey_88R6NGQ7J4.p8`
+- Key ID: `88R6NGQ7J4` · Issuer ID: `2e175de1-26c8-4f2e-91fb-2ece7aba0b12`
+- Share via password manager only
+
+**Use `/ios-setup` for first-time setup, `/ios-deploy` for all subsequent releases.**
