@@ -171,6 +171,6 @@ xcrun altool --upload-app --type ios --file flutter/build/ipa/ai_wod_timer.ipa \
 **Credentials (never commit):**
 - App Store Connect API key: `~/.appstoreconnect/private_keys/AuthKey_88R6NGQ7J4.p8`
 - Key ID: `88R6NGQ7J4` · Issuer ID: `2e175de1-26c8-4f2e-91fb-2ece7aba0b12`
-- Share via password manager only
+- Saved in **Apple Passwords** app under: `App Store Connect API key`
 
 **Use `/ios-setup` for first-time setup, `/ios-deploy` for all subsequent releases.**
