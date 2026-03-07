@@ -26,6 +26,13 @@ class AppConfig {
   static const String appName = 'AI WOD Timer';
   static const String appVersion = '1.0.0';
 
+  // Deep Link Scheme (must match iOS/Android config)
+  static String get deepLinkScheme =>
+      dotenv.env['DEEP_LINK_SCHEME'] ?? 'com.aiwodtimer.app';
+
+  static String get loginCallbackUrl => '$deepLinkScheme://login-callback';
+  static String get resetCallbackUrl => '$deepLinkScheme://reset-callback';
+
   // Timer Defaults
   static const int defaultCountdownSeconds = 10;
   static const int defaultRestSeconds = 60;

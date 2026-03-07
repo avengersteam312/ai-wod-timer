@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../config/app_config.dart';
 
 class AuthException implements Exception {
   final String message;
@@ -74,7 +75,7 @@ class AuthService {
     }
   }
 
-  // Sign in with Google (native + Supabase)
+  // Sign in with Google (Supabase OAuth)
   Future<bool> signInWithGoogle() async {
     try {
       // For web, use the default OAuth flow
@@ -82,40 +83,33 @@ class AuthService {
         return await _client.auth.signInWithOAuth(OAuthProvider.google);
       }
 
-      // For mobile, use native Google Sign-In
-      // The serverClientId is your Web OAuth Client ID from Google Cloud Console
-      // This is required to get the idToken for Supabase
-      final googleSignIn = GoogleSignIn(
-        serverClientId: const String.fromEnvironment(
-          'GOOGLE_WEB_CLIENT_ID',
-          defaultValue: '',
-        ),
-      );
+      // For mobile, build OAuth URL and launch externally
+      final redirectTo = AppConfig.loginCallbackUrl;
 
-      final googleUser = await googleSignIn.signIn();
-      if (googleUser == null) {
-        // User cancelled
-        return false;
-      }
-
-      final googleAuth = await googleUser.authentication;
-      final idToken = googleAuth.idToken;
-      final accessToken = googleAuth.accessToken;
-
-      if (idToken == null) {
-        throw AuthException('Failed to get Google credentials.');
-      }
-
-      // Sign in to Supabase with the Google ID token
-      await _client.auth.signInWithIdToken(
+      // Get the OAuth URL from Supabase
+      final res = await _client.auth.getOAuthSignInUrl(
         provider: OAuthProvider.google,
-        idToken: idToken,
-        accessToken: accessToken,
+        redirectTo: redirectTo,
       );
 
+      final url = Uri.parse(res.url);
+
+      // Launch in external browser
+      final launched = await launchUrl(
+        url,
+        mode: LaunchMode.externalApplication,
+      );
+
+      if (!launched) {
+        throw AuthException('Could not open browser for sign in.');
+      }
+
+      // The app will receive the callback via deep link
+      // Supabase SDK handles it automatically
       return true;
     } catch (e) {
       debugPrint('[AuthService] Google sign in error: $e');
+      if (e is AuthException) rethrow;
       throw AuthException('Failed to sign in with Google. Please try again.');
     }
   }
@@ -134,7 +128,7 @@ class AuthService {
     try {
       await _client.auth.resetPasswordForEmail(
         email,
-        redirectTo: kIsWeb ? null : 'com.aiwodtimer.app://reset-callback',
+        redirectTo: kIsWeb ? null : AppConfig.resetCallbackUrl,
       );
     } on AuthException catch (e) {
       throw AuthException(_mapAuthError(e.message));

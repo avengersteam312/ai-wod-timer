@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -71,6 +72,7 @@ class _TimerScreenState extends State<TimerScreen> {
 
   // Offline state
   bool _isOffline = false;
+  StreamSubscription<ConnectivityResult>? _connectivitySubscription;
 
   // Notes state: closed, minimized, full
   NotesState _notesState = NotesState.closed;
@@ -150,11 +152,13 @@ class _TimerScreenState extends State<TimerScreen> {
 
   Future<void> _checkConnectivity() async {
     final connectivity = await Connectivity().checkConnectivity();
+    if (!mounted) return;
     setState(() {
       _isOffline = connectivity == ConnectivityResult.none;
     });
     // Listen for connectivity changes
-    Connectivity().onConnectivityChanged.listen((result) {
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((result) {
+      if (!mounted) return;
       setState(() {
         _isOffline = result == ConnectivityResult.none;
       });
@@ -163,6 +167,7 @@ class _TimerScreenState extends State<TimerScreen> {
 
   @override
   void dispose() {
+    _connectivitySubscription?.cancel();
     _inputController.dispose();
     _scrollController.dispose();
     WakelockPlus.disable();
@@ -519,14 +524,12 @@ class _TimerScreenState extends State<TimerScreen> {
                           ],
                         ),
                       ),
-                    // Voice toggle button
+                    // Voice toggle button (only affects voice, not beeps)
                     IconButton(
                       icon: Icon(
-                        _audioService.isMuted
-                            ? Icons.volume_off
-                            : Icons.volume_up,
+                        _audioService.isMuted ? Icons.voice_over_off : Icons.record_voice_over,
                       ),
-                      tooltip: _audioService.isMuted ? 'Unmute' : 'Mute',
+                      tooltip: _audioService.isMuted ? 'Enable voice' : 'Mute voice',
                       onPressed: () {
                         setState(() {
                           _audioService.toggleMute();

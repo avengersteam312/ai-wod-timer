@@ -46,8 +46,8 @@ class TimerAppBarActions extends StatelessWidget {
           ),
         if (showSound)
           IconButton(
-            icon: Icon(isMuted ? Icons.volume_off : Icons.volume_up),
-            tooltip: isMuted ? 'Unmute' : 'Mute',
+            icon: Icon(isMuted ? Icons.voice_over_off : Icons.record_voice_over),
+            tooltip: isMuted ? 'Enable voice' : 'Mute voice',
             onPressed: onToggleSound,
           ),
         if (showProfile && profileButton != null) profileButton!,

@@ -1,2 +1,9 @@
 #include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"
 #include "Generated.xcconfig"
+
+// Default values (can be overridden in LocalOverrides.xcconfig)
+DEVELOPMENT_TEAM = X4J5J2543A
+PRODUCT_BUNDLE_IDENTIFIER = com.aiwodtimer.app
+
+// Local overrides (gitignored)
+#include? "LocalOverrides.xcconfig"
