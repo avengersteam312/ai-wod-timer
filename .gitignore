@@ -56,7 +56,6 @@ build/
 # Claude/Ralph Code
 .ralph/
 .ralphrc
-.claude/
 CLAUDE*.md
 
 # Promptfoo
