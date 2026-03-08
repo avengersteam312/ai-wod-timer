@@ -1,0 +1,7 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.5  # keep in sync with CI (backend/ruff.toml + pr-check.yml)
+    hooks:
+      - id: ruff
+        args: [--fix]  # auto-fix what it can; unfixable issues block the commit
+      - id: ruff-format
