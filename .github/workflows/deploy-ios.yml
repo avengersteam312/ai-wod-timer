@@ -1,0 +1,128 @@
+name: Deploy iOS to TestFlight
+
+# Runs on every merge to master.
+# macOS runner required to build iOS apps.
+# Secrets required:
+#   DISTRIBUTION_CERTIFICATE_BASE64  — .p12 cert, base64-encoded
+#   DISTRIBUTION_CERTIFICATE_PASSWORD — password set when exporting .p12
+#   APP_STORE_CONNECT_API_KEY_BASE64  — AuthKey_88R6NGQ7J4.p8, base64-encoded
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy-ios:
+    name: Build & upload to TestFlight
+    runs-on: macos-14
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.x"
+          channel: stable
+          cache: true
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+        working-directory: flutter
+
+      - name: Bump build number
+        # Sets version to current pubspec version + CI run number as build number.
+        # e.g. 1.0.0+1 → 1.0.0+42
+        run: |
+          python3 - <<'EOF'
+          import re, os, pathlib
+          pubspec = pathlib.Path("pubspec.yaml")
+          content = pubspec.read_text()
+          run_number = os.environ["GITHUB_RUN_NUMBER"]
+          content = re.sub(
+              r'^(version:\s*\d+\.\d+\.\d+)\+\d+',
+              rf'\1+{run_number}',
+              content,
+              flags=re.MULTILINE,
+          )
+          pubspec.write_text(content)
+          print(f"Build number set to {run_number}")
+          EOF
+        working-directory: flutter
+        env:
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+
+      - name: Import Distribution Certificate
+        run: |
+          CERT_PATH="$RUNNER_TEMP/distribution.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+
+          echo "$DISTRIBUTION_CERTIFICATE_BASE64" | base64 --decode -o "$CERT_PATH"
+
+          # Create temp keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Import cert
+          security import "$CERT_PATH" \
+            -P "$DISTRIBUTION_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+
+          # Add to search list so xcodebuild can find it
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+        env:
+          DISTRIBUTION_CERTIFICATE_BASE64: ${{ secrets.DISTRIBUTION_CERTIFICATE_BASE64 }}
+          DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ github.run_id }}
+
+      - name: Write App Store Connect API key
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 --decode \
+            -o ~/.appstoreconnect/private_keys/AuthKey_88R6NGQ7J4.p8
+        env:
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+
+      - name: Build Flutter iOS (no codesign)
+        run: flutter build ios --release --no-codesign
+        working-directory: flutter
+
+      - name: Archive (no codesign — avoids Development profile conflict)
+        run: |
+          xcodebuild \
+            -workspace Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
+            archive \
+            CODE_SIGNING_ALLOWED=NO
+        working-directory: flutter/ios
+
+      - name: Export IPA (signs + downloads provisioning profile)
+        run: |
+          xcodebuild \
+            -exportArchive \
+            -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
+            -exportPath "$RUNNER_TEMP/ipa" \
+            -exportOptionsPlist ios/ExportOptions.plist \
+            -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_88R6NGQ7J4.p8 \
+            -authenticationKeyID 88R6NGQ7J4 \
+            -authenticationKeyIssuerID 2e175de1-26c8-4f2e-91fb-2ece7aba0b12 \
+            -allowProvisioningUpdates
+        working-directory: flutter
+
+      - name: Upload to TestFlight
+        run: |
+          IPA=$(find "$RUNNER_TEMP/ipa" -name "*.ipa" | head -1)
+          xcrun altool \
+            --upload-app \
+            --type ios \
+            --file "$IPA" \
+            --apiKey 88R6NGQ7J4 \
+            --apiIssuer 2e175de1-26c8-4f2e-91fb-2ece7aba0b12
+
+      - name: Clean up keychain
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/app-signing.keychain-db" || true
