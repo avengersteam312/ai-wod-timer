@@ -1,0 +1,111 @@
+name: Test iOS Signing (smoke test)
+
+# Manual trigger only — use this to validate signing steps without waiting
+# for the full Flutter build + archive (~10 min). Completes in ~1 min.
+# Validates: cert import, API key, pip3 install, profile download/install.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-signing:
+    name: Verify cert + provisioning profile
+    runs-on: macos-14
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Import Distribution Certificate
+        run: |
+          CERT_PATH="$RUNNER_TEMP/distribution.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+
+          echo "$DISTRIBUTION_CERTIFICATE_BASE64" | base64 --decode -o "$CERT_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          security import "$CERT_PATH" \
+            -P "$DISTRIBUTION_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+          echo "✅ Certificate imported"
+        env:
+          DISTRIBUTION_CERTIFICATE_BASE64: ${{ secrets.DISTRIBUTION_CERTIFICATE_BASE64 }}
+          DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ github.run_id }}
+
+      - name: Write App Store Connect API key
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 --decode \
+            -o ~/.appstoreconnect/private_keys/AuthKey_88R6NGQ7J4.p8
+          echo "✅ API key written"
+        env:
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+
+      - name: Install provisioning profile
+        run: |
+          pip3 install --quiet --break-system-packages requests pyjwt cryptography
+          python3 - <<'PYEOF'
+          import jwt, time, requests, pathlib, base64
+
+          key_id = "88R6NGQ7J4"
+          issuer_id = "2e175de1-26c8-4f2e-91fb-2ece7aba0b12"
+          key_path = pathlib.Path.home() / ".appstoreconnect/private_keys/AuthKey_88R6NGQ7J4.p8"
+
+          private_key = key_path.read_text()
+          now = int(time.time())
+          payload = {"iss": issuer_id, "iat": now, "exp": now + 1200, "aud": "appstoreconnect-v1"}
+          token = jwt.encode(payload, private_key, algorithm="ES256", headers={"kid": key_id})
+
+          headers = {"Authorization": f"Bearer {token}"}
+          resp = requests.get(
+              "https://api.appstoreconnect.apple.com/v1/profiles?filter[profileState]=ACTIVE&filter[profileType]=IOS_APP_STORE&limit=50",
+              headers=headers
+          )
+          resp.raise_for_status()
+
+          profiles_dir = pathlib.Path.home() / "Library/MobileDevice/Provisioning Profiles"
+          profiles_dir.mkdir(parents=True, exist_ok=True)
+
+          installed = []
+          for profile in resp.json()["data"]:
+              name = profile["attributes"]["name"]
+              content = base64.b64decode(profile["attributes"]["profileContent"])
+              profile_uuid = profile["attributes"]["uuid"]
+              out = profiles_dir / f"{profile_uuid}.mobileprovision"
+              out.write_bytes(content)
+              installed.append(name)
+              print(f"Installed: {name} -> {out}")
+
+          if not installed:
+              raise SystemExit("❌ No active iOS App Store profiles found — check App Store Connect")
+          print(f"✅ {len(installed)} profile(s) installed")
+          PYEOF
+
+      - name: Verify profile name matches ExportOptions
+        run: |
+          PROFILES_DIR=~/Library/MobileDevice/Provisioning\ Profiles
+          EXPECTED="AI WOD Timer App Store"
+          FOUND=0
+          for f in "$PROFILES_DIR"/*.mobileprovision; do
+            NAME=$(security cms -D -i "$f" 2>/dev/null | plutil -extract Name raw - 2>/dev/null || true)
+            echo "  Found profile: $NAME"
+            if [ "$NAME" = "$EXPECTED" ]; then
+              FOUND=1
+            fi
+          done
+          if [ "$FOUND" -eq 1 ]; then
+            echo "✅ Profile '$EXPECTED' is installed — export should succeed"
+          else
+            echo "❌ Profile '$EXPECTED' NOT found — xcodebuild export will fail"
+            exit 1
+          fi
+
+      - name: Clean up keychain
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/app-signing.keychain-db" || true
