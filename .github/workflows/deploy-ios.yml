@@ -117,14 +117,6 @@ jobs:
             CODE_SIGNING_ALLOWED=NO
         working-directory: flutter/ios
 
-      - name: Download provisioning profile
-        run: |
-          # Install the provisioning profile so xcodebuild can find it by name.
-          # -allowProvisioningUpdates alone doesn't install profiles on a fresh runner.
-          xcrun xcodebuild -downloadAllProvisioningProfiles \
-            -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_88R6NGQ7J4.p8 \
-            -authenticationKeyID 88R6NGQ7J4 \
-            -authenticationKeyIssuerID 2e175de1-26c8-4f2e-91fb-2ece7aba0b12
 
       - name: Export IPA (signs + downloads provisioning profile)
         run: |
@@ -153,3 +145,18 @@ jobs:
         if: always()
         run: |
           security delete-keychain "$RUNNER_TEMP/app-signing.keychain-db" || true
+
+      - name: Notify Discord on failure
+        if: failure()
+        run: |
+          curl -s -X POST "$DISCORD_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"❌ TestFlight deploy failed\",
+                \"description\": \"**Commit:** ${{ github.sha }}\n**[View run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})**\",
+                \"color\": 15158332
+              }]
+            }"
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
