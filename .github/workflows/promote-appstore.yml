@@ -1,0 +1,55 @@
+name: Promote to App Store
+
+# Manual trigger only — run after TestFlight testing is complete.
+# Submits an existing TestFlight build for App Store review.
+#
+# Secrets required (same as deploy-ios.yml):
+#   APP_STORE_CONNECT_API_KEY_BASE64 — AuthKey_88R6NGQ7J4.p8, base64-encoded
+#
+# Runs on Linux — no macOS needed (pure API calls, no build).
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: "Build number to promote (github.run_number from the deploy-ios run)"
+        required: true
+        type: string
+      version:
+        description: "Marketing version (e.g. 1.0.0) — must match what's in pubspec.yaml"
+        required: true
+        type: string
+        default: "1.0.0"
+
+jobs:
+  promote:
+    name: Submit build ${{ inputs.build_number }} for App Store review
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install pyjwt cryptography requests
+
+      - name: Write App Store Connect API key
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 --decode \
+            -o ~/.appstoreconnect/private_keys/AuthKey_88R6NGQ7J4.p8
+        env:
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+
+      - name: Submit to App Store review
+        run: python scripts/promote_appstore.py
+        env:
+          KEY_ID: 88R6NGQ7J4
+          ISSUER_ID: 2e175de1-26c8-4f2e-91fb-2ece7aba0b12
+          BUNDLE_ID: com.aiwodtimer.app
+          BUILD_NUMBER: ${{ inputs.build_number }}
+          VERSION: ${{ inputs.version }}
+          KEY_PATH: ~/.appstoreconnect/private_keys/AuthKey_88R6NGQ7J4.p8

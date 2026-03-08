@@ -1,0 +1,6 @@
+[lint]
+# E402: module-level import not at top of file.
+# Suppressed for main.py only — OTel metrics provider must be configured
+# before metrics.py is imported (get_meter() runs at module level).
+[lint.per-file-ignores]
+"app/main.py" = ["E402"]

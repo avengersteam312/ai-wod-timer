@@ -1,0 +1,71 @@
+name: PR Check
+
+# Runs on every PR to master.
+# Uses Linux only — no macOS cost.
+# Catches: type errors, lint, broken tests, broken imports.
+
+on:
+  pull_request:
+    branches: [master]
+
+jobs:
+  flutter-checks:
+    name: Flutter analyze + test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.x"
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+        working-directory: flutter
+
+      - name: Analyze (lint + type check)
+        # Pre-existing warnings/infos in the codebase — only fail on errors.
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+        working-directory: flutter
+
+      - name: Run tests
+        run: |
+          # .env is a pubspec.yaml asset but is gitignored — create a placeholder so the build succeeds
+          touch .env
+          flutter test
+        working-directory: flutter
+
+  backend-checks:
+    name: Backend lint + test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+        working-directory: backend
+
+      - name: Lint (ruff)
+        run: |
+          pip install ruff
+          ruff check .
+        working-directory: backend
+
+      - name: Run tests
+        run: pytest -x -q
+        working-directory: backend
+        env:
+          OPENAI_API_KEY: "sk-test-placeholder"
+          DATABASE_URL: "sqlite+aiosqlite:///./test.db"
+          SUPABASE_JWT_SECRET: "test-secret"
