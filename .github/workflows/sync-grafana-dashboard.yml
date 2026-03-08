@@ -1,0 +1,48 @@
+name: Sync Grafana Dashboard
+
+# Pushes dashboard JSON to Grafana Cloud whenever it changes on master.
+# Repo JSON is the single source of truth — this job keeps Grafana in sync.
+# If you made changes via MCP/Grafana UI that you want to keep, run the
+# export-grafana-dashboard workflow first to capture them in the repo.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'observability/provisioning/dashboards/*.json'
+
+jobs:
+  sync-dashboard:
+    name: Upload dashboard to Grafana Cloud
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Push dashboard to Grafana
+        env:
+          GRAFANA_URL: ${{ secrets.GRAFANA_URL }}
+          GRAFANA_SA_TOKEN: ${{ secrets.GRAFANA_SA_TOKEN }}
+        run: |
+          payload=$(jq -n \
+            --argjson dash "$(jq 'del(.id) | del(.version)' \
+              observability/provisioning/dashboards/ai_wod_timer.json)" \
+            '{"dashboard": $dash, "overwrite": true, "folderUid": ""}')
+
+          response=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $GRAFANA_SA_TOKEN" \
+            -d "$payload" \
+            "$GRAFANA_URL/api/dashboards/db")
+
+          body=$(echo "$response" | head -n -1)
+          http_code=$(echo "$response" | tail -1)
+          echo "HTTP $http_code"
+          echo "$body"
+
+          if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+            echo "Dashboard sync failed"
+            exit 1
+          fi
+          echo "Dashboard synced — uid: $(echo "$body" | jq -r '.uid')"
