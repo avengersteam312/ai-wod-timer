@@ -3,15 +3,15 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+# ── Structured logging — must come first so all subsequent startup logs are JSON ─
+from app.config import settings
+from app.observability.logging import configure_logging
+configure_logging(log_level="DEBUG" if settings.DEBUG else "INFO")
+
 # ── OTel metrics provider must be configured BEFORE metrics.py is imported ──
 # metrics.py calls get_meter() at module level; it must find the real provider.
 from app.observability.tracing import configure_metrics, configure_tracing
 configure_metrics()
-
-# ── Structured logging ───────────────────────────────────────────────────────
-from app.observability.logging import configure_logging
-from app.config import settings
-configure_logging(log_level="DEBUG" if settings.DEBUG else "INFO")
 
 import structlog
 log = structlog.get_logger()

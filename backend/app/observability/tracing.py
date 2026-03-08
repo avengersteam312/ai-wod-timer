@@ -1,5 +1,5 @@
-import logging
 import os
+import structlog
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
@@ -7,7 +7,7 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExport
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 
-_log = logging.getLogger(__name__)
+_log = structlog.get_logger(__name__)
 
 
 def _otlp_headers() -> dict:
@@ -21,6 +21,21 @@ def _otlp_headers() -> dict:
     return headers
 
 
+def _masked_headers() -> str:
+    """Return a safe representation of OTEL_EXPORTER_OTLP_HEADERS for logging."""
+    raw = os.getenv("OTEL_EXPORTER_OTLP_HEADERS", "")
+    if not raw:
+        return "<not set>"
+    # Show key names and first/last 4 chars of each value — enough to spot mistakes
+    parts = []
+    for pair in raw.split(","):
+        if "=" in pair:
+            k, v = pair.split("=", 1)
+            masked = v[:4] + "..." + v[-4:] if len(v) > 8 else "****"
+            parts.append(f"{k.strip()}={masked}")
+    return ", ".join(parts) or "<malformed>"
+
+
 def configure_metrics() -> None:
     """
     Set up OTel MeterProvider with OTLP/HTTP push to Grafana Cloud Mimir.
@@ -31,9 +46,9 @@ def configure_metrics() -> None:
     """
     otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
     if not otlp_endpoint:
-        _log.info("OTLP metrics disabled: OTEL_EXPORTER_OTLP_ENDPOINT not set")
+        _log.info("otlp.metrics.disabled", reason="OTEL_EXPORTER_OTLP_ENDPOINT not set")
         return
-    _log.info("OTLP metrics exporter configured: endpoint=%s", otlp_endpoint)
+    _log.info("otlp.metrics.configured", endpoint=otlp_endpoint, headers=_masked_headers())
 
     from opentelemetry import metrics as metrics_api
     from opentelemetry.sdk.metrics import MeterProvider
@@ -53,9 +68,9 @@ def configure_tracing(app) -> None:
     """Call once in main.py — never instantiate TracerProvider anywhere else."""
     otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
     if not otlp_endpoint:
-        _log.info("OTLP tracing disabled: OTEL_EXPORTER_OTLP_ENDPOINT not set")
+        _log.info("otlp.tracing.disabled", reason="OTEL_EXPORTER_OTLP_ENDPOINT not set")
         return
-    _log.info("OTLP tracing exporter configured: endpoint=%s", otlp_endpoint)
+    _log.info("otlp.tracing.configured", endpoint=otlp_endpoint, headers=_masked_headers())
 
     provider = TracerProvider()
     provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(
