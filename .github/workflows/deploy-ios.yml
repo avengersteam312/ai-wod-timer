@@ -14,10 +14,15 @@ on:
 jobs:
   deploy-ios:
     name: Build & upload to TestFlight
-    runs-on: macos-13
+    runs-on: macos-14
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Select Xcode 15.4
+        # camera_avfoundation uses AVCaptureSession APIs removed in iOS 18 SDK (Xcode 16).
+        # Xcode 15.4 ships iOS 17 SDK where these APIs still exist.
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app
 
       - uses: subosito/flutter-action@v2
         with:
