@@ -32,7 +32,10 @@ jobs:
         working-directory: flutter
 
       - name: Run tests
-        run: flutter test
+        run: |
+          # .env is a pubspec.yaml asset but is gitignored — create a placeholder so the build succeeds
+          touch .env
+          flutter test
         working-directory: flutter
 
   backend-checks:
