@@ -118,17 +118,48 @@ jobs:
         working-directory: flutter/ios
 
 
-      - name: Export IPA (signs + downloads provisioning profile)
+      - name: Install provisioning profile
+        run: |
+          # Download all provisioning profiles via App Store Connect API and install them.
+          pip3 install --quiet requests pyjwt cryptography
+          python3 - <<'PYEOF'
+          import jwt, time, requests, os, pathlib, uuid, base64
+
+          key_id = "88R6NGQ7J4"
+          issuer_id = "2e175de1-26c8-4f2e-91fb-2ece7aba0b12"
+          key_path = pathlib.Path.home() / ".appstoreconnect/private_keys/AuthKey_88R6NGQ7J4.p8"
+
+          private_key = key_path.read_text()
+          now = int(time.time())
+          payload = {"iss": issuer_id, "iat": now, "exp": now + 1200, "aud": "appstoreconnect-v1"}
+          token = jwt.encode(payload, private_key, algorithm="ES256", headers={"kid": key_id})
+
+          headers = {"Authorization": f"Bearer {token}"}
+          resp = requests.get(
+              "https://api.appstoreconnect.apple.com/v1/profiles?filter[profileState]=ACTIVE&filter[profileType]=IOS_APP_STORE&limit=50",
+              headers=headers
+          )
+          resp.raise_for_status()
+
+          profiles_dir = pathlib.Path.home() / "Library/MobileDevice/Provisioning Profiles"
+          profiles_dir.mkdir(parents=True, exist_ok=True)
+
+          for profile in resp.json()["data"]:
+              name = profile["attributes"]["name"]
+              content = base64.b64decode(profile["attributes"]["profileContent"])
+              profile_uuid = profile["attributes"]["uuid"]
+              out = profiles_dir / f"{profile_uuid}.mobileprovision"
+              out.write_bytes(content)
+              print(f"Installed: {name} -> {out}")
+          PYEOF
+
+      - name: Export IPA (signs with installed provisioning profile)
         run: |
           xcodebuild \
             -exportArchive \
             -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
             -exportPath "$RUNNER_TEMP/ipa" \
-            -exportOptionsPlist ios/ExportOptions.plist \
-            -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_88R6NGQ7J4.p8 \
-            -authenticationKeyID 88R6NGQ7J4 \
-            -authenticationKeyIssuerID 2e175de1-26c8-4f2e-91fb-2ece7aba0b12 \
-            -allowProvisioningUpdates
+            -exportOptionsPlist ios/ExportOptions.plist
         working-directory: flutter
 
       - name: Upload to TestFlight
