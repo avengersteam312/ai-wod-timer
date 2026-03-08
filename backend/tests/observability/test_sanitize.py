@@ -92,19 +92,21 @@ class TestSanitizingProcessor:
         assert result["access_token"] == "[REDACTED]"
 
     def test_capture_logs_integration(self):
-        """Confirm sensitive data never reaches the rendered log output."""
-        with capture_logs() as cap:
-            structlog.configure(
-                processors=[
-                    SanitizingProcessor(),
-                    structlog.testing.CapturingLoggerFactory.make_dict_processor(),
-                ],
-                logger_factory=structlog.testing.CapturingLoggerFactory(),
-                wrapper_class=structlog.make_filtering_bound_logger("DEBUG"),
-            )
-            structlog.get_logger().info("login", password="secret", user_id="u1")
+        """SanitizingProcessor sanitizes fields in a real structlog pipeline."""
+        captured = []
 
-        # Ensure no captured log entry has the raw secret value
-        for entry in cap:
-            rendered = json.dumps(entry)
-            assert "secret" not in rendered or entry.get("password") == "[REDACTED]"
+        def _capture(logger, method, event_dict):
+            captured.append(dict(event_dict))
+            return event_dict
+
+        structlog.configure(
+            processors=[SanitizingProcessor(), _capture],
+            wrapper_class=structlog.make_filtering_bound_logger("DEBUG"),
+            logger_factory=structlog.ReturnLoggerFactory(),
+            cache_logger_on_first_use=False,
+        )
+        structlog.get_logger().info("login", password="secret", user_id="u1")
+
+        assert len(captured) == 1
+        assert captured[0]["password"] == "[REDACTED]", "password leaked in log output"
+        assert captured[0]["user_id"] == "u1"

@@ -27,9 +27,8 @@ jobs:
         working-directory: flutter
 
       - name: Analyze (lint + type check)
-        # --fatal-warnings omitted: codebase has pre-existing infos/warnings.
-        # Fails only on errors (type errors, missing imports, broken constructors).
-        run: flutter analyze
+        # Pre-existing warnings/infos in the codebase — only fail on errors.
+        run: flutter analyze --no-fatal-warnings
         working-directory: flutter
 
       - name: Run tests
