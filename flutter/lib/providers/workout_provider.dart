@@ -427,15 +427,38 @@ class WorkoutProvider with ChangeNotifier {
     }
   }
 
-  /// Parse workout from an image file (e.g. whiteboard photo). Stub until backend supports it.
+  /// Parse workout from an image file (e.g. whiteboard photo).
   Future<void> parseWorkoutFromImage(File imageFile) async {
     try {
       _isExtractingFromImage = true;
       _parseError = null;
       notifyListeners();
-      // TODO: when backend has an image parse endpoint, send image (e.g. base64) and set _currentWorkout from response
-      _parseError = 'Image parsing is not yet supported. Use text input or paste a WOD.';
-    } finally {
+
+      final result = await _apiService.parseWorkoutFromImage(imageFile);
+
+      // Validate raw API response for invalid durations
+      if (_hasInvalidApiResponse(result)) {
+        _parseError = 'Invalid timer configuration. Please try again.';
+        _isExtractingFromImage = false;
+        notifyListeners();
+        return;
+      }
+
+      // Extract the raw text from image parsing (if available)
+      final extractedText = result['raw_text'] as String?;
+
+      // Convert API response to Workout model
+      final workout = _createWorkoutFromResponse(result, extractedText: extractedText);
+
+      _currentWorkout = workout;
+      _loadedFromWorkoutId = null;
+      _showInputOverride = false; // Ensure timer view is shown after creating
+      _isExtractingFromImage = false;
+      notifyListeners();
+    } catch (e, stackTrace) {
+      debugPrint('[WorkoutProvider] parseWorkoutFromImage error: $e');
+      debugPrint('[WorkoutProvider] parseWorkoutFromImage stackTrace: $stackTrace');
+      _parseError = _getParseErrorMessage(e);
       _isExtractingFromImage = false;
       notifyListeners();
     }
@@ -512,7 +535,7 @@ class WorkoutProvider with ChangeNotifier {
     }
   }
 
-  Workout _createWorkoutFromResponse(Map<String, dynamic> response) {
+  Workout _createWorkoutFromResponse(Map<String, dynamic> response, {String? extractedText}) {
     final userId = _authProvider?.user?.id ?? 'anonymous';
 
     // Parse movements
@@ -579,6 +602,7 @@ class WorkoutProvider with ChangeNotifier {
       userId: userId,
       name: response['name'] as String? ?? 'Workout',
       rawInput: _workoutInput,
+      notes: _workoutInput.isNotEmpty ? _workoutInput : extractedText,
       type: WorkoutTypeExtension.fromString(
         response['workout_type'] as String? ?? response['type'] as String? ?? 'custom',
       ),
@@ -1194,6 +1218,11 @@ class WorkoutProvider with ChangeNotifier {
     _loadedFromWorkoutId = null;
     _showInputOverride = false;
     resetTimer();
+    notifyListeners();
+  }
+
+  void clearParseError() {
+    _parseError = null;
     notifyListeners();
   }
 

@@ -25,6 +25,12 @@ dependencies:
   # Supabase
   supabase_flutter: ^2.3.4
 
+  # Google Sign In
+  google_sign_in: ^6.2.1
+
+  # URL Launcher (for OAuth)
+  url_launcher: ^6.2.5
+
   # Audio
   audioplayers: ^5.2.1
   audio_session: ^0.1.21

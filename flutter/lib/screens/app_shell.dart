@@ -24,6 +24,12 @@ class _AppShellState extends State<AppShell> {
   // Start on AI Timer tab (middle)
   int _currentIndex = 1;
 
+  // When editing from timer, show Manual screen but keep Dashboard tab highlighted
+  bool _isEditingFromTimer = false;
+
+  // Notifier to trigger form reset in ManualTimerScreen
+  final _resetNotifier = ValueNotifier<int>(0);
+
   // Drag-to-delete state (managed here to cover nav bar)
   bool _showDeleteZone = false;
   bool _isOverDeleteZone = false;
@@ -34,9 +40,17 @@ class _AppShellState extends State<AppShell> {
   void _onTabTapped(int index) {
     final workout = context.read<WorkoutProvider>();
 
+    // If tapping Manual tab, always reset the form to start fresh
+    if (index == 0) {
+      _resetNotifier.value++;
+    }
+
     // If tapping AI Timer tab while already on it with active timer, toggle views
     if (index == 1 && _currentIndex == 1 && workout.currentWorkout != null) {
       workout.toggleInputOverride();
+      setState(() {
+        _isEditingFromTimer = false;
+      });
       return;
     }
 
@@ -47,6 +61,7 @@ class _AppShellState extends State<AppShell> {
     }
 
     setState(() {
+      _isEditingFromTimer = false;
       _currentIndex = index;
     });
   }
@@ -56,6 +71,7 @@ class _AppShellState extends State<AppShell> {
     final workout = context.read<WorkoutProvider>();
     workout.setShowInputOverride(false);
     setState(() {
+      _isEditingFromTimer = false;
       _currentIndex = 1; // AI Timer tab
     });
   }
@@ -64,14 +80,17 @@ class _AppShellState extends State<AppShell> {
     final workout = context.read<WorkoutProvider>();
     workout.clearWorkout();
     setState(() {
+      _isEditingFromTimer = false;
       _currentIndex = 0; // Manual tab
     });
   }
 
   void _navigateToManualForEdit() {
     // Do NOT clear workout — user wants to edit then start from Manual tab
+    // Keep Dashboard tab highlighted but show Manual screen
     setState(() {
-      _currentIndex = 0; // Manual tab
+      _isEditingFromTimer = true;
+      // Keep _currentIndex at 1 (Dashboard) for tab highlighting
     });
   }
 
@@ -92,6 +111,11 @@ class _AppShellState extends State<AppShell> {
     _setShowDeleteZone(false);
   }
 
+  @override
+  void dispose() {
+    _resetNotifier.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -105,18 +129,24 @@ class _AppShellState extends State<AppShell> {
     // Don't highlight AI Timer tab when timer is running and showing timer view
     final shouldMuteAITimer = hasActiveTimer && isOnTimerTab && !isShowingInput;
 
+    // When editing from timer, show Manual screen but keep Dashboard tab highlighted
+    final displayIndex = _isEditingFromTimer ? 0 : _currentIndex;
+
     return Scaffold(
       body: IndexedStack(
-        index: _currentIndex,
+        index: displayIndex,
         children: [
-          ManualTimerScreen(onNavigateToTimer: _navigateToTimer),
+          ManualTimerScreen(
+            onNavigateToTimer: _navigateToTimer,
+            resetNotifier: _resetNotifier,
+          ),
           TimerScreen(
             onNavigateToManual: _navigateToManual,
             onNavigateToManualForEdit: _navigateToManualForEdit,
-            isDashboardVisible: _currentIndex == 1,
+            isDashboardVisible: displayIndex == 1,
             onDragStateChanged: _setShowDeleteZone,
           ),
-          HistoryScreen(isVisible: _currentIndex == 2),
+          HistoryScreen(isVisible: displayIndex == 2),
         ],
       ),
       bottomNavigationBar: _showDeleteZone
@@ -134,25 +164,24 @@ class _AppShellState extends State<AppShell> {
               },
               builder: (context, candidateData, rejectedData) {
                 return Container(
+                  width: double.infinity,
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                  color: _isOverDeleteZone
-                      ? AppColors.error.withValues(alpha: 0.3)
-                      : AppColors.error.withValues(alpha: 0.15),
+                  color: AppColors.error,
                   child: SafeArea(
                     top: false,
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
-                          Icons.delete_outline,
-                          color: _isOverDeleteZone ? AppColors.error : AppColors.textMuted,
+                          _isOverDeleteZone ? Icons.delete : Icons.delete_outline,
+                          color: AppColors.textPrimary,
                           size: 20,
                         ),
                         const SizedBox(width: 10),
                         Text(
                           _isOverDeleteZone ? 'Release to delete' : 'Drag here to delete',
                           style: AppTextStyles.body.copyWith(
-                            color: _isOverDeleteZone ? AppColors.error : AppColors.textMuted,
+                            color: AppColors.textPrimary,
                           ),
                         ),
                       ],

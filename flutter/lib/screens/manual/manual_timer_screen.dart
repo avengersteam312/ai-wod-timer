@@ -15,8 +15,13 @@ import '../../widgets/save_template_modal.dart';
 
 class ManualTimerScreen extends StatefulWidget {
   final VoidCallback? onNavigateToTimer;
+  final ValueNotifier<int>? resetNotifier;
 
-  const ManualTimerScreen({super.key, this.onNavigateToTimer});
+  const ManualTimerScreen({
+    super.key,
+    this.onNavigateToTimer,
+    this.resetNotifier,
+  });
 
   @override
   State<ManualTimerScreen> createState() => _ManualTimerScreenState();
@@ -50,6 +55,33 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
   WorkoutProvider? _workoutProvider;
 
   @override
+  void initState() {
+    super.initState();
+    widget.resetNotifier?.addListener(_onResetRequested);
+  }
+
+  @override
+  void didUpdateWidget(ManualTimerScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.resetNotifier != widget.resetNotifier) {
+      oldWidget.resetNotifier?.removeListener(_onResetRequested);
+      widget.resetNotifier?.addListener(_onResetRequested);
+    }
+  }
+
+  void _onResetRequested() {
+    if (!mounted) return;
+    setState(() {
+      _isEditingFromTimer = false;
+      _isFromAiTimer = false;
+      _pendingMovements = [];
+      _selectedType = WorkoutType.restTimer;
+      _workoutNotes = '';
+      _setDefaultsForType(WorkoutType.restTimer);
+    });
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final provider = context.read<WorkoutProvider>();
@@ -73,19 +105,10 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
     }
   }
 
-  void _resetForm() {
-    setState(() {
-      _isEditingFromTimer = false;
-      _isFromAiTimer = false;
-      _pendingMovements = [];
-      _selectedType = WorkoutType.restTimer;
-      _workoutNotes = '';
-      _setDefaultsForType(WorkoutType.restTimer);
-    });
-  }
 
   @override
   void dispose() {
+    widget.resetNotifier?.removeListener(_onResetRequested);
     _workoutProvider?.removeListener(_onWorkoutChanged);
     _notesController.dispose();
     super.dispose();
@@ -157,7 +180,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Manual Timer'),
+        title: Text(_isEditingFromTimer ? 'Adjust Timer' : 'Manual Timer'),
         actions: [
           if (auth.isAuthenticated)
             IconButton(
@@ -220,9 +243,8 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
 
                           const SizedBox(height: 16),
 
-                          // Add note button (not for rest timer)
-                          if (_selectedType != WorkoutType.restTimer)
-                            _buildNotesButton(),
+                          // Add note button
+                          _buildNotesButton(),
 
                           // Extra space for button
                           const SizedBox(height: 80),
@@ -616,7 +638,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
                   setState(() {
                     _workoutNotes = _notesController.text;
                   });
-                                    Navigator.pop(ctx);
+                  Navigator.pop(ctx);
                 },
                 child: const Text('Done'),
               ),

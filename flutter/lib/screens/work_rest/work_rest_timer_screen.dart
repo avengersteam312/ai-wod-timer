@@ -214,7 +214,10 @@ class _WorkRestTimerScreenState extends State<WorkRestTimerScreen> {
 
     return ProfileAvatarButton(
       email: auth.user?.email,
-      onLogout: () => auth.signOut(),
+      onLogout: () {
+        context.read<WorkoutProvider>().clearParseError();
+        auth.signOut();
+      },
     );
   }
 

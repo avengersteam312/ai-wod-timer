@@ -1,0 +1,7 @@
+// Local development overrides
+// Copy this file to LocalOverrides.xcconfig and uncomment the lines you need.
+// LocalOverrides.xcconfig is gitignored, so your changes won't be committed.
+
+// Use your personal team and bundle ID for local development:
+// DEVELOPMENT_TEAM = your-team-id-here
+// PRODUCT_BUNDLE_IDENTIFIER = com.vprindyn.aiwodtimer
