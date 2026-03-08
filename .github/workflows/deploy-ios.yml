@@ -121,7 +121,7 @@ jobs:
       - name: Install provisioning profile
         run: |
           # Download all provisioning profiles via App Store Connect API and install them.
-          pip3 install --quiet requests pyjwt cryptography
+          pip3 install --quiet --break-system-packages requests pyjwt cryptography
           python3 - <<'PYEOF'
           import jwt, time, requests, os, pathlib, uuid, base64
 
