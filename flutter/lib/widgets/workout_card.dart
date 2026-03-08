@@ -28,118 +28,100 @@ class WorkoutCard extends StatelessWidget {
       },
       onLongPress: onLongPress,
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: AppColors.cardBackground,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(color: AppColors.border),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Row(
-              children: [
-                // Type badge
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    workout.type.displayName,
-                    style: AppTextStyles.labelSmall.copyWith(
-                      color: AppColors.primary,
+            // Main content
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Name
+                  Text(
+                    workout.name,
+                    style: AppTextStyles.body.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-
-                const Spacer(),
-
-                // Favorite button
-                if (onFavoriteToggle != null)
-                  IconButton(
-                    onPressed: () {
-                      HapticsService.instance.buttonTap();
-                      onFavoriteToggle!();
-                    },
-                    icon: Icon(
-                      workout.isFavorite
-                          ? Icons.star
-                          : Icons.star_border,
-                      color: workout.isFavorite
-                          ? Colors.amber
-                          : AppColors.textMuted,
-                      size: 20,
+                  const SizedBox(height: 4),
+                  // Type and duration
+                  Row(
+                    children: [
+                      Text(
+                        workout.type.displayName,
+                        style: AppTextStyles.bodySmall.copyWith(
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Icon(
+                        Icons.timer_outlined,
+                        size: 14,
+                        color: AppColors.textMuted,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        workout.formattedDuration,
+                        style: AppTextStyles.bodySmall.copyWith(
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                  // Notes preview
+                  if (workout.notes != null && workout.notes!.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      workout.notes!,
+                      style: AppTextStyles.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-
-                // Delete button
-                if (onDelete != null) ...[
-                  const SizedBox(width: 8),
-                  IconButton(
-                    onPressed: () {
-                      HapticsService.instance.buttonTap();
-                      onDelete!();
-                    },
-                    icon: const Icon(
-                      Icons.delete_outline,
-                      color: AppColors.error,
-                      size: 20,
-                    ),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
+                  ],
                 ],
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            // Workout name
-            Text(
-              workout.name,
-              style: AppTextStyles.h4,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-
-            const SizedBox(height: 8),
-
-            // Movements preview
-            if (workout.movements.isNotEmpty)
-              Text(
-                workout.movementsPreview,
-                style: AppTextStyles.body.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
               ),
-
-            const SizedBox(height: 12),
-
-            // Duration
-            Row(
-              children: [
-                const Icon(
-                  Icons.timer_outlined,
-                  size: 16,
-                  color: AppColors.textMuted,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  workout.formattedDuration,
-                  style: AppTextStyles.bodySmall,
-                ),
-              ],
             ),
+            // Favorite button
+            if (onFavoriteToggle != null)
+              GestureDetector(
+                onTap: () {
+                  HapticsService.instance.buttonTap();
+                  onFavoriteToggle!();
+                },
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 12),
+                  child: Icon(
+                    workout.isFavorite ? Icons.star : Icons.star_border,
+                    color: workout.isFavorite ? Colors.amber : AppColors.textMuted,
+                    size: 22,
+                  ),
+                ),
+              ),
+            // Delete button
+            if (onDelete != null)
+              GestureDetector(
+                onTap: () {
+                  HapticsService.instance.buttonTap();
+                  onDelete!();
+                },
+                child: const Padding(
+                  padding: EdgeInsets.only(left: 12),
+                  child: Icon(
+                    Icons.delete_outline,
+                    color: AppColors.error,
+                    size: 22,
+                  ),
+                ),
+              ),
           ],
         ),
       ),

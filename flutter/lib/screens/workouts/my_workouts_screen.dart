@@ -53,46 +53,6 @@ class _MyWorkoutsScreenState extends State<MyWorkoutsScreen> {
     }
   }
 
-  Future<void> _deleteWorkout(Workout workout) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Template'),
-        content: Text('Are you sure you want to delete "${workout.name}"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(
-              foregroundColor: AppColors.error,
-            ),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      try {
-        await _syncService.deleteWorkout(workout.id);
-        setState(() {
-          _workouts.removeWhere((w) => w.id == workout.id);
-        });
-
-        if (mounted) {
-          AppSnackBar.showSuccess(context, 'Template deleted');
-        }
-      } catch (e) {
-        if (mounted) {
-          AppSnackBar.showError(context, 'Failed to delete template');
-        }
-      }
-    }
-  }
-
   Future<void> _toggleFavorite(Workout workout) async {
     final updatedWorkout = workout.copyWith(
       isFavorite: !workout.isFavorite,
@@ -125,7 +85,7 @@ class _MyWorkoutsScreenState extends State<MyWorkoutsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Workouts'),
+        title: const Text('Saved Timers'),
         actions: [
           IconButton(
             onPressed: _loadWorkouts,
@@ -166,11 +126,62 @@ class _MyWorkoutsScreenState extends State<MyWorkoutsScreen> {
           final workout = _workouts[index];
           return Padding(
             padding: const EdgeInsets.only(bottom: 12),
-            child: WorkoutCard(
-              workout: workout,
-              onTap: () => _startWorkout(workout),
-              onFavoriteToggle: () => _toggleFavorite(workout),
-              onDelete: () => _deleteWorkout(workout),
+            child: Dismissible(
+              key: Key(workout.id),
+              direction: DismissDirection.endToStart,
+              dismissThresholds: const {DismissDirection.endToStart: 0.5},
+              confirmDismiss: (direction) async {
+                return await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Delete Template'),
+                    content: Text('Are you sure you want to delete "${workout.name}"?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('Cancel'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('Delete'),
+                      ),
+                    ],
+                  ),
+                ) ?? false;
+              },
+              onDismissed: (direction) async {
+                try {
+                  await _syncService.deleteWorkout(workout.id);
+                  setState(() {
+                    _workouts.removeWhere((w) => w.id == workout.id);
+                  });
+                  if (mounted) {
+                    AppSnackBar.showSuccess(context, 'Template deleted');
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    AppSnackBar.showError(context, 'Failed to delete template');
+                    _loadWorkouts();
+                  }
+                }
+              },
+              background: Container(
+                alignment: Alignment.centerRight,
+                padding: const EdgeInsets.only(right: 24),
+                decoration: BoxDecoration(
+                  color: AppColors.error,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(
+                  Icons.delete,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              child: WorkoutCard(
+                workout: workout,
+                onTap: () => _startWorkout(workout),
+                onFavoriteToggle: () => _toggleFavorite(workout),
+              ),
             ),
           );
         },

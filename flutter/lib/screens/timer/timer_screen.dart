@@ -55,10 +55,6 @@ class _TimerScreenState extends State<TimerScreen> {
 
   // Save workout state
   bool _isSaved = false;
-  bool _showSaveSuccess = false;
-  /// True when the last save was offline (toast shows "Saved offline. Will sync when online.").
-  bool _savedOffline = false;
-  String? _saveError;
 
   /// When true, after save or "Don't save" we go back to input view.
   bool _saveThenExit = false;
@@ -78,10 +74,6 @@ class _TimerScreenState extends State<TimerScreen> {
   NotesState _notesState = NotesState.closed;
   bool _isNotesExiting = false;
 
-  // Drag-to-delete state
-  bool _isDraggingTimer = false;
-  bool _isOverTrash = false;
-
   // Swipe to edit animation
   double _swipeOffset = 0;
   bool _isSwipingToEdit = false;
@@ -89,9 +81,6 @@ class _TimerScreenState extends State<TimerScreen> {
   static const int _maxSavedWorkoutsDisplay = 9;
 
   DashboardCreateMode _createMode = DashboardCreateMode.text;
-
-  // Track previous parseError to detect changes
-  String? _lastParseError;
 
   @override
   void initState() {
@@ -245,19 +234,13 @@ class _TimerScreenState extends State<TimerScreen> {
           createdAt: currentWorkout.createdAt,
           isFavorite: false,
         );
-        final synced = await workout
+        await workout
             .saveWorkout(workoutToSave)
             .timeout(const Duration(seconds: 10));
-        if (mounted) {
-          setState(() => _savedOffline = !synced);
-        }
         return true;
       },
       onSaveSuccess: () {
         _isSaved = true;
-        if (mounted) {
-          setState(() => _showSaveSuccess = true);
-        }
         if (userId != null && mounted) {
           _loadSavedWorkouts(userId);
         }
@@ -346,6 +329,9 @@ class _TimerScreenState extends State<TimerScreen> {
       if (pickedFile != null) {
         final imageFile = File(pickedFile.path);
         await workout.parseWorkoutFromImage(imageFile);
+        if (mounted && workout.parseError != null) {
+          AppSnackBar.showError(context, workout.parseError!);
+        }
       }
     } catch (e) {
       debugPrint('[TimerScreen] Image picker error: $e');
@@ -429,19 +415,6 @@ class _TimerScreenState extends State<TimerScreen> {
       builder: (context, workout, videoProvider, _) {
         // Handle wake lock
         _handleWakeLock(workout);
-
-        // Show error snackbar when parseError changes
-        final parseError = workout.parseError;
-        if (parseError != null && parseError != _lastParseError) {
-          _lastParseError = parseError;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              AppSnackBar.showError(context, parseError);
-            }
-          });
-        } else if (parseError == null && _lastParseError != null) {
-          _lastParseError = null;
-        }
 
         // When on timer view and authenticated, ensure we have saved workouts so we can hide Save when config already exists
         if (workout.currentWorkout != null &&
@@ -549,56 +522,6 @@ class _TimerScreenState extends State<TimerScreen> {
               SafeArea(
                 child: Column(
               children: [
-                // Save success toast
-                if (_showSaveSuccess)
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    margin:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: _savedOffline
-                          ? AppColors.warning.withValues(alpha: 0.2)
-                          : AppColors.success.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: _savedOffline
-                            ? AppColors.warning.withValues(alpha: 0.3)
-                            : AppColors.success.withValues(alpha: 0.3),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          _savedOffline ? Icons.cloud_off : Icons.check_circle,
-                          color: _savedOffline
-                              ? AppColors.warning
-                              : AppColors.success,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            _savedOffline
-                                ? 'Saved offline. Will sync when online.'
-                                : 'Workout saved successfully!',
-                            style: AppTextStyles.body.copyWith(
-                              color: _savedOffline
-                                  ? AppColors.warning
-                                  : AppColors.success,
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.close, size: 18),
-                          onPressed: () {
-                            setState(() => _showSaveSuccess = false);
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
                 // Main content
                 Expanded(
                   child: (workout.currentWorkout == null ||
@@ -615,8 +538,8 @@ class _TimerScreenState extends State<TimerScreen> {
                               setState(() {
                                 _swipeOffset = (_swipeOffset + details.delta.dx)
                                     .clamp(
-                                  workout.isIdle ? -screenWidth : 0.0,
-                                  screenWidth,
+                                  -screenWidth, // Always allow swipe left for camera
+                                  workout.isIdle ? screenWidth : 0.0, // Only allow swipe right when idle
                                 );
                               });
                             }
@@ -626,11 +549,34 @@ class _TimerScreenState extends State<TimerScreen> {
                                 MediaQuery.of(context).size.width;
                             final swipeThreshold = screenWidth * 0.5;
 
-                            if (_swipeOffset >= swipeThreshold ||
+                            // Swipe right -> open adjust timer (only when idle)
+                            if ((_swipeOffset >= swipeThreshold ||
                                 (details.primaryVelocity != null &&
-                                    details.primaryVelocity! > 300)) {
+                                    details.primaryVelocity! > 300)) &&
+                                workout.isIdle &&
+                                widget.onNavigateToManualForEdit != null) {
                               setState(() {
                                 _swipeOffset = screenWidth;
+                                _isSwipingToEdit = false;
+                              });
+                              Future.delayed(
+                                  const Duration(milliseconds: 200), () {
+                                if (mounted) {
+                                  workout.setPendingEdit(
+                                      workout.currentWorkout!);
+                                  widget.onNavigateToManualForEdit!();
+                                  setState(() => _swipeOffset = 0);
+                                }
+                              });
+                              return;
+                            }
+
+                            // Swipe left -> open camera
+                            if (_swipeOffset <= -swipeThreshold ||
+                                (details.primaryVelocity != null &&
+                                    details.primaryVelocity! < -300)) {
+                              setState(() {
+                                _swipeOffset = -screenWidth;
                                 _isSwipingToEdit = false;
                               });
                               Future.delayed(
@@ -653,28 +599,10 @@ class _TimerScreenState extends State<TimerScreen> {
                               return;
                             }
 
-                            if (_swipeOffset.abs() >= swipeThreshold &&
-                                workout.isIdle &&
-                                widget.onNavigateToManualForEdit != null) {
-                              setState(() {
-                                _swipeOffset = -screenWidth;
-                                _isSwipingToEdit = false;
-                              });
-                              Future.delayed(
-                                  const Duration(milliseconds: 200), () {
-                                if (mounted) {
-                                  workout.setPendingEdit(
-                                      workout.currentWorkout!);
-                                  widget.onNavigateToManualForEdit!();
-                                  setState(() => _swipeOffset = 0);
-                                }
-                              });
-                            } else {
-                              setState(() {
-                                _swipeOffset = 0;
-                                _isSwipingToEdit = false;
-                              });
-                            }
+                            setState(() {
+                              _swipeOffset = 0;
+                              _isSwipingToEdit = false;
+                            });
                           },
                           onHorizontalDragCancel: () {
                             setState(() {
@@ -743,18 +671,64 @@ class _TimerScreenState extends State<TimerScreen> {
                 _buildCreateTimerCard(context, workout, auth.isAuthenticated),
                 if (auth.isAuthenticated) ...[
                   const SizedBox(height: 28),
-                  const Text(
-                    'Saved timers',
-                    style: AppTextStyles.label,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Saved timers',
+                        style: AppTextStyles.label,
+                      ),
+                      if (prioritizedSaved.isNotEmpty)
+                        GestureDetector(
+                          onTap: () async {
+                            final authProvider = context.read<AuthProvider>();
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => MyWorkoutsScreen(
+                                  onNavigateToTimer: () => Navigator.pop(context),
+                                ),
+                              ),
+                            );
+                            if (mounted) {
+                              final userId = authProvider.user?.id;
+                              if (userId != null) {
+                                _loadSavedWorkouts(userId);
+                              }
+                            }
+                          },
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'View all',
+                                style: AppTextStyles.bodySmall.copyWith(
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              const Icon(
+                                Icons.arrow_forward,
+                                size: 14,
+                                color: AppColors.textMuted,
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
                   ),
                   const SizedBox(height: 10),
                   if (_savedWorkoutsLoading)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: Text(
-                        'Loading your saved timers...',
-                        style: AppTextStyles.bodySmall.copyWith(
-                          color: AppColors.textMuted,
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.textMuted,
+                          ),
                         ),
                       ),
                     )
@@ -785,31 +759,31 @@ class _TimerScreenState extends State<TimerScreen> {
                         return LongPressDraggable<Workout>(
                           data: savedWorkout,
                           onDragStarted: () {
-                            setState(() {
-                              _isDraggingTimer = true;
-                            });
+                            widget.onDragStateChanged?.call(true, onDelete: _deleteWorkoutDirectly);
                           },
                           onDragEnd: (_) {
-                            setState(() {
-                              _isDraggingTimer = false;
-                              _isOverTrash = false;
-                            });
+                            widget.onDragStateChanged?.call(false);
                           },
                           onDraggableCanceled: (_, __) {
-                            setState(() {
-                              _isDraggingTimer = false;
-                              _isOverTrash = false;
-                            });
+                            widget.onDragStateChanged?.call(false);
                           },
-                          feedback: Material(
-                            color: Colors.transparent,
-                            child: SizedBox(
-                              width: 110,
-                              child: _SavedTimerQuickCard(
-                                workout: savedWorkout,
-                                onTap: () {},
-                              ),
-                            ),
+                          feedback: LayoutBuilder(
+                            builder: (context, constraints) {
+                              // Calculate item width based on grid: 3 columns, 10px spacing, 20px padding each side
+                              final screenWidth = MediaQuery.of(context).size.width;
+                              final itemWidth = (screenWidth - 40 - 20) / 3;
+                              return Material(
+                                color: Colors.transparent,
+                                child: SizedBox(
+                                  width: itemWidth,
+                                  height: itemWidth / 1.25,
+                                  child: _SavedTimerQuickCard(
+                                    workout: savedWorkout,
+                                    onTap: () {},
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                           childWhenDragging: Opacity(
                             opacity: 0.25,
@@ -846,110 +820,11 @@ class _TimerScreenState extends State<TimerScreen> {
                         ),
                       ),
                     ),
-                  if (prioritizedSaved.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    GestureDetector(
-                      onTap: () async {
-                        final authProvider = context.read<AuthProvider>();
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => MyWorkoutsScreen(
-                              onNavigateToTimer: () => Navigator.pop(context),
-                            ),
-                          ),
-                        );
-                        if (mounted) {
-                          final userId = authProvider.user?.id;
-                          if (userId != null) {
-                            _loadSavedWorkouts(userId);
-                          }
-                        }
-                      },
-                      child: Row(
-                        children: [
-                          Text(
-                            'View all saved timers',
-                            style: AppTextStyles.body.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          const Icon(
-                            Icons.arrow_forward,
-                            size: 16,
-                            color: AppColors.textMuted,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
                 ],
               ],
             ),
           ),
         ),
-        if (_isDraggingTimer)
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: DragTarget<Workout>(
-              onWillAcceptWithDetails: (details) {
-                setState(() => _isOverTrash = true);
-                return true;
-              },
-              onLeave: (_) {
-                setState(() => _isOverTrash = false);
-              },
-              onAcceptWithDetails: (details) async {
-                setState(() {
-                  _isOverTrash = false;
-                  _isDraggingTimer = false;
-                });
-                await _deleteWorkoutDirectly(details.data);
-              },
-              builder: (context, candidateData, rejectedData) {
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: EdgeInsets.only(
-                    top: 16,
-                    bottom: MediaQuery.of(context).padding.bottom + 16,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _isOverTrash
-                        ? AppColors.error.withValues(alpha: 0.3)
-                        : AppColors.error.withValues(alpha: 0.1),
-                    borderRadius:
-                        const BorderRadius.vertical(top: Radius.circular(20)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.delete_outline,
-                        color: _isOverTrash
-                            ? AppColors.error
-                            : AppColors.textMuted,
-                        size: 28,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        _isOverTrash
-                            ? 'Release to delete'
-                            : 'Drag here to delete',
-                        style: AppTextStyles.body.copyWith(
-                          color: _isOverTrash
-                              ? AppColors.error
-                              : AppColors.textMuted,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
       ],
     );
   }
@@ -1062,13 +937,16 @@ class _TimerScreenState extends State<TimerScreen> {
         children: [
           _buildCreateModeToggle(),
           const SizedBox(height: 18),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 180),
-            switchInCurve: Curves.easeOut,
-            switchOutCurve: Curves.easeIn,
-            child: _createMode == DashboardCreateMode.text
-                ? _buildTextCreationPane(context, workout, isAuthenticated)
-                : _buildImageCreationPane(context, workout, isAuthenticated),
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 200),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              switchInCurve: Curves.easeOut,
+              switchOutCurve: Curves.easeIn,
+              child: _createMode == DashboardCreateMode.text
+                  ? _buildTextCreationPane(context, workout, isAuthenticated)
+                  : _buildImageCreationPane(context, workout, isAuthenticated),
+            ),
           ),
         ],
       ),
@@ -1131,7 +1009,7 @@ class _TimerScreenState extends State<TimerScreen> {
           maxLines: 10,
           decoration: InputDecoration(
             hintText:
-                'Paste a WOD, describe the workout, or add notes for the timer.',
+                'Paste or describe a workout to create a timer',
             alignLabelWithHint: true,
             fillColor: AppColors.inputBackground.withValues(alpha: 0.9),
             border: OutlineInputBorder(
@@ -1142,44 +1020,18 @@ class _TimerScreenState extends State<TimerScreen> {
             workout.setWorkoutInput(value);
           },
         ),
-        if (workout.parseError != null) ...[
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.error.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.error_outline,
-                  color: AppColors.error,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    workout.parseError!,
-                    style: AppTextStyles.body.copyWith(
-                      color: AppColors.error,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
         const SizedBox(height: 18),
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
             onPressed: isBusy
                 ? null
-                : () {
+                : () async {
                     if (!isAuthenticated && !_ensureAuthenticated()) return;
-                    workout.parseWorkout();
+                    await workout.parseWorkout();
+                    if (mounted && workout.parseError != null) {
+                      AppSnackBar.showError(context, workout.parseError!);
+                    }
                   },
             icon: isBusy
                 ? const SizedBox(
@@ -1286,35 +1138,6 @@ class _TimerScreenState extends State<TimerScreen> {
           subtitle: 'Import an existing image or screenshot.',
           onTap: () => _pickImage(ImageSource.gallery, workout),
         ),
-        if (workout.parseError != null) ...[
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.error.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.error_outline,
-                  color: AppColors.error,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    workout.parseError!,
-                    style: AppTextStyles.body.copyWith(
-                      color: AppColors.error,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
         if (isBusy) ...[
           const SizedBox(height: 16),
           Row(
@@ -1361,6 +1184,65 @@ class _TimerScreenState extends State<TimerScreen> {
     return Stack(
       fit: StackFit.expand,
       children: [
+        // Swipe hint - left (edit timer, inactive when running)
+        if (_notesState == NotesState.closed)
+          Positioned(
+            left: 8,
+            top: 32 + 100, // Align with timer numbers
+            child: Opacity(
+              opacity: workout.isIdle ? 1.0 : 0.5,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const RotatedBox(
+                    quarterTurns: 3,
+                    child: Text(
+                      'Swipe right to adjust',
+                      style: AppTextStyles.bodySmall,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Vertical drag handle
+                  Container(
+                    width: 4,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppColors.textMuted,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        // Swipe hint - right (camera)
+        if (_notesState == NotesState.closed)
+          Positioned(
+            right: 8,
+            top: 32 + 100, // Align with timer numbers
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Vertical drag handle
+                Container(
+                  width: 4,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.textMuted,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const RotatedBox(
+                  quarterTurns: 1,
+                  child: Text(
+                    'Swipe left for camera',
+                    style: AppTextStyles.bodySmall,
+                  ),
+                ),
+              ],
+            ),
+          ),
         // Main content
         SingleChildScrollView(
           controller: _scrollController,

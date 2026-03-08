@@ -164,25 +164,24 @@ class _AppShellState extends State<AppShell> {
               },
               builder: (context, candidateData, rejectedData) {
                 return Container(
+                  width: double.infinity,
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                  color: _isOverDeleteZone
-                      ? AppColors.error.withValues(alpha: 0.3)
-                      : AppColors.error.withValues(alpha: 0.15),
+                  color: AppColors.error,
                   child: SafeArea(
                     top: false,
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
-                          Icons.delete_outline,
-                          color: _isOverDeleteZone ? AppColors.error : AppColors.textMuted,
+                          _isOverDeleteZone ? Icons.delete : Icons.delete_outline,
+                          color: AppColors.textPrimary,
                           size: 20,
                         ),
                         const SizedBox(width: 10),
                         Text(
                           _isOverDeleteZone ? 'Release to delete' : 'Drag here to delete',
                           style: AppTextStyles.body.copyWith(
-                            color: _isOverDeleteZone ? AppColors.error : AppColors.textMuted,
+                            color: AppColors.textPrimary,
                           ),
                         ),
                       ],
