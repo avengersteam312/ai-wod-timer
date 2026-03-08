@@ -1,10 +1,16 @@
+import time
 import structlog
 from fastapi import APIRouter, HTTPException, Query, UploadFile, File
 from app.schemas.workout import WorkoutParseRequest, ParsedWorkout
 from app.services.workout_parser import workout_parser
 from app.services.ai_service import ai_service
 from app.config import settings
-from app.observability.metrics import ai_parse_errors_total
+from app.observability.metrics import (
+    ai_parse_errors_total,
+    ai_parse_requests_total,
+    workouts_parsed_total,
+    ai_parse_duration_seconds,
+)
 
 log = structlog.get_logger(__name__)
 router = APIRouter()
@@ -46,9 +52,15 @@ async def parse_workout(
     Query Parameters:
     - use_agent: Optional override to use agent-based parser (default: from config)
     """
+    start = time.perf_counter()
     try:
         parser = _get_parser(use_agent)
         parsed = await parser.parse(request.workout_text)
+        duration = time.perf_counter() - start
+        workout_type = parsed.workout_type.value
+        ai_parse_requests_total.add(1, {"workout_type": workout_type, "model": "standard"})
+        workouts_parsed_total.add(1, {"workout_type": workout_type})
+        ai_parse_duration_seconds.record(duration, {"workout_type": workout_type, "stage": "parse"})
         return parsed
     except ValueError as e:
         ai_parse_errors_total.add(1, {"workout_type": "unknown", "error_type": "validation"})
