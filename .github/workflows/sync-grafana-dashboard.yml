@@ -6,10 +6,7 @@ name: Sync Grafana Dashboard
 # export-grafana-dashboard workflow first to capture them in the repo.
 
 on:
-  push:
-    branches: [master]
-    paths:
-      - 'observability/provisioning/dashboards/*.json'
+  workflow_dispatch: # disabled automatic trigger — enable by adding push event when ready
 
 jobs:
   sync-dashboard:
