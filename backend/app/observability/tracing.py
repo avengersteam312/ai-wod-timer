@@ -49,16 +49,33 @@ def configure_metrics() -> None:
     if not otlp_endpoint:
         _log.info("otlp.metrics.disabled", reason="OTEL_EXPORTER_OTLP_ENDPOINT not set")
         return
-    _log.info("otlp.metrics.configured", endpoint=otlp_endpoint, headers=_masked_headers())
+    _log.info(
+        "otlp.metrics.configured", endpoint=otlp_endpoint, headers=_masked_headers()
+    )
 
     from opentelemetry import metrics as metrics_api
-    from opentelemetry.sdk.metrics import MeterProvider
-    from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
-    from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
+    from opentelemetry.sdk.metrics import (
+        MeterProvider,
+        Counter,
+        Histogram,
+        ObservableGauge,
+    )
+    from opentelemetry.sdk.metrics.export import (
+        PeriodicExportingMetricReader,
+        AggregationTemporality,
+    )
+    from opentelemetry.exporter.otlp.proto.http.metric_exporter import (
+        OTLPMetricExporter,
+    )
 
     exporter = OTLPMetricExporter(
         endpoint=f"{otlp_endpoint}/v1/metrics",
         headers=_otlp_headers(),
+        preferred_temporality={
+            Counter: AggregationTemporality.CUMULATIVE,
+            Histogram: AggregationTemporality.CUMULATIVE,
+            ObservableGauge: AggregationTemporality.CUMULATIVE,
+        },
     )
     reader = PeriodicExportingMetricReader(exporter, export_interval_millis=30_000)
     provider = MeterProvider(metric_readers=[reader])
@@ -71,13 +88,19 @@ def configure_tracing(app) -> None:
     if not otlp_endpoint:
         _log.info("otlp.tracing.disabled", reason="OTEL_EXPORTER_OTLP_ENDPOINT not set")
         return
-    _log.info("otlp.tracing.configured", endpoint=otlp_endpoint, headers=_masked_headers())
+    _log.info(
+        "otlp.tracing.configured", endpoint=otlp_endpoint, headers=_masked_headers()
+    )
 
     provider = TracerProvider()
-    provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(
-        endpoint=f"{otlp_endpoint}/v1/traces",
-        headers=_otlp_headers(),
-    )))
+    provider.add_span_processor(
+        BatchSpanProcessor(
+            OTLPSpanExporter(
+                endpoint=f"{otlp_endpoint}/v1/traces",
+                headers=_otlp_headers(),
+            )
+        )
+    )
     trace.set_tracer_provider(provider)
     FastAPIInstrumentor.instrument_app(app)
     HTTPXClientInstrumentor().instrument()

@@ -20,7 +20,10 @@ class _LokiShipper:
     """
 
     def __init__(self, url: str, user: str, api_key: str, labels: dict) -> None:
-        self._url = f"{url.rstrip('/')}/loki/api/v1/push"
+        import re
+
+        _base = re.sub(r"/loki/api/v1/push$", "", url.rstrip("/"))
+        self._url = f"{_base}/loki/api/v1/push"
         self._auth = (user, api_key)
         self._labels = labels
         self._queue: Queue = Queue(maxsize=2000)
@@ -33,10 +36,12 @@ class _LokiShipper:
 
         def _process(logger, method, event_dict: dict) -> dict:
             try:
-                shipper._queue.put_nowait({
-                    "ts": str(int(time.time_ns())),
-                    "line": json.dumps(event_dict),
-                })
+                shipper._queue.put_nowait(
+                    {
+                        "ts": str(int(time.time_ns())),
+                        "line": json.dumps(event_dict),
+                    }
+                )
             except Exception:
                 pass  # Queue full or other error — never raise from a log processor
             return event_dict
@@ -60,10 +65,12 @@ class _LokiShipper:
                     continue
 
                 payload = {
-                    "streams": [{
-                        "stream": self._labels,
-                        "values": [[e["ts"], e["line"]] for e in batch],
-                    }]
+                    "streams": [
+                        {
+                            "stream": self._labels,
+                            "values": [[e["ts"], e["line"]] for e in batch],
+                        }
+                    ]
                 }
                 try:
                     client.post(self._url, json=payload)
