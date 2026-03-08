@@ -1,0 +1,62 @@
+name: Export Grafana Dashboard to Repo
+
+# Run this manually after making dashboard changes via MCP or Grafana UI
+# that you want to persist. It fetches the live dashboard JSON and opens
+# a PR so you can review the diff before it becomes the new source of truth.
+#
+# After merging that PR, sync-grafana-dashboard.yml will push it back to
+# Grafana (no-op if unchanged, confirming the round-trip is clean).
+
+on:
+  workflow_dispatch:
+    inputs:
+      dashboard_uid:
+        description: 'Dashboard UID to export'
+        required: false
+        default: 'ai-wod-timer-main'
+
+jobs:
+  export-dashboard:
+    name: Fetch dashboard from Grafana and open PR
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch dashboard JSON from Grafana
+        env:
+          GRAFANA_URL: ${{ secrets.GRAFANA_URL }}
+          GRAFANA_SA_TOKEN: ${{ secrets.GRAFANA_SA_TOKEN }}
+          UID: ${{ github.event.inputs.dashboard_uid }}
+        run: |
+          response=$(curl -s -w "\n%{http_code}" \
+            -H "Authorization: Bearer $GRAFANA_SA_TOKEN" \
+            "$GRAFANA_URL/api/dashboards/uid/$UID")
+
+          body=$(echo "$response" | head -n -1)
+          http_code=$(echo "$response" | tail -1)
+
+          if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+            echo "Failed to fetch dashboard (HTTP $http_code): $body"
+            exit 1
+          fi
+
+          echo "$body" \
+            | jq '.dashboard | del(.id) | del(.version)' \
+            > observability/provisioning/dashboards/ai_wod_timer.json
+
+          echo "Exported uid=$UID"
+
+      - name: Open PR with exported JSON
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: 'chore(observability): export Grafana dashboard from live instance'
+          title: 'chore(observability): sync dashboard JSON from Grafana (uid: ${{ github.event.inputs.dashboard_uid }})'
+          body: |
+            Exported from Grafana Cloud via `export-grafana-dashboard` workflow.
+
+            **Review the diff carefully before merging.**
+            On merge, `sync-grafana-dashboard.yml` will push this JSON back to Grafana,
+            making the repo the authoritative source again.
+          branch: chore/export-grafana-dashboard
+          delete-branch: true
