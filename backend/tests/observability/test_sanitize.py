@@ -3,7 +3,6 @@ Guard test: sensitive field values must never appear in log output.
 """
 import json
 import structlog
-import pytest
 from structlog.testing import capture_logs
 
 from app.observability.sanitize import SanitizingProcessor
@@ -95,7 +94,6 @@ class TestSanitizingProcessor:
     def test_capture_logs_integration(self):
         """Confirm sensitive data never reaches the rendered log output."""
         with capture_logs() as cap:
-            log = structlog.get_logger()
             structlog.configure(
                 processors=[
                     SanitizingProcessor(),

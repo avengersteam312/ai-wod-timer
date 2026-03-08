@@ -20,7 +20,6 @@ from app.config import settings
 from app.services.workout_type_classifier import workout_type_classifier
 from app.observability.metrics import (
     ai_parse_requests_total,
-    ai_parse_errors_total,
     ai_parse_duration,
     ai_classifier_confidence,
     ai_classifier_local_hits_total,
