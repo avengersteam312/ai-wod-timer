@@ -45,10 +45,13 @@
 - [ ] Home → Connections → Data sources → OpenTelemetry → copy OTLP gateway credentials
 - [ ] Add to `backend/.env`:
   ```
-  OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp-gateway-prod-us-east-0.grafana.net/otlp
+  OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp-gateway-prod-us-east-2.grafana.net/otlp
   OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic <base64(instanceID:apiKey)>
+  OTEL_SERVICE_NAME=ai-wod-timer
   ```
   > Encode credentials: `echo -n "<instanceID>:<apiKey>" | base64`
+  > **⚠️ Endpoint region**: copy the exact URL from the Grafana Cloud OpenTelemetry page — the region suffix (`prod-us-east-2`, `prod-eu-west-0`, etc.) varies per stack.
+  > **⚠️ Python URL encoding**: Grafana's connection guide shows `Basic%20` in the header value. Our `_otlp_headers()` parser URL-decodes this automatically — use either `Basic%20` or `Basic ` (with a real space) in the env var; both work.
 - [ ] Verify traces: trigger a `/api/v1/timer/parse` request → Grafana Explore → Tempo → search for `ai.classify` span
 - [ ] Verify metrics: Grafana Explore → Metrics → search for `ai_parse_requests_total`
 

@@ -1,4 +1,5 @@
 import os
+from urllib.parse import unquote
 import structlog
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
@@ -17,7 +18,7 @@ def _otlp_headers() -> dict:
     for pair in raw.split(","):
         if "=" in pair:
             k, v = pair.split("=", 1)
-            headers[k.strip()] = v.strip()
+            headers[k.strip()] = unquote(v.strip())
     return headers
 
 
