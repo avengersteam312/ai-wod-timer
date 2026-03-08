@@ -8,7 +8,8 @@ name: Deploy iOS to TestFlight
 #   APP_STORE_CONNECT_API_KEY_BASE64  — AuthKey_88R6NGQ7J4.p8, base64-encoded
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [master]
 
 jobs:
   deploy-ios:
