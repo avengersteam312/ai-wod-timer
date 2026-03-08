@@ -1,9 +1,7 @@
 """
 Guard test: sensitive field values must never appear in log output.
 """
-import json
 import structlog
-from structlog.testing import capture_logs
 
 from app.observability.sanitize import SanitizingProcessor
 
