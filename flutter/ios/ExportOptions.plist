@@ -3,11 +3,16 @@
 <plist version="1.0">
 <dict>
 	<key>method</key>
-	<string>app-store</string>
+	<string>app-store-connect</string>
 	<key>teamID</key>
 	<string>X4J5J2543A</string>
 	<key>signingStyle</key>
-	<string>automatic</string>
+	<string>manual</string>
+	<key>provisioningProfiles</key>
+	<dict>
+		<key>com.aiwodtimer.app</key>
+		<string>AI WOD Timer App Store</string>
+	</dict>
 	<key>uploadBitcode</key>
 	<false/>
 	<key>compileBitcode</key>
