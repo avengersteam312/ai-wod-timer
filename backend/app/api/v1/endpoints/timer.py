@@ -9,7 +9,7 @@ from app.observability.metrics import (
     ai_parse_errors_total,
     ai_parse_requests_total,
     workouts_parsed_total,
-    ai_parse_duration_seconds,
+    ai_parse_duration,
 )
 
 log = structlog.get_logger(__name__)
@@ -60,7 +60,7 @@ async def parse_workout(
         workout_type = parsed.workout_type.value
         ai_parse_requests_total.add(1, {"workout_type": workout_type, "model": "standard"})
         workouts_parsed_total.add(1, {"workout_type": workout_type})
-        ai_parse_duration_seconds.record(duration, {"workout_type": workout_type, "stage": "parse"})
+        ai_parse_duration.record(duration, {"workout_type": workout_type, "stage": "parse"})
         return parsed
     except ValueError as e:
         ai_parse_errors_total.add(1, {"workout_type": "unknown", "error_type": "validation"})
