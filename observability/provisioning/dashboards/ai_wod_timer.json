@@ -35,7 +35,7 @@
       "targets": [
         {
           "datasource": { "uid": "grafanacloud-prom", "type": "prometheus" },
-          "expr": "1 - (sum(rate(ai_parse_errors_total[1h])) / (sum(rate(ai_parse_requests_total[1h])) + 0.001))",
+          "expr": "1 - ((sum(rate(ai_parse_errors_total[1h])) or vector(0)) / (sum(rate(ai_parse_requests_total[1h])) + 0.001))",
           "legendFormat": "success rate",
           "refId": "A"
         }
@@ -93,7 +93,7 @@
       "targets": [
         {
           "datasource": { "uid": "grafanacloud-prom", "type": "prometheus" },
-          "expr": "sum(increase(ai_parse_errors_total[1h])) by (error_type)",
+          "expr": "(sum(increase(ai_parse_errors_total[1h])) by (error_type)) or vector(0)",
           "legendFormat": "{{error_type}}",
           "refId": "A"
         }
@@ -239,7 +239,7 @@
       "targets": [
         {
           "datasource": { "uid": "grafanacloud-prom", "type": "prometheus" },
-          "expr": "sum(increase(security_auth_failures_total[24h]))",
+          "expr": "sum(increase(security_auth_failures_total[24h])) or vector(0)",
           "legendFormat": "failures",
           "refId": "A"
         }
