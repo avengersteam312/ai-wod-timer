@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     # AI Service
     OPENAI_API_KEY: str = ""
     AI_PROVIDER: str = "openai"
-    AI_MODEL: str = "gpt-4o-mini"  # Fast model for Vercel 10s timeout
+    AI_MODEL: str = "gpt-4o-mini"  # Low-latency model for workout parsing
     AI_VISION_MODEL: str = "gpt-4o-mini"  # Model for image text extraction
     AI_CLASSIFIER_MODEL: str = "gpt-4.1-mini"  # Fast, cheap model for classification
     USE_AGENT_WORKFLOW: bool = False  # Set to True to use OpenAI Agents SDK workflow
@@ -27,8 +27,15 @@ class Settings(BaseSettings):
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
 
-    # CORS
-    BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:5173", "http://localhost:3000"]
+    # CORS — allow browser clients (Flutter web, Vite, etc.). Override in .env for production.
+    BACKEND_CORS_ORIGINS: List[str] = [
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://localhost:8080",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:8080",
+    ]
 
     # Supabase
     SUPABASE_JWT_SECRET: str = ""  # Get from Supabase Dashboard > Settings > API > JWT Secret
@@ -41,9 +48,6 @@ class Settings(BaseSettings):
     GRAFANA_CLOUD_LOKI_API_KEY: str = ""
     OTEL_EXPORTER_OTLP_ENDPOINT: str = ""
     OTEL_EXPORTER_OTLP_HEADERS: str = ""
-
-    # Frontend (ignored by backend, kept here to avoid extra_forbidden errors)
-    VITE_SENTRY_DSN: str = ""
 
     class Config:
         env_file = ".env"

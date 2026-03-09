@@ -9,14 +9,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture Overview
 
-This is a multi-platform AI-powered workout timer with three separate client implementations sharing one backend:
+AI-powered workout timer. Flutter is the only active client.
 
 ```
 ai-wod-timer/
 ├── backend/          # FastAPI Python backend (primary API)
-├── api/              # Vercel serverless entry point (wraps backend/)
-├── frontend/         # Vue 3 + TypeScript + Capacitor web/mobile app
-├── flutter/          # Flutter cross-platform app (alternative client)
+├── flutter/          # Flutter iOS/Android app (only active client)
 ├── supabase/         # DB migrations and config
 └── promptfoo/        # Prompt evaluation test configs per workout type
 ```
@@ -50,15 +48,14 @@ Offline-first: uses Dexie (IndexedDB) for local storage, with `syncService.ts` t
 Native builds: `npm run build:mobile` → `cap sync` → open in Xcode/Android Studio.
 
 ### Flutter (`flutter/`)
-Alternative Flutter client with Provider state management. Uses `supabase_flutter`, Hive for offline storage, and `audioplayers` for audio cues.
+Primary client with Provider state management. Uses `supabase_flutter`, Hive for offline storage, and `audioplayers` for audio cues.
 
 ## Development Commands
 
-### Docker (recommended for full stack)
+### Docker (backend only)
 ```bash
-./scripts/dev.sh              # Start all services with hot reload
+./scripts/dev.sh              # Start backend with hot reload
 ./scripts/dev.sh backend      # Backend only (http://localhost:8000)
-./scripts/dev.sh frontend     # Frontend only (http://localhost:5173)
 ./scripts/dev.sh down         # Stop all
 docker compose logs -f        # View logs
 ```
@@ -71,17 +68,6 @@ uvicorn app.main:app --reload  # http://localhost:8000
 # API docs: http://localhost:8000/api/v1/docs
 
 pytest                         # Run tests
-```
-
-### Frontend (manual)
-```bash
-cd frontend
-npm install
-npm run dev                    # http://localhost:5173
-npm run build                  # Web production build
-npm run build:mobile           # Build + cap sync for native
-npm run cap:ios                # Open in Xcode
-npm run cap:android            # Open in Android Studio
 ```
 
 ### Flutter
@@ -109,25 +95,24 @@ AI_CLASSIFIER_MODEL=gpt-4.1-mini
 USE_AGENT_WORKFLOW=False    # True = two-stage agent pipeline; False = single-pass parser
 DATABASE_URL=postgresql://...
 SUPABASE_JWT_SECRET=        # From Supabase Dashboard > Settings > API
-BACKEND_CORS_ORIGINS=["http://localhost:5173"]
 ```
 
-**Frontend** (`frontend/.env`):
+**Flutter** (`flutter/.env`):
 ```env
-VITE_API_URL=http://localhost:8000
-VITE_SUPABASE_URL=
-VITE_SUPABASE_ANON_KEY=
+SUPABASE_URL=
+SUPABASE_ANON_KEY=
+API_BASE_URL=https://ai-wod-timer.onrender.com
+AUTH_ENABLED=true
 ```
 
 ## Workout Types
 The system supports: `amrap`, `emom`, `for_time`, `tabata`, `intervals`, `stopwatch`, `custom`, `work_rest`
 
-Each type has a dedicated prompt file in `backend/app/prompts/` and a Pinia test config in `promptfoo/`.
+Each type has a dedicated prompt file in `backend/app/prompts/` and a promptfoo test config in `promptfoo/`.
 
 ## Deployment
-- Backend + frontend deployable via `docker-compose.yml`
-- Frontend also deployable to Vercel (`vercel.json` at root and `frontend/vercel.json`)
-- `api/index.py` is the Vercel serverless entry point that imports the FastAPI `app` from `backend/`
+- Backend deployable via `docker-compose.yml` or Render (`https://ai-wod-timer.onrender.com`)
+- Flutter iOS deployed to TestFlight via `.github/workflows/deploy-ios.yml` (triggers on `flutter/**` changes to master)
 
 ## Skills
 

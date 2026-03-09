@@ -1,6 +1,6 @@
 """
 Supabase JWT verification service.
-Verifies access tokens sent from the frontend.
+Verifies access tokens sent from the Flutter app.
 """
 import jwt
 import structlog

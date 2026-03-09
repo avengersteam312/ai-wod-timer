@@ -33,10 +33,27 @@ Edit `.env` with your configuration:
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your-anon-key
 API_BASE_URL=http://localhost:8000
-AUTH_REQUIRED=true
+AUTH_ENABLED=true
+DEEP_LINK_SCHEME=com.aiwodtimer.app
 ```
 
-### 3. Generate Hive Adapters (if needed)
+The backend parse endpoints require a valid Supabase session, so `AUTH_ENABLED` should stay enabled in normal development and production.
+
+### 3. Configure the Backend
+
+The Flutter app calls authenticated backend parse endpoints. Create `backend/.env` and set at minimum:
+
+```bash
+cd ../backend
+cp .env.example .env
+```
+
+```env
+OPENAI_API_KEY=your-openai-api-key
+SUPABASE_JWT_SECRET=your-supabase-jwt-secret
+```
+
+### 4. Generate Hive Adapters (if needed)
 
 ```bash
 flutter pub run build_runner build

@@ -18,7 +18,7 @@ class AppConfig {
   static String get apiBaseUrl =>
       dotenv.env['API_BASE_URL'] ?? 'http://localhost:8000';
 
-  // Auth Settings - when enabled, users can optionally sign in
+  // Auth Settings - should stay enabled for normal app use because parsing requires auth
   static bool get authEnabled =>
       (dotenv.env['AUTH_ENABLED'] ?? 'true').toLowerCase() == 'true';
 

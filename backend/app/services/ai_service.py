@@ -59,7 +59,7 @@ class AIService:
                     {"role": "user", "content": user_prompt},
                 ],
                 temperature=0,
-                timeout=8.0,  # Fail fast before Vercel 10s timeout
+                timeout=8.0,  # Fail fast for low-latency mobile requests
             )
 
             # Extract JSON from response
