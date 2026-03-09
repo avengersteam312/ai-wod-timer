@@ -6,6 +6,7 @@ name: Deploy iOS to TestFlight
 #   DISTRIBUTION_CERTIFICATE_BASE64  — .p12 cert, base64-encoded
 #   DISTRIBUTION_CERTIFICATE_PASSWORD — password set when exporting .p12
 #   APP_STORE_CONNECT_API_KEY_BASE64  — AuthKey_88R6NGQ7J4.p8, base64-encoded
+#   FLUTTER_SENTRY_DSN               — Sentry DSN for the Flutter project
 
 on:
   push:
@@ -102,7 +103,12 @@ jobs:
           APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
 
       - name: Build Flutter iOS (no codesign)
-        run: flutter build ios --release --no-codesign
+        # --dart-define injects Sentry DSN at compile time (String.fromEnvironment).
+        # Without this, SENTRY_DSN is empty and Sentry silently does nothing.
+        run: |
+          flutter build ios --release --no-codesign \
+            --dart-define=SENTRY_DSN=${{ secrets.FLUTTER_SENTRY_DSN }} \
+            --dart-define=ENV=production
         working-directory: flutter
 
       - name: Archive (no codesign — avoids Development profile conflict)
