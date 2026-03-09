@@ -26,10 +26,18 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Install Flutter dependencies
+      - name: Create .env file from secrets
         run: |
-          touch .env
-          flutter pub get
+          cat > .env <<EOF
+          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+          API_BASE_URL=${{ secrets.API_BASE_URL }}
+          AUTH_ENABLED=true
+          EOF
+        working-directory: flutter
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
         working-directory: flutter
 
       - name: Patch camera_avfoundation for Xcode 16 / iOS 18 SDK
