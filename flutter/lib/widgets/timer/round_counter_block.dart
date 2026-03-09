@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 
 /// Round counter block displaying ROUND X/Y and REST X/Y side by side
-/// Similar to the web frontend RoundCounterBlock component
+/// Round counter UI for the active Flutter timer screen
 class RoundCounterBlock extends StatelessWidget {
   final int currentWorkRound;
   final int totalWorkRounds;

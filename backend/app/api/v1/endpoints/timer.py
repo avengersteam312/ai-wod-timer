@@ -1,6 +1,8 @@
 import time
 import structlog
-from fastapi import APIRouter, HTTPException, Query, UploadFile, File
+from typing import Any, Dict
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from app.api.v1.dependencies import get_current_user
 from app.schemas.workout import WorkoutParseRequest, ParsedWorkout
 from app.services.workout_parser import workout_parser
 from app.services.ai_service import ai_service
@@ -30,6 +32,7 @@ def _get_parser(use_agent: bool = None):
 @router.post("/parse", response_model=ParsedWorkout)
 async def parse_workout(
     request: WorkoutParseRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
     use_agent: bool = Query(
         default=None,
         description="Override to use agent-based parser (True) or standard parser (False)"
@@ -52,6 +55,7 @@ async def parse_workout(
     Query Parameters:
     - use_agent: Optional override to use agent-based parser (default: from config)
     """
+    del current_user
     start = time.perf_counter()
     try:
         parser = _get_parser(use_agent)
@@ -80,6 +84,7 @@ async def parse_workout(
 @router.post("/parse-image", response_model=ParsedWorkout)
 async def parse_workout_from_image(
     file: UploadFile = File(..., description="Image file containing workout text"),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     use_agent: bool = Query(
         default=None,
         description="Override to use agent-based parser (True) or standard parser (False)"
@@ -97,6 +102,7 @@ async def parse_workout_from_image(
     Supports the same workout types as the text parser:
     - AMRAP, EMOM, For Time, Tabata, Rounds with rest, Custom intervals
     """
+    del current_user
     # Validate file type
     allowed_types = ["image/jpeg", "image/png", "image/webp", "image/gif"]
     if file.content_type not in allowed_types:

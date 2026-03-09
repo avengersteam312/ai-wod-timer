@@ -53,19 +53,6 @@ checks:
         failIfBodyNotMatchesRegexp:
           - '"status"'  # Asserts the JSON body contains "status" key
 
-  - job: frontend
-    target: "https://YOUR_FRONTEND_DOMAIN"
-    frequency: 60000
-    timeout: 10000
-    enabled: true
-    probes:
-      - 1
-    settings:
-      http:
-        method: GET
-        validStatusCodes:
-          - 200
-
 # ─────────────────────────────────────────────────────────────────────────────
 # ALERTS
 # ─────────────────────────────────────────────────────────────────────────────
