@@ -1,6 +1,6 @@
 name: Deploy iOS to TestFlight
 
-# Runs on every merge to master.
+# Runs on merges to master that touch Flutter code or this workflow.
 # macOS runner required to build iOS apps.
 # Secrets required:
 #   DISTRIBUTION_CERTIFICATE_BASE64  — .p12 cert, base64-encoded
@@ -11,6 +11,9 @@ name: Deploy iOS to TestFlight
 on:
   push:
     branches: [master]
+    paths:
+      - 'flutter/**'
+      - '.github/workflows/deploy-ios.yml'
 
 jobs:
   deploy-ios:

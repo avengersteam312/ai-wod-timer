@@ -76,7 +76,23 @@
 - [ ] Grafana → Dashboards → Import → upload `observability/provisioning/dashboards/ai_wod_timer.json`
 - [ ] Confirm panels load: parse success rate, AI latency, OpenAI cost, classifier hits, security events
 
-### 2e. Alert Routing
+### 2e. Service Account — Dashboard CI (GitHub Actions)
+
+> Required for `sync-grafana-dashboard` and `export-grafana-dashboard` workflows.
+
+- [ ] Grafana → Administration → Service accounts → **Add service account**
+  - Name: `github-actions`
+  - Role: **Editor** (needs dashboards:write for sync; add dashboards:read for export)
+- [ ] Click the account → **Add service account token** → copy the token (shown once)
+- [ ] In your GitHub repo → Settings → Secrets and variables → Actions → add:
+  ```
+  GRAFANA_URL = https://aiwodtimer.grafana.net
+  GRAFANA_SA_TOKEN = <token from above>
+  ```
+- [ ] Verify sync: run `sync-grafana-dashboard` workflow manually → confirm HTTP 200 in logs
+- [ ] **Known gap**: `export-grafana-dashboard` returns 403 until `dashboards:read` is added to the SA role
+
+### 2f. Alert Routing
 
 - [ ] Grafana → Alerting → Contact points → add Slack webhook or email
 - [ ] Grafana → Alerting → Notification policies → route all alerts to that contact point

@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Xcode / iOS — auto-generated, reconstructed on every Xcode open
+ios/**/xcshareddata/swiftpm/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
