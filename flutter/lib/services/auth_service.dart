@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -37,18 +38,28 @@ class AuthService {
     required String email,
     required String password,
   }) async {
+    Sentry.addBreadcrumb(Breadcrumb(
+      message: 'signInWithEmail: attempting',
+      category: 'auth',
+      level: SentryLevel.info,
+    ));
     try {
       final response = await _client.auth.signInWithPassword(
         email: email,
         password: password,
       );
+      Sentry.addBreadcrumb(Breadcrumb(
+        message: 'signInWithEmail: success',
+        category: 'auth',
+        level: SentryLevel.info,
+      ));
       return response;
     } on AuthException catch (e) {
       debugPrint('[AuthService] SignIn AuthException: ${e.message}');
       throw AuthException(_mapAuthError(e.message));
     } catch (e, stackTrace) {
       debugPrint('[AuthService] SignIn error: $e');
-      debugPrint('[AuthService] SignIn stackTrace: $stackTrace');
+      Sentry.captureException(e, stackTrace: stackTrace);
       throw AuthException('Failed to sign in. Please try again.');
     }
   }
@@ -59,25 +70,40 @@ class AuthService {
     required String password,
     String? displayName,
   }) async {
+    Sentry.addBreadcrumb(Breadcrumb(
+      message: 'signUpWithEmail: attempting',
+      category: 'auth',
+      level: SentryLevel.info,
+    ));
     try {
       final response = await _client.auth.signUp(
         email: email,
         password: password,
         data: displayName != null ? {'display_name': displayName} : null,
       );
+      Sentry.addBreadcrumb(Breadcrumb(
+        message: 'signUpWithEmail: success',
+        category: 'auth',
+        level: SentryLevel.info,
+      ));
       return response;
     } on AuthException catch (e) {
       debugPrint('[AuthService] SignUp AuthException: ${e.message}');
       throw AuthException(_mapAuthError(e.message));
     } catch (e, stackTrace) {
       debugPrint('[AuthService] SignUp error: $e');
-      debugPrint('[AuthService] SignUp stackTrace: $stackTrace');
+      Sentry.captureException(e, stackTrace: stackTrace);
       throw AuthException('Failed to sign up. Please try again.');
     }
   }
 
   // Sign in with Google (Supabase OAuth)
   Future<bool> signInWithGoogle() async {
+    Sentry.addBreadcrumb(Breadcrumb(
+      message: 'signInWithGoogle: attempting',
+      category: 'auth',
+      level: SentryLevel.info,
+    ));
     try {
       // For web, use the default OAuth flow
       if (kIsWeb) {
@@ -107,16 +133,27 @@ class AuthService {
 
       // The app will receive the callback via deep link
       // Supabase SDK handles it automatically
+      Sentry.addBreadcrumb(Breadcrumb(
+        message: 'signInWithGoogle: browser launched, awaiting callback',
+        category: 'auth',
+        level: SentryLevel.info,
+      ));
       return true;
-    } catch (e) {
+    } catch (e, stackTrace) {
       debugPrint('[AuthService] Google sign in error: $e');
       if (e is AuthException) rethrow;
+      Sentry.captureException(e, stackTrace: stackTrace);
       throw AuthException('Failed to sign in with Google. Please try again.');
     }
   }
 
   // Sign in with Apple (native iOS sheet)
   Future<bool> signInWithApple() async {
+    Sentry.addBreadcrumb(Breadcrumb(
+      message: 'signInWithApple: requesting credential',
+      category: 'auth',
+      level: SentryLevel.info,
+    ));
     try {
       final credential = await SignInWithApple.getAppleIDCredential(
         scopes: [
@@ -127,24 +164,41 @@ class AuthService {
 
       final idToken = credential.identityToken;
       if (idToken == null) {
+        Sentry.captureMessage(
+          'Apple sign in: identityToken is null',
+          level: SentryLevel.error,
+        );
         throw AuthException('Apple sign in failed: no identity token.');
       }
+
+      Sentry.addBreadcrumb(Breadcrumb(
+        message: 'signInWithApple: got credential, calling signInWithIdToken',
+        category: 'auth',
+        level: SentryLevel.info,
+      ));
 
       await _client.auth.signInWithIdToken(
         provider: OAuthProvider.apple,
         idToken: idToken,
       );
 
+      Sentry.addBreadcrumb(Breadcrumb(
+        message: 'signInWithApple: success',
+        category: 'auth',
+        level: SentryLevel.info,
+      ));
       return true;
     } on SignInWithAppleAuthorizationException catch (e) {
       if (e.code == AuthorizationErrorCode.canceled) {
         return false;
       }
       debugPrint('[AuthService] Apple sign in error: ${e.message}');
+      Sentry.captureException(e);
       throw AuthException('Apple sign in failed. Please try again.');
-    } catch (e) {
+    } catch (e, stackTrace) {
       debugPrint('[AuthService] Apple sign in error: $e');
       if (e is AuthException) rethrow;
+      Sentry.captureException(e, stackTrace: stackTrace);
       throw AuthException('Failed to sign in with Apple. Please try again.');
     }
   }
