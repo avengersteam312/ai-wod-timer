@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
 import '../services/auth_service.dart';
 import '../models/user.dart';
@@ -72,6 +73,12 @@ class AuthProvider with ChangeNotifier {
 
   void _checkCurrentSession() {
     final session = authService.currentSession;
+    Sentry.addBreadcrumb(Breadcrumb(
+      message: 'auth.session_check',
+      category: 'auth',
+      data: {'session_exists': session != null},
+      level: SentryLevel.info,
+    ));
     if (session != null) {
       _setUserFromSession(session);
     } else {
@@ -81,6 +88,16 @@ class AuthProvider with ChangeNotifier {
   }
 
   void _handleAuthStateChange(AuthState state) {
+    Sentry.addBreadcrumb(Breadcrumb(
+      message: 'auth.state_change',
+      category: 'auth',
+      data: {
+        'event': state.event.name,
+        'session_exists': state.session != null,
+        'expires_at': state.session?.expiresAt,
+      },
+      level: SentryLevel.info,
+    ));
     switch (state.event) {
       case AuthChangeEvent.signedIn:
         if (state.session != null) {
