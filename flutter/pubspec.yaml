@@ -28,6 +28,9 @@ dependencies:
   # Google Sign In
   google_sign_in: ^6.2.1
 
+  # Apple Sign In
+  sign_in_with_apple: ^6.1.0
+
   # URL Launcher (for OAuth)
   url_launcher: ^6.2.5
 

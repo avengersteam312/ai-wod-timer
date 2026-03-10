@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../config/app_config.dart';
@@ -111,6 +112,40 @@ class AuthService {
       debugPrint('[AuthService] Google sign in error: $e');
       if (e is AuthException) rethrow;
       throw AuthException('Failed to sign in with Google. Please try again.');
+    }
+  }
+
+  // Sign in with Apple (native iOS sheet)
+  Future<bool> signInWithApple() async {
+    try {
+      final credential = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+      );
+
+      final idToken = credential.identityToken;
+      if (idToken == null) {
+        throw AuthException('Apple sign in failed: no identity token.');
+      }
+
+      await _client.auth.signInWithIdToken(
+        provider: OAuthProvider.apple,
+        idToken: idToken,
+      );
+
+      return true;
+    } on SignInWithAppleAuthorizationException catch (e) {
+      if (e.code == AuthorizationErrorCode.canceled) {
+        return false;
+      }
+      debugPrint('[AuthService] Apple sign in error: ${e.message}');
+      throw AuthException('Apple sign in failed. Please try again.');
+    } catch (e) {
+      debugPrint('[AuthService] Apple sign in error: $e');
+      if (e is AuthException) rethrow;
+      throw AuthException('Failed to sign in with Apple. Please try again.');
     }
   }
 

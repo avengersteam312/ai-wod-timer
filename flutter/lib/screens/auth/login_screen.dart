@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../providers/auth_provider.dart';
 import '../../theme/app_theme.dart';
@@ -100,6 +101,22 @@ class _LoginScreenState extends State<LoginScreen> {
 
     final authProvider = context.read<AuthProvider>();
     final success = await authProvider.signInWithGoogle();
+
+    if (mounted) {
+      setState(() => _isLoading = false);
+
+      if (!success && authProvider.error != null) {
+        AppSnackBar.showError(context, authProvider.error!);
+        authProvider.clearError();
+      }
+    }
+  }
+
+  Future<void> _signInWithApple() async {
+    setState(() => _isLoading = true);
+
+    final authProvider = context.read<AuthProvider>();
+    final success = await authProvider.signInWithApple();
 
     if (mounted) {
       setState(() => _isLoading = false);
@@ -317,6 +334,17 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
 
               const SizedBox(height: 24),
+
+              // Apple sign in button
+              SizedBox(
+                width: double.infinity,
+                child: SignInWithAppleButton(
+                  onPressed: _isLoading ? () {} : _signInWithApple,
+                  style: SignInWithAppleButtonStyle.black,
+                ),
+              ),
+
+              const SizedBox(height: 12),
 
               // Google sign in button
               SizedBox(
