@@ -9,14 +9,19 @@ import 'providers/auth_provider.dart';
 import 'providers/workout_provider.dart';
 import 'providers/video_provider.dart';
 import 'screens/app_shell.dart';
+import 'screens/auth/update_password_screen.dart';
 import 'services/audio_service.dart';
 import 'services/offline_storage_service.dart';
 import 'services/sync_service.dart';
 import 'config/app_config.dart';
 import 'observability/observability.dart';
+import 'utils/snackbar_utils.dart';
 
 /// Global key for the root ScaffoldMessenger to show snackbars above bottom navigation
 final rootScaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+
+/// Global navigator key for popping to root on deep link auth events
+final rootNavigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -81,6 +86,7 @@ class MyApp extends StatelessWidget {
         title: 'AI WOD Timer',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.darkTheme,
+        navigatorKey: rootNavigatorKey,
         scaffoldMessengerKey: rootScaffoldMessengerKey,
         home: const AuthWrapper(),
       ),
@@ -88,15 +94,45 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class AuthWrapper extends StatelessWidget {
+class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
 
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
   @override
   Widget build(BuildContext context) {
     // Auth is optional - always show AppShell
     // Users can sign in via AuthButton if they want
     return Consumer<AuthProvider>(
       builder: (context, auth, _) {
+        // Show error when auth error occurs (e.g., expired email link)
+        // Skip if in password recovery - let UpdatePasswordScreen handle errors
+        if (auth.error != null && !auth.isInPasswordRecovery) {
+          final errorMessage = auth.error!;
+          auth.clearError();
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (context.mounted) {
+              AppSnackBar.showError(context, errorMessage);
+            }
+          });
+        }
+
+        // Show success message (e.g., email verified)
+        if (auth.successMessage != null) {
+          final successMessage = auth.successMessage!;
+          auth.clearSuccessMessage();
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            // Pop any screens on top (e.g., login screen)
+            rootNavigatorKey.currentState?.popUntil((route) => route.isFirst);
+            if (context.mounted) {
+              AppSnackBar.showSuccess(context, successMessage);
+            }
+          });
+        }
+
         // Show loading only briefly while checking existing session
         if (auth.isLoading && AppConfig.authEnabled) {
           return const Scaffold(
@@ -107,6 +143,15 @@ class AuthWrapper extends StatelessWidget {
               ),
             ),
           );
+        }
+
+        // Show password update screen when user clicked reset link from email
+        if (auth.isInPasswordRecovery) {
+          // Pop any screens on top (e.g., login screen) to show recovery form
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            rootNavigatorKey.currentState?.popUntil((route) => route.isFirst);
+          });
+          return const UpdatePasswordScreen();
         }
 
         return const AppShell();

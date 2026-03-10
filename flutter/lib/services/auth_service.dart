@@ -79,6 +79,7 @@ class AuthService {
       final response = await _client.auth.signUp(
         email: email,
         password: password,
+        emailRedirectTo: kIsWeb ? null : AppConfig.loginCallbackUrl,
         data: displayName != null ? {'display_name': displayName} : null,
       );
       Sentry.addBreadcrumb(Breadcrumb(
@@ -215,13 +216,17 @@ class AuthService {
   // Send password reset email
   Future<void> resetPassword(String email) async {
     try {
+      debugPrint('Sending reset email to: $email with redirectTo: ${AppConfig.resetCallbackUrl}');
       await _client.auth.resetPasswordForEmail(
         email,
         redirectTo: kIsWeb ? null : AppConfig.resetCallbackUrl,
       );
+      debugPrint('Reset email sent successfully');
     } on AuthException catch (e) {
+      debugPrint('Reset password AuthException: ${e.message}');
       throw AuthException(_mapAuthError(e.message));
     } catch (e) {
+      debugPrint('Reset password error: $e');
       throw AuthException('Failed to send reset email. Please try again.');
     }
   }
