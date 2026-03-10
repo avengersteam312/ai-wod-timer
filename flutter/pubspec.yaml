@@ -29,7 +29,7 @@ dependencies:
   google_sign_in: ^6.2.1
 
   # Apple Sign In
-  sign_in_with_apple: ^6.1.0
+  sign_in_with_apple: ^7.0.1
 
   # URL Launcher (for OAuth)
   url_launcher: ^6.2.5
@@ -78,6 +78,13 @@ dev_dependencies:
   flutter_lints: ^3.0.1
   hive_generator: ^2.0.1
   build_runner: ^2.4.8
+  flutter_launcher_icons: ^0.14.1
+
+flutter_launcher_icons:
+  android: false
+  ios: true
+  image_path: "assets/images/app_icon_1024.png"
+  remove_alpha_ios: true
 
 flutter:
   uses-material-design: true
