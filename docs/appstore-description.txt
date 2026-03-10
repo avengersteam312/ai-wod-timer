@@ -1,0 +1,26 @@
+AI WOD Timer turns any workout description into a ready-to-run timer in seconds. Just type or paste your WOD — the AI detects the format and sets up every interval automatically.
+
+No more manually counting rounds, setting intervals, or doing math mid-warmup. Whether you're programming for yourself or coaching a class, paste the workout and go.
+
+Supported workout formats:
+• AMRAP — as many rounds as possible with automatic countdown
+• EMOM — every minute on the minute with per-minute interval tracking
+• Tabata — 20/10 work-rest cycles with configurable rounds
+• For Time — countdown timer with round tracking
+• Intervals — custom work/rest periods with rep targets
+• Work/Rest — simple alternating work and rest rounds
+• Stopwatch — open-ended count-up for max-effort sets
+• Custom — any format that doesn't fit a standard template
+
+Whiteboard to timer in one tap:
+Point your camera at the whiteboard or pick a photo from your gallery — the AI reads the workout and sets up the timer automatically. No typing required.
+
+Record your workouts:
+Film your sets with the built-in video recorder. A live timer overlay shows your round count, work/rest phase, and remaining time while you record. Save the video to your gallery or share directly to Instagram, TikTok, or anywhere else.
+
+Built for athletes:
+• Audio cues at every interval transition — no need to watch the screen
+• Works offline — timers saved locally, synced to the cloud when back online
+• Workout history with timestamps
+• Manual timer mode — no account needed for basic use
+• Cloud sync across devices when signed in

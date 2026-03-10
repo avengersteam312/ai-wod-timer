@@ -199,6 +199,34 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
+  Future<bool> signInWithApple() async {
+    try {
+      _isLoading = true;
+      _error = null;
+      notifyListeners();
+
+      final success = await authService.signInWithApple();
+
+      if (!success) {
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+
+      return true;
+    } on AuthException catch (e) {
+      _error = e.message;
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _error = 'An unexpected error occurred. Please try again.';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<void> signOut() async {
     try {
       _isLoading = true;
