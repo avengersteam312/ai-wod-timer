@@ -120,13 +120,31 @@ class _AuthWrapperState extends State<AuthWrapper> {
           });
         }
 
-        // Show success message (e.g., email verified)
+        // Show email verified message
+        if (auth.emailJustVerified) {
+          auth.clearEmailVerified();
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (context.mounted) {
+              AppSnackBar.showSuccess(context, 'Email verified!');
+            }
+          });
+        }
+
+        // Show password updated message
+        if (auth.passwordJustUpdated) {
+          auth.clearPasswordUpdated();
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (context.mounted) {
+              AppSnackBar.showSuccess(context, 'Password updated!');
+            }
+          });
+        }
+
+        // Show success message if any (generic handler for future use)
         if (auth.successMessage != null) {
           final successMessage = auth.successMessage!;
           auth.clearSuccessMessage();
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            // Pop any screens on top (e.g., login screen)
-            rootNavigatorKey.currentState?.popUntil((route) => route.isFirst);
             if (context.mounted) {
               AppSnackBar.showSuccess(context, successMessage);
             }

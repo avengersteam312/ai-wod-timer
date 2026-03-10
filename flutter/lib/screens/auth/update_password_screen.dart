@@ -43,7 +43,8 @@ class _UpdatePasswordScreenState extends State<UpdatePasswordScreen> {
       setState(() => _isLoading = false);
 
       if (success) {
-        AppSnackBar.showSuccess(context, 'Password updated successfully!');
+        // Sign out and redirect to login page (success message shown via main.dart)
+        await authProvider.signOut();
       } else {
         // Delay slightly to ensure scaffold is ready
         Future.delayed(const Duration(milliseconds: 100), () {
