@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../models/workout.dart';
 import '../models/movement.dart';
@@ -422,7 +423,21 @@ class WorkoutProvider with ChangeNotifier {
     } catch (e, stackTrace) {
       debugPrint('[WorkoutProvider] parseWorkout error: $e');
       debugPrint('[WorkoutProvider] parseWorkout stackTrace: $stackTrace');
-      await Sentry.captureException(e, stackTrace: stackTrace);
+      final session = Supabase.instance.client.auth.currentSession;
+      await Sentry.captureException(
+        e,
+        stackTrace: stackTrace,
+        withScope: (scope) {
+          scope.setContexts('session', {
+            'exists': session != null,
+            'expired': session != null
+                ? DateTime.now().isAfter(DateTime.fromMillisecondsSinceEpoch(
+                    (session.expiresAt ?? 0) * 1000))
+                : null,
+            'expires_at': session?.expiresAt,
+          });
+        },
+      );
       _parseError = _getParseErrorMessage(e);
       _isParsing = false;
       notifyListeners();
@@ -460,7 +475,21 @@ class WorkoutProvider with ChangeNotifier {
     } catch (e, stackTrace) {
       debugPrint('[WorkoutProvider] parseWorkoutFromImage error: $e');
       debugPrint('[WorkoutProvider] parseWorkoutFromImage stackTrace: $stackTrace');
-      await Sentry.captureException(e, stackTrace: stackTrace);
+      final session = Supabase.instance.client.auth.currentSession;
+      await Sentry.captureException(
+        e,
+        stackTrace: stackTrace,
+        withScope: (scope) {
+          scope.setContexts('session', {
+            'exists': session != null,
+            'expired': session != null
+                ? DateTime.now().isAfter(DateTime.fromMillisecondsSinceEpoch(
+                    (session.expiresAt ?? 0) * 1000))
+                : null,
+            'expires_at': session?.expiresAt,
+          });
+        },
+      );
       _parseError = _getParseErrorMessage(e);
       _isExtractingFromImage = false;
       notifyListeners();
