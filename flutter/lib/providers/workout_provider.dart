@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../models/workout.dart';
 import '../models/movement.dart';
@@ -421,6 +422,7 @@ class WorkoutProvider with ChangeNotifier {
     } catch (e, stackTrace) {
       debugPrint('[WorkoutProvider] parseWorkout error: $e');
       debugPrint('[WorkoutProvider] parseWorkout stackTrace: $stackTrace');
+      await Sentry.captureException(e, stackTrace: stackTrace);
       _parseError = _getParseErrorMessage(e);
       _isParsing = false;
       notifyListeners();
@@ -458,6 +460,7 @@ class WorkoutProvider with ChangeNotifier {
     } catch (e, stackTrace) {
       debugPrint('[WorkoutProvider] parseWorkoutFromImage error: $e');
       debugPrint('[WorkoutProvider] parseWorkoutFromImage stackTrace: $stackTrace');
+      await Sentry.captureException(e, stackTrace: stackTrace);
       _parseError = _getParseErrorMessage(e);
       _isExtractingFromImage = false;
       notifyListeners();
