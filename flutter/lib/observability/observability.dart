@@ -34,7 +34,16 @@ Future<void> configureObservability(Future<void> Function() appRunner) async {
       // 10% trace sampling in prod — stays within the free tier
       ..tracesSampleRate = kDebugMode ? 1.0 : 0.1
       // Release health: track crash-free session rate
-      ..autoSessionTrackingInterval = const Duration(minutes: 30),
+      ..autoSessionTrackingInterval = const Duration(minutes: 30)
+      // Filter out expected auth errors (expired links are user errors, not bugs)
+      ..beforeSend = (event, hint) {
+        final message = event.throwable?.toString() ?? '';
+        if (message.contains('otp_expired') ||
+            message.contains('Email link is invalid')) {
+          return null; // Drop event — don't send to Sentry
+        }
+        return event;
+      },
     // appRunner gives Sentry full Zone coverage — all three error hooks fire
     appRunner: appRunner,
   );

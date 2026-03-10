@@ -71,7 +71,15 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (success && mounted) {
-        AppSnackBar.showInfo(context, 'Account created! Please check your email to verify.');
+        // Switch to login form and show verification message
+        setState(() {
+          _isSignUp = false;
+          _isLoading = false;
+          _passwordController.clear();
+          _confirmPasswordController.clear();
+        });
+        AppSnackBar.showSuccess(context, 'Check your email to verify your account.');
+        return;
       }
     } else {
       success = await authProvider.signIn(

@@ -128,6 +128,7 @@ class SyncService {
   // Workout Sync Methods
   Future<List<Workout>> getWorkouts(String userId) async {
     // Try to get from remote first if online and Supabase is configured
+    // Skip for anonymous users (not a valid UUID)
     if (_isOnline && AppConfig.hasSupabaseConfig && userId != 'anonymous') {
       try {
         final response = await _client
@@ -236,6 +237,7 @@ class SyncService {
 
   // Session Sync Methods
   Future<List<WorkoutSession>> getSessions(String userId) async {
+    // Skip remote fetch for anonymous users (not a valid UUID)
     if (_isOnline && AppConfig.hasSupabaseConfig && userId != 'anonymous') {
       try {
         final response = await _client

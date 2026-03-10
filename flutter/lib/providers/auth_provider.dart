@@ -11,6 +11,11 @@ class AuthProvider with ChangeNotifier {
   AppUser? _user;
   bool _isLoading = true;
   String? _error;
+  String? _successMessage;
+  bool _isInPasswordRecovery = false;
+  bool _emailJustVerified = false;
+  bool _passwordJustUpdated = false;
+  bool _isManualSignIn = false;
   StreamSubscription<AuthState>? _authSubscription;
 
   AuthProvider() {
@@ -27,6 +32,10 @@ class AuthProvider with ChangeNotifier {
   bool get isAuthenticated => _user != null;
   bool get isLoading => _isLoading;
   String? get error => _error;
+  String? get successMessage => _successMessage;
+  bool get isInPasswordRecovery => _isInPasswordRecovery;
+  bool get emailJustVerified => _emailJustVerified;
+  bool get passwordJustUpdated => _passwordJustUpdated;
 
   void _init() {
     // Skip auth initialization if not enabled or Supabase not configured
@@ -43,7 +52,16 @@ class AuthProvider with ChangeNotifier {
       },
       onError: (error) {
         debugPrint('Auth state error: $error');
+        // Handle expired/invalid email links gracefully
+        final errorStr = error.toString().toLowerCase();
+        if (errorStr.contains('expired') || errorStr.contains('otp_expired') ||
+            errorStr.contains('invalid')) {
+          _error = 'Email link has expired. Please request a new one.';
+        } else {
+          _error = 'Authentication error. Please try again.';
+        }
         _isLoading = false;
+        _isInPasswordRecovery = false;
         notifyListeners();
       },
     );
@@ -65,6 +83,18 @@ class AuthProvider with ChangeNotifier {
   void _handleAuthStateChange(AuthState state) {
     switch (state.event) {
       case AuthChangeEvent.signedIn:
+        if (state.session != null) {
+          // Check if this is a new sign in (user was not authenticated before)
+          final wasNotAuthenticated = _user == null;
+          _setUserFromSession(state.session!);
+          if (wasNotAuthenticated && !_isLoading && !_isManualSignIn) {
+            // User just verified email via deep link - show success message
+            _emailJustVerified = true;
+            notifyListeners();
+          }
+          _isManualSignIn = false;
+        }
+        break;
       case AuthChangeEvent.tokenRefreshed:
         if (state.session != null) {
           _setUserFromSession(state.session!);
@@ -81,7 +111,12 @@ class AuthProvider with ChangeNotifier {
         }
         break;
       case AuthChangeEvent.passwordRecovery:
-        // Handle password recovery if needed
+        debugPrint('Password recovery event received');
+        _isInPasswordRecovery = true;
+        if (state.session != null) {
+          _setUserFromSession(state.session!);
+        }
+        notifyListeners();
         break;
       default:
         break;
@@ -108,6 +143,7 @@ class AuthProvider with ChangeNotifier {
   }) async {
     try {
       _isLoading = true;
+      _isManualSignIn = true;
       _error = null;
       notifyListeners();
 
@@ -120,11 +156,13 @@ class AuthProvider with ChangeNotifier {
     } on AuthException catch (e) {
       _error = e.message;
       _isLoading = false;
+      _isManualSignIn = false;
       notifyListeners();
       return false;
     } catch (e) {
       _error = 'An unexpected error occurred. Please try again.';
       _isLoading = false;
+      _isManualSignIn = false;
       notifyListeners();
       return false;
     }
@@ -145,6 +183,14 @@ class AuthProvider with ChangeNotifier {
         password: password,
         displayName: displayName,
       );
+
+      // Check if email already exists (Supabase returns empty identities for existing emails)
+      if (response.user?.identities?.isEmpty ?? false) {
+        _error = 'An account with this email already exists.';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
 
       // If user needs to confirm email
       if (response.user != null && response.session == null) {
@@ -173,6 +219,7 @@ class AuthProvider with ChangeNotifier {
   Future<bool> signInWithGoogle() async {
     try {
       _isLoading = true;
+      _isManualSignIn = true;
       _error = null;
       notifyListeners();
 
@@ -181,6 +228,7 @@ class AuthProvider with ChangeNotifier {
       if (!success) {
         _error = 'Google sign in was cancelled.';
         _isLoading = false;
+        _isManualSignIn = false;
         notifyListeners();
         return false;
       }
@@ -189,11 +237,13 @@ class AuthProvider with ChangeNotifier {
     } on AuthException catch (e) {
       _error = e.message;
       _isLoading = false;
+      _isManualSignIn = false;
       notifyListeners();
       return false;
     } catch (e) {
       _error = 'An unexpected error occurred. Please try again.';
       _isLoading = false;
+      _isManualSignIn = false;
       notifyListeners();
       return false;
     }
@@ -202,6 +252,7 @@ class AuthProvider with ChangeNotifier {
   Future<bool> signInWithApple() async {
     try {
       _isLoading = true;
+      _isManualSignIn = true;
       _error = null;
       notifyListeners();
 
@@ -209,6 +260,7 @@ class AuthProvider with ChangeNotifier {
 
       if (!success) {
         _isLoading = false;
+        _isManualSignIn = false;
         notifyListeners();
         return false;
       }
@@ -217,11 +269,13 @@ class AuthProvider with ChangeNotifier {
     } on AuthException catch (e) {
       _error = e.message;
       _isLoading = false;
+      _isManualSignIn = false;
       notifyListeners();
       return false;
     } catch (e) {
       _error = 'An unexpected error occurred. Please try again.';
       _isLoading = false;
+      _isManualSignIn = false;
       notifyListeners();
       return false;
     }
@@ -269,9 +323,57 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
+  Future<bool> updatePassword(String newPassword) async {
+    try {
+      debugPrint('Updating password...');
+      _isLoading = true;
+      _error = null;
+      notifyListeners();
+
+      await authService.updatePassword(newPassword);
+
+      debugPrint('Password updated successfully');
+      _isInPasswordRecovery = false;
+      _passwordJustUpdated = true;
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } on AuthException catch (e) {
+      debugPrint('Update password AuthException: ${e.message}');
+      _error = e.message;
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      debugPrint('Update password error: $e');
+      _error = 'An unexpected error occurred. Please try again.';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  void clearPasswordRecovery() {
+    _isInPasswordRecovery = false;
+    notifyListeners();
+  }
+
   void clearError() {
     _error = null;
     notifyListeners();
+  }
+
+  void clearSuccessMessage() {
+    _successMessage = null;
+    notifyListeners();
+  }
+
+  void clearEmailVerified() {
+    _emailJustVerified = false;
+  }
+
+  void clearPasswordUpdated() {
+    _passwordJustUpdated = false;
   }
 
   @override
