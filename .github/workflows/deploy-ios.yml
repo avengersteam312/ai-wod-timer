@@ -135,7 +135,7 @@ jobs:
             --dart-define=ENV=production
         working-directory: flutter
 
-      - name: Archive (no codesign — avoids Development profile conflict)
+      - name: Archive (Distribution signing — embeds entitlements)
         run: |
           xcodebuild \
             -workspace Runner.xcworkspace \
@@ -144,7 +144,10 @@ jobs:
             -destination "generic/platform=iOS" \
             -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
             archive \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="AI WOD Timer App Store" \
+            DEVELOPMENT_TEAM=X4J5J2543A
         working-directory: flutter/ios
 
 
@@ -191,6 +194,20 @@ jobs:
             -exportPath "$RUNNER_TEMP/ipa" \
             -exportOptionsPlist ios/ExportOptions.plist
         working-directory: flutter
+
+      - name: Verify entitlements in IPA
+        run: |
+          IPA=$(find "$RUNNER_TEMP/ipa" -name "*.ipa" | head -1)
+          unzip -q "$IPA" -d "$RUNNER_TEMP/ipa_verify"
+          echo "=== Embedded entitlements ==="
+          codesign -d --entitlements :- "$RUNNER_TEMP/ipa_verify/Payload/Runner.app" 2>&1
+          if ! codesign -d --entitlements :- "$RUNNER_TEMP/ipa_verify/Payload/Runner.app" 2>&1 | grep -q "applesignin"; then
+            echo "ERROR: com.apple.developer.applesignin entitlement is MISSING from IPA!"
+            rm -rf "$RUNNER_TEMP/ipa_verify"
+            exit 1
+          fi
+          echo "OK: com.apple.developer.applesignin entitlement is present"
+          rm -rf "$RUNNER_TEMP/ipa_verify"
 
       - name: Upload to TestFlight
         run: |
