@@ -390,23 +390,19 @@ class _SessionDetailsSheet extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
 
-                // Status badge
-                _buildStatusBadge(),
-                const SizedBox(height: 16),
-
-                // Workout name
-                Text(
-                  session.workoutName,
-                  style: AppTextStyles.h2,
-                ),
-                const SizedBox(height: 8),
-
-                // Workout type
-                Text(
-                  session.workoutType.toUpperCase(),
-                  style: AppTextStyles.label.copyWith(
-                    color: AppColors.primary,
-                  ),
+                // Workout name and status
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        session.workoutName,
+                        style: AppTextStyles.h2,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    _buildStatusBadge(),
+                  ],
                 ),
                 const SizedBox(height: 24),
 
@@ -420,8 +416,21 @@ class _SessionDetailsSheet extends StatelessWidget {
                         icon: Icons.timer,
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    if (session.roundsCompleted != null)
+                    // Only show work time if workout was completed and has rest intervals
+                    if (session.status == SessionStatus.completed &&
+                        session.hasRestIntervals &&
+                        session.formattedWorkTime != null) ...[
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _StatItem(
+                          label: 'Work',
+                          value: session.formattedWorkTime!,
+                          icon: Icons.fitness_center,
+                        ),
+                      ),
+                    ],
+                    if (session.roundsCompleted != null) ...[
+                      const SizedBox(width: 16),
                       Expanded(
                         child: _StatItem(
                           label: 'Rounds',
@@ -429,6 +438,10 @@ class _SessionDetailsSheet extends StatelessWidget {
                           icon: Icons.repeat,
                         ),
                       ),
+                    ] else if (!(session.hasRestIntervals && session.formattedWorkTime != null)) ...[
+                      const SizedBox(width: 16),
+                      const Spacer(),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -542,7 +555,7 @@ class _StatItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.inputBackground,
         borderRadius: BorderRadius.circular(12),
@@ -550,20 +563,16 @@ class _StatItem extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(icon, size: 16, color: AppColors.textMuted),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: AppTextStyles.labelSmall,
-              ),
-            ],
+          Text(
+            label,
+            style: AppTextStyles.labelSmall,
+            overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           Text(
             value,
             style: AppTextStyles.h4,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),

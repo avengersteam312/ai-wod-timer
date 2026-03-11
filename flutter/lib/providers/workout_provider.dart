@@ -1013,6 +1013,7 @@ class WorkoutProvider with ChangeNotifier {
     _currentSession = _currentSession!.copyWith(
       status: SessionStatus.completed,
       durationSeconds: _elapsedSeconds,
+      workSeconds: _totalWorkSeconds,
       roundsCompleted: _currentRound,
       completedAt: DateTime.now(),
     );
@@ -1026,6 +1027,7 @@ class WorkoutProvider with ChangeNotifier {
     _currentSession = _currentSession!.copyWith(
       status: SessionStatus.abandoned,
       durationSeconds: _elapsedSeconds,
+      workSeconds: _totalWorkSeconds,
       roundsCompleted: _currentRound,
       completedAt: DateTime.now(),
     );

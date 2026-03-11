@@ -40,6 +40,7 @@ class WorkoutSession {
   final Map<String, dynamic> workoutSnapshot;
   final SessionStatus status;
   final int? durationSeconds;
+  final int? workSeconds;
   final int? roundsCompleted;
   final String? notes;
   final DateTime startedAt;
@@ -54,6 +55,7 @@ class WorkoutSession {
     required this.workoutSnapshot,
     required this.status,
     this.durationSeconds,
+    this.workSeconds,
     this.roundsCompleted,
     this.notes,
     required this.startedAt,
@@ -75,6 +77,7 @@ class WorkoutSession {
       workoutSnapshot: json['workout_snapshot'] as Map<String, dynamic>? ?? {},
       status: SessionStatusExtension.fromString((json['status'] as String?) ?? 'in_progress'),
       durationSeconds: json['duration_seconds'] as int?,
+      workSeconds: json['work_seconds'] as int?,
       roundsCompleted: json['rounds_completed'] as int?,
       notes: json['notes'] as String?,
       startedAt: startedAtRaw != null && startedAtRaw.isNotEmpty
@@ -96,6 +99,7 @@ class WorkoutSession {
       'workout_snapshot': workoutSnapshot,
       'status': status.name,
       'duration_seconds': durationSeconds,
+      'work_seconds': workSeconds,
       'rounds_completed': roundsCompleted,
       'notes': notes,
       'started_at': startedAt.toIso8601String(),
@@ -112,6 +116,7 @@ class WorkoutSession {
     Map<String, dynamic>? workoutSnapshot,
     SessionStatus? status,
     int? durationSeconds,
+    int? workSeconds,
     int? roundsCompleted,
     String? notes,
     DateTime? startedAt,
@@ -126,6 +131,7 @@ class WorkoutSession {
       workoutSnapshot: workoutSnapshot ?? this.workoutSnapshot,
       status: status ?? this.status,
       durationSeconds: durationSeconds ?? this.durationSeconds,
+      workSeconds: workSeconds ?? this.workSeconds,
       roundsCompleted: roundsCompleted ?? this.roundsCompleted,
       notes: notes ?? this.notes,
       startedAt: startedAt ?? this.startedAt,
@@ -161,6 +167,29 @@ class WorkoutSession {
       return '${diff.inDays} days ago';
     } else {
       return '${startedAt.month}/${startedAt.day}/${startedAt.year}';
+    }
+  }
+
+  /// Returns true if work time was tracked and differs from total duration
+  bool get hasRestIntervals {
+    if (workSeconds == null || durationSeconds == null) return false;
+    return workSeconds! < durationSeconds!;
+  }
+
+  /// Formatted work time string
+  String? get formattedWorkTime {
+    if (workSeconds == null || workSeconds == 0) return null;
+
+    final hours = workSeconds! ~/ 3600;
+    final minutes = (workSeconds! % 3600) ~/ 60;
+    final secs = workSeconds! % 60;
+
+    if (hours > 0) {
+      return '${hours}h ${minutes}m ${secs}s';
+    } else if (minutes > 0) {
+      return '${minutes}m ${secs}s';
+    } else {
+      return '${secs}s';
     }
   }
 }

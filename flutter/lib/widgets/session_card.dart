@@ -45,16 +45,9 @@ class SessionCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
 
-                  // Type and duration
+                  // Duration and rounds
                   Row(
                     children: [
-                      Text(
-                        session.workoutType.toUpperCase(),
-                        style: AppTextStyles.labelSmall.copyWith(
-                          color: AppColors.primary,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
                       Text(
                         session.formattedDuration,
                         style: AppTextStyles.bodySmall,

@@ -843,7 +843,7 @@ class _TimerScreenState extends State<TimerScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Current workout',
+            'Current timer',
             style: AppTextStyles.labelSmall.copyWith(
               color: AppColors.textMuted,
             ),
@@ -864,7 +864,7 @@ class _TimerScreenState extends State<TimerScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      '${currentWorkout.type.displayName} • ${_activeWorkoutStateLabel(workout)}',
+                      _activeWorkoutStateLabel(workout),
                       style: AppTextStyles.body.copyWith(
                         color: AppColors.textSecondary,
                       ),
@@ -877,7 +877,9 @@ class _TimerScreenState extends State<TimerScreen> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    workout.formattedTime,
+                    (workout.isIdle || workout.isCountdown)
+                        ? workout.formattedInitialTime
+                        : workout.formattedTime,
                     style: AppTextStyles.h3.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
@@ -1185,8 +1187,7 @@ class _TimerScreenState extends State<TimerScreen> {
       fit: StackFit.expand,
       children: [
         // Swipe hint - left (edit timer, inactive when running)
-        if (_notesState == NotesState.closed)
-          Positioned(
+        Positioned(
             left: 8,
             top: 32 + 100, // Align with timer numbers
             child: Opacity(
@@ -1216,8 +1217,7 @@ class _TimerScreenState extends State<TimerScreen> {
             ),
           ),
         // Swipe hint - right (camera)
-        if (_notesState == NotesState.closed)
-          Positioned(
+        Positioned(
             right: 8,
             top: 32 + 100, // Align with timer numbers
             child: Row(
