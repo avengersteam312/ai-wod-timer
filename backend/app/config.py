@@ -38,7 +38,9 @@ class Settings(BaseSettings):
     ]
 
     # Supabase
-    SUPABASE_JWT_SECRET: str = ""  # Get from Supabase Dashboard > Settings > API > JWT Secret
+    SUPABASE_URL: str = ""  # e.g. https://<ref>.supabase.co
+    SUPABASE_ANON_KEY: str = ""  # Public anon key — used to call auth/v1/user
+    SUPABASE_JWT_SECRET: str = ""  # Kept for reference; no longer used for verification
 
     # Observability
     SENTRY_DSN: str = ""

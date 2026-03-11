@@ -1,6 +1,7 @@
 """
 FastAPI dependencies for authentication and authorization.
 """
+
 import logging
 from fastapi import Depends, HTTPException, status, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -12,7 +13,7 @@ security = HTTPBearer()
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    credentials: HTTPAuthorizationCredentials = Depends(security),
 ) -> dict:
     """
     Dependency to get the current authenticated user.
@@ -28,7 +29,7 @@ async def get_current_user(
     token = credentials.credentials
 
     try:
-        decoded_token = verify_supabase_token(token)
+        decoded_token = await verify_supabase_token(token)
         return decoded_token
     except ValueError as e:
         logger.warning(f"Token verification failed: {e}")
@@ -46,7 +47,7 @@ async def get_current_user(
 
 
 async def get_current_user_optional(
-    authorization: Optional[str] = Header(None)
+    authorization: Optional[str] = Header(None),
 ) -> Optional[dict]:
     """
     Optional authentication dependency.
@@ -64,10 +65,12 @@ async def get_current_user_optional(
         if not token:
             return None
 
-        decoded_token = verify_supabase_token(token)
+        decoded_token = await verify_supabase_token(token)
         return decoded_token
     except ValueError:
         return None
     except Exception as e:
-        logger.warning(f"Unexpected error during optional token verification: {e}", exc_info=True)
+        logger.warning(
+            f"Unexpected error during optional token verification: {e}", exc_info=True
+        )
         return None
