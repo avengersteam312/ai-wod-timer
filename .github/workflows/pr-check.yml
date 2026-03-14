@@ -69,3 +69,5 @@ jobs:
           OPENAI_API_KEY: "sk-test-placeholder"
           DATABASE_URL: "sqlite+aiosqlite:///./test.db"
           SUPABASE_JWT_SECRET: "test-secret"
+          SUPABASE_URL: "https://test.supabase.co"
+          SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ0ZXN0Iiwicm9sZSI6ImFub24ifQ.test"

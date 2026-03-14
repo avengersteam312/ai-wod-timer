@@ -1,8 +1,8 @@
 import time
 import structlog
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
-from app.api.v1.dependencies import get_current_user
+from app.api.v1.dependencies import get_current_user_optional
 from app.schemas.workout import WorkoutParseRequest, ParsedWorkout
 from app.services.workout_parser import workout_parser
 from app.services.ai_service import ai_service
@@ -32,7 +32,7 @@ def _get_parser(use_agent: bool = None):
 @router.post("/parse", response_model=ParsedWorkout)
 async def parse_workout(
     request: WorkoutParseRequest,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
     use_agent: bool = Query(
         default=None,
         description="Override to use agent-based parser (True) or standard parser (False)"
@@ -84,7 +84,7 @@ async def parse_workout(
 @router.post("/parse-image", response_model=ParsedWorkout)
 async def parse_workout_from_image(
     file: UploadFile = File(..., description="Image file containing workout text"),
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
     use_agent: bool = Query(
         default=None,
         description="Override to use agent-based parser (True) or standard parser (False)"
