@@ -35,6 +35,10 @@ class TestBackendCorsOrigins:
         s = Settings(BACKEND_CORS_ORIGINS="[]")
         assert s.BACKEND_CORS_ORIGINS == []
 
+    def test_blank_string_is_rejected(self):
+        with pytest.raises(ValueError, match="cannot be blank"):
+            Settings(BACKEND_CORS_ORIGINS="   ")
+
     def test_comma_separated_fallback(self):
         # Non-JSON fallback: comma-separated list
         s = Settings(BACKEND_CORS_ORIGINS="http://a.com,http://b.com")

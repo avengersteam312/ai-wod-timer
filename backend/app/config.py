@@ -54,7 +54,7 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             v = v.strip()
             if not v:
-                return []
+                raise ValueError("BACKEND_CORS_ORIGINS cannot be blank")
             try:
                 parsed = json.loads(v)
             except json.JSONDecodeError:

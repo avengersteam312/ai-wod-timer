@@ -6,7 +6,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 run_backend_pytest() {
   cd "$ROOT_DIR/backend"
-  venv/bin/python -m pytest tests/api tests/services tests/schemas tests/observability
+  venv/bin/python -m pytest tests
 }
 
 run_flutter_test() {
