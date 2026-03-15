@@ -18,17 +18,42 @@ class ApiException implements Exception {
 class ApiService {
   static final ApiService _instance = ApiService._internal();
   factory ApiService() => _instance;
-  ApiService._internal();
+  ApiService._internal({
+    Future<Map<String, dynamic>> Function(String input)? parseWorkoutOverride,
+    Future<Map<String, dynamic>> Function(File imageFile)?
+        parseWorkoutFromImageOverride,
+  })  : _parseWorkoutOverride = parseWorkoutOverride,
+        _parseWorkoutFromImageOverride = parseWorkoutFromImageOverride;
+  ApiService.test({
+    Future<Map<String, dynamic>> Function(String input)? parseWorkoutOverride,
+    Future<Map<String, dynamic>> Function(File imageFile)?
+        parseWorkoutFromImageOverride,
+  }) : this._internal(
+          parseWorkoutOverride: parseWorkoutOverride,
+          parseWorkoutFromImageOverride: parseWorkoutFromImageOverride,
+        );
 
   final String _baseUrl = AppConfig.apiBaseUrl;
+  final Future<Map<String, dynamic>> Function(String input)?
+      _parseWorkoutOverride;
+  final Future<Map<String, dynamic>> Function(File imageFile)?
+      _parseWorkoutFromImageOverride;
 
   Map<String, String> get _headers {
+    return _headersWithToken(null);
+  }
+
+  /// Build headers, using [explicitAccessToken] when non-null so retry after refresh uses the new token.
+  Map<String, String> _headersWithToken(String? explicitAccessToken) {
     final headers = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     };
-
-    // Add auth token if available
+    final token = explicitAccessToken;
+    if (token != null && token.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $token';
+      return headers;
+    }
     try {
       final session = Supabase.instance.client.auth.currentSession;
       if (session != null) {
@@ -37,7 +62,6 @@ class ApiService {
     } catch (_) {
       // Supabase not initialized, skip auth header
     }
-
     return headers;
   }
 
@@ -142,90 +166,116 @@ class ApiService {
 
   // AI Workout Parsing (longer timeout to allow backend cold start, e.g. Render)
   Future<Map<String, dynamic>> parseWorkout(String input) async {
+    if (_parseWorkoutOverride != null) {
+      return _parseWorkoutOverride!(input);
+    }
+
     try {
-      final uri = Uri.parse('$_baseUrl/api/v1/timer/parse');
-      final response = await http
-          .post(
-            uri,
-            headers: _headers,
-            body: jsonEncode({'workout_text': input}),
-          )
-          .timeout(
-            const Duration(seconds: 60),
-            onTimeout: () => throw ApiException(
-              'Request timed out (server may be starting up). Try again in a moment.',
-              statusCode: 408,
-            ),
-          );
-      final result = _handleResponse(response);
-      return result;
+      return await _parseWorkoutOnce(input);
+    }     on ApiException catch (e) {
+      if (e.statusCode == 401) {
+        try {
+          final response = await Supabase.instance.client.auth.refreshSession();
+          final newToken = response.session?.accessToken;
+          if (newToken != null) {
+            return await _parseWorkoutOnce(input, accessToken: newToken);
+          }
+        } catch (_) {}
+        throw ApiException(e.message, statusCode: 401);
+      }
+      rethrow;
     } catch (e) {
       if (e is ApiException) rethrow;
       throw ApiException('Network error: ${e.toString()}');
     }
   }
 
+  Future<Map<String, dynamic>> _parseWorkoutOnce(String input,
+      {String? accessToken}) async {
+    final uri = Uri.parse('$_baseUrl/api/v1/timer/parse');
+    final headers = _headersWithToken(accessToken);
+    final response = await http
+        .post(
+          uri,
+          headers: headers,
+          body: jsonEncode({'workout_text': input}),
+        )
+        .timeout(
+          const Duration(seconds: 60),
+          onTimeout: () => throw ApiException(
+            'Request timed out (server may be starting up). Try again in a moment.',
+            statusCode: 408,
+          ),
+        );
+    return _handleResponse(response);
+  }
+
   // AI Workout Parsing from Image (Vision API)
   Future<Map<String, dynamic>> parseWorkoutFromImage(File imageFile) async {
+    if (_parseWorkoutFromImageOverride != null) {
+      return _parseWorkoutFromImageOverride!(imageFile);
+    }
     try {
-      final uri = Uri.parse('$_baseUrl/api/v1/timer/parse-image');
-
-      // Create multipart request
-      final request = http.MultipartRequest('POST', uri);
-
-      // Add auth header if available
-      try {
-        final session = Supabase.instance.client.auth.currentSession;
-        if (session != null) {
-          request.headers['Authorization'] = 'Bearer ${session.accessToken}';
+      return await _parseWorkoutFromImageOnce(imageFile);
+    } on ApiException catch (e) {
+      if (e.statusCode == 401) {
+        try {
+          final response = await Supabase.instance.client.auth.refreshSession();
+          final newToken = response.session?.accessToken;
+          return await _parseWorkoutFromImageOnce(imageFile,
+              accessToken: newToken);
+        } catch (_) {
+          throw ApiException(e.message, statusCode: 401);
         }
-      } catch (_) {
-        // Supabase not initialized, skip auth header
       }
-
-      // Add the image file
-      final fileName = imageFile.path.split('/').last;
-      final extension = fileName.split('.').last.toLowerCase();
-      String mimeType;
-      switch (extension) {
-        case 'jpg':
-        case 'jpeg':
-          mimeType = 'image/jpeg';
-          break;
-        case 'png':
-          mimeType = 'image/png';
-          break;
-        case 'webp':
-          mimeType = 'image/webp';
-          break;
-        case 'gif':
-          mimeType = 'image/gif';
-          break;
-        default:
-          mimeType = 'image/jpeg';
-      }
-
-      request.files.add(await http.MultipartFile.fromPath(
-        'file',
-        imageFile.path,
-        contentType: MediaType.parse(mimeType),
-      ));
-
-      // Send request with timeout
-      final streamedResponse = await request.send().timeout(
-        const Duration(seconds: 60),
-        onTimeout: () => throw ApiException(
-          'Request timed out. The image may be too large or the server is busy.',
-          statusCode: 408,
-        ),
-      );
-
-      // Convert streamed response to regular response
-      final response = await http.Response.fromStream(streamedResponse);
-      return _handleResponse(response);
+      rethrow;
     } catch (e) {
       if (e is ApiException) rethrow;
       throw ApiException('Network error: ${e.toString()}');
     }
+  }
+
+  Future<Map<String, dynamic>> _parseWorkoutFromImageOnce(File imageFile,
+      {String? accessToken}) async {
+    final uri = Uri.parse('$_baseUrl/api/v1/timer/parse-image');
+    final request = http.MultipartRequest('POST', uri);
+    final headers = _headersWithToken(accessToken);
+    request.headers['Accept'] = 'application/json';
+    final auth = headers['Authorization'];
+    if (auth != null) request.headers['Authorization'] = auth;
+    final fileName = imageFile.path.split('/').last;
+    final extension = fileName.split('.').last.toLowerCase();
+    String mimeType;
+    switch (extension) {
+      case 'jpg':
+      case 'jpeg':
+        mimeType = 'image/jpeg';
+        break;
+      case 'png':
+        mimeType = 'image/png';
+        break;
+      case 'webp':
+        mimeType = 'image/webp';
+        break;
+      case 'gif':
+        mimeType = 'image/gif';
+        break;
+      default:
+        mimeType = 'image/jpeg';
+    }
+    request.files.add(await http.MultipartFile.fromPath(
+      'file',
+      imageFile.path,
+      contentType: MediaType.parse(mimeType),
+    ));
+    final streamedResponse = await request.send().timeout(
+      const Duration(seconds: 60),
+      onTimeout: () => throw ApiException(
+        'Request timed out. The image may be too large or the server is busy.',
+        statusCode: 408,
+      ),
+    );
+    final response = await http.Response.fromStream(streamedResponse);
+    return _handleResponse(response);
   }
 }

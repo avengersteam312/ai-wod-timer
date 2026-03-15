@@ -5,6 +5,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import '../../providers/video_provider.dart';
 import '../../providers/workout_provider.dart';
 import '../../theme/app_theme.dart';
+import '../../ui_test_keys.dart';
 import '../../widgets/video/camera_preview.dart';
 import '../../widgets/video/timer_overlay.dart';
 import '../../widgets/video/recording_controls.dart';
@@ -13,13 +14,19 @@ import 'video_preview_screen.dart';
 /// Main video recording screen with camera preview and timer overlay
 /// Supports swipe right to go to timer, swipe left to come back
 class VideoRecordingScreen extends StatefulWidget {
-  const VideoRecordingScreen({super.key});
+  const VideoRecordingScreen({
+    super.key,
+    this.videoPreviewBuilder,
+  });
+
+  final Widget Function(String videoPath)? videoPreviewBuilder;
 
   @override
   State<VideoRecordingScreen> createState() => _VideoRecordingScreenState();
 }
 
-class _VideoRecordingScreenState extends State<VideoRecordingScreen> with WidgetsBindingObserver {
+class _VideoRecordingScreenState extends State<VideoRecordingScreen>
+    with WidgetsBindingObserver {
   Timer? _recordingTimer;
   bool _isDraggingOverlay = false;
 
@@ -70,8 +77,10 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen> with Widget
     _recordingTimer?.cancel();
     _recordingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       final videoProvider = context.read<VideoProvider>();
-      if (videoProvider.isRecording && videoProvider.recordingStartTime != null) {
-        final duration = DateTime.now().difference(videoProvider.recordingStartTime!);
+      if (videoProvider.isRecording &&
+          videoProvider.recordingStartTime != null) {
+        final duration =
+            DateTime.now().difference(videoProvider.recordingStartTime!);
         videoProvider.updateRecordingDuration(duration);
 
         final workoutProvider = context.read<WorkoutProvider>();
@@ -104,7 +113,8 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen> with Widget
     }
     if (workout.totalRounds > 1) {
       // Show 0 before timer starts (idle or countdown)
-      final round = (workout.isIdle || workout.isCountdown) ? 0 : workout.currentRound;
+      final round =
+          (workout.isIdle || workout.isCountdown) ? 0 : workout.currentRound;
       return '$round/${workout.totalRounds}';
     }
     return null;
@@ -131,7 +141,9 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen> with Widget
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (_) => VideoPreviewScreen(videoPath: rawPath),
+            builder: (_) =>
+                widget.videoPreviewBuilder?.call(rawPath) ??
+                VideoPreviewScreen(videoPath: rawPath),
           ),
         );
       }
@@ -174,7 +186,8 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen> with Widget
     }
   }
 
-  void _handleOverlayDrag(DragUpdateDetails details, VideoProvider videoProvider) {
+  void _handleOverlayDrag(
+      DragUpdateDetails details, VideoProvider videoProvider) {
     final newPosition = Offset(
       videoProvider.overlayPosition.dx + details.delta.dx,
       videoProvider.overlayPosition.dy + details.delta.dy,
@@ -195,9 +208,9 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen> with Widget
     return Consumer2<VideoProvider, WorkoutProvider>(
       builder: (context, videoProvider, workoutProvider, _) {
         final isTimerActive = workoutProvider.isRunning ||
-                              workoutProvider.isRest ||
-                              workoutProvider.isCountdown ||
-                              workoutProvider.isPaused;
+            workoutProvider.isRest ||
+            workoutProvider.isCountdown ||
+            workoutProvider.isPaused;
 
         return GestureDetector(
           // Swipe right to go back to timer (keep recording)
@@ -209,7 +222,8 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen> with Widget
               final screenWidth = MediaQuery.of(context).size.width;
               setState(() {
                 // Track right swipes (positive offset)
-                _swipeOffset = (_swipeOffset + details.delta.dx).clamp(0.0, screenWidth);
+                _swipeOffset =
+                    (_swipeOffset + details.delta.dx).clamp(0.0, screenWidth);
               });
             }
           },
@@ -219,14 +233,16 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen> with Widget
 
             // Swipe right → go to timer (animate off screen first)
             if (_swipeOffset >= swipeThreshold ||
-                (details.primaryVelocity != null && details.primaryVelocity! > 300)) {
+                (details.primaryVelocity != null &&
+                    details.primaryVelocity! > 300)) {
+              final navigator = Navigator.of(context);
               setState(() {
                 _swipeOffset = screenWidth;
                 _isSwiping = false;
               });
               Future.delayed(const Duration(milliseconds: 200), () {
                 if (mounted) {
-                  Navigator.pop(context);
+                  navigator.pop();
                 }
               });
             } else {
@@ -244,167 +260,176 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen> with Widget
             });
           },
           child: AnimatedContainer(
-            duration: _isSwiping ? Duration.zero : const Duration(milliseconds: 200),
+            duration:
+                _isSwiping ? Duration.zero : const Duration(milliseconds: 200),
             curve: Curves.easeOut,
             transform: Matrix4.translationValues(_swipeOffset, 0, 0),
             child: Scaffold(
-            backgroundColor: AppColors.background,
-            body: Stack(
-              fit: StackFit.expand,
-              children: [
-                // Camera preview
-                CameraPreview(
-                  controller: videoProvider.cameraController,
-                  isInitialized: videoProvider.isInitialized,
-                  isFrontCamera: videoProvider.isFrontCamera,
-                  isFlashOn: videoProvider.isFlashOn,
-                ),
+              key: UiTestKeys.videoScreen,
+              backgroundColor: AppColors.background,
+              body: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Camera preview
+                  CameraPreview(
+                    controller: videoProvider.cameraController,
+                    isInitialized: videoProvider.isInitialized,
+                    isFrontCamera: videoProvider.isFrontCamera,
+                    isFlashOn: videoProvider.isFlashOn,
+                  ),
 
-                // Top bar: Timer (left) and Recording time (right) on same line
-                // Only show timer overlay when timer is running (not during countdown or idle)
-                Positioned(
-                  left: 20,
-                  right: 20,
-                  top: topPadding + 20,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Timer overlay (left) - always show when workout exists
-                      // During idle or countdown, show initial time instead of countdown
-                      if (workoutProvider.currentWorkout != null)
-                        TimerOverlay(
-                          time: (workoutProvider.isIdle || workoutProvider.isCountdown)
-                              ? workoutProvider.formattedInitialTime
-                              : workoutProvider.formattedTime,
-                          progress: workoutProvider.progress,
-                          style: videoProvider.overlayStyle,
-                          size: videoProvider.overlaySizePixels,
-                          progressColor: _getTimerColor(workoutProvider),
-                          roundIndicator: _getRoundIndicator(workoutProvider),
-                          isRest: workoutProvider.isRest,
-                          isDragging: _isDraggingOverlay,
-                          onDragStart: () => setState(() => _isDraggingOverlay = true),
-                          onDragUpdate: (details) => _handleOverlayDrag(details, videoProvider),
-                          onDragEnd: () => _handleOverlayDragEnd(videoProvider),
-                        )
-                      else
-                        const SizedBox(),
+                  // Top bar: Timer (left) and Recording time (right) on same line
+                  // Only show timer overlay when timer is running (not during countdown or idle)
+                  Positioned(
+                    left: 20,
+                    right: 20,
+                    top: topPadding + 20,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Timer overlay (left) - always show when workout exists
+                        // During idle or countdown, show initial time instead of countdown
+                        if (workoutProvider.currentWorkout != null)
+                          TimerOverlay(
+                            time: (workoutProvider.isIdle ||
+                                    workoutProvider.isCountdown)
+                                ? workoutProvider.formattedInitialTime
+                                : workoutProvider.formattedTime,
+                            progress: workoutProvider.progress,
+                            style: videoProvider.overlayStyle,
+                            size: videoProvider.overlaySizePixels,
+                            progressColor: _getTimerColor(workoutProvider),
+                            roundIndicator: _getRoundIndicator(workoutProvider),
+                            isRest: workoutProvider.isRest,
+                            isDragging: _isDraggingOverlay,
+                            onDragStart: () =>
+                                setState(() => _isDraggingOverlay = true),
+                            onDragUpdate: (details) =>
+                                _handleOverlayDrag(details, videoProvider),
+                            onDragEnd: () =>
+                                _handleOverlayDragEnd(videoProvider),
+                          )
+                        else
+                          const SizedBox(),
 
-                      // Recording time indicator (right)
-                      if (videoProvider.isRecording)
-                        RecordingTimeIndicator(
-                          duration: videoProvider.recordingDuration,
+                        // Recording time indicator (right)
+                        if (videoProvider.isRecording)
+                          RecordingTimeIndicator(
+                            duration: videoProvider.recordingDuration,
+                          ),
+                      ],
+                    ),
+                  ),
+
+                  // Centered: play button OR countdown
+                  if (videoProvider.isRecording && !isTimerActive)
+                    Center(
+                      child: CenteredPlayButton(
+                        onTap: () => workoutProvider.startTimer(),
+                      ),
+                    )
+                  else if (workoutProvider.isCountdown)
+                    Center(
+                      child: _CountdownDisplay(
+                        seconds: workoutProvider.remainingSeconds,
+                      ),
+                    ),
+
+                  // Recording controls (bottom)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: RecordingControls(
+                      isRecording: videoProvider.isRecording,
+                      isTimerRunning: isTimerActive,
+                      recordingDuration: videoProvider.recordingDuration,
+                      onStartRecording: _startRecording,
+                      onStopRecording: _stopRecording,
+                      onStartTimer: () => workoutProvider.startTimer(),
+                      onFlipCamera: videoProvider.isRecording
+                          ? null
+                          : videoProvider.flipCamera,
+                      onClose: videoProvider.isRecording ? null : _handleClose,
+                    ),
+                  ),
+
+                  // Swipe hint (left edge) - Swipe right for timer
+                  const Positioned(
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: _VerticalSwipeHint(
+                        text: 'Swipe right for timer',
+                        isLeft: true,
+                      ),
+                    ),
+                  ),
+
+                  // Loading overlay
+                  if (videoProvider.isInitializing ||
+                      videoProvider.isProcessing)
+                    Container(
+                      color: Colors.black.withValues(alpha: 0.7),
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const CircularProgressIndicator(
+                              color: AppColors.primary,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              videoProvider.isProcessing
+                                  ? 'Processing video...'
+                                  : 'Initializing camera...',
+                              style: AppTextStyles.body.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
                         ),
-                    ],
-                  ),
-                ),
-
-                // Centered: play button OR countdown
-                if (videoProvider.isRecording && !isTimerActive)
-                  Center(
-                    child: CenteredPlayButton(
-                      onTap: () => workoutProvider.startTimer(),
-                    ),
-                  )
-                else if (workoutProvider.isCountdown)
-                  Center(
-                    child: _CountdownDisplay(
-                      seconds: workoutProvider.remainingSeconds,
-                    ),
-                  ),
-
-                // Recording controls (bottom)
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: RecordingControls(
-                    isRecording: videoProvider.isRecording,
-                    isTimerRunning: isTimerActive,
-                    recordingDuration: videoProvider.recordingDuration,
-                    onStartRecording: _startRecording,
-                    onStopRecording: _stopRecording,
-                    onStartTimer: () => workoutProvider.startTimer(),
-                    onFlipCamera: videoProvider.isRecording ? null : videoProvider.flipCamera,
-                    onClose: videoProvider.isRecording ? null : _handleClose,
-                  ),
-                ),
-
-                // Swipe hint (left edge) - Swipe right for timer
-                Positioned(
-                  left: 0,
-                  top: 0,
-                  bottom: 0,
-                  child: const Center(
-                    child: _VerticalSwipeHint(
-                      text: 'Swipe right for timer',
-                      isLeft: true,
-                    ),
-                  ),
-                ),
-
-                // Loading overlay
-                if (videoProvider.isInitializing || videoProvider.isProcessing)
-                  Container(
-                    color: Colors.black.withValues(alpha: 0.7),
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const CircularProgressIndicator(
-                            color: AppColors.primary,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            videoProvider.isProcessing
-                                ? 'Processing video...'
-                                : 'Initializing camera...',
-                            style: AppTextStyles.body.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
                       ),
                     ),
-                  ),
 
-                // Error overlay
-                if (videoProvider.hasError)
-                  Container(
-                    color: Colors.black.withValues(alpha: 0.7),
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.error_outline,
-                            color: AppColors.error,
-                            size: 48,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            videoProvider.errorMessage ?? 'An error occurred',
-                            style: AppTextStyles.body.copyWith(
-                              color: AppColors.textSecondary,
+                  // Error overlay
+                  if (videoProvider.hasError)
+                    Container(
+                      color: Colors.black.withValues(alpha: 0.7),
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.error_outline,
+                              color: AppColors.error,
+                              size: 48,
                             ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 24),
-                          ElevatedButton(
-                            onPressed: () {
-                              videoProvider.reset();
-                              _initializeCamera();
-                            },
-                            child: const Text('Retry'),
-                          ),
-                        ],
+                            const SizedBox(height: 16),
+                            Text(
+                              videoProvider.errorMessage ?? 'An error occurred',
+                              style: AppTextStyles.body.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 24),
+                            ElevatedButton(
+                              onPressed: () {
+                                videoProvider.reset();
+                                _initializeCamera();
+                              },
+                              child: const Text('Retry'),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
-          ),
           ),
         );
       },

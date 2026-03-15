@@ -1,0 +1,132 @@
+name: iOS UI Tests
+
+# Manual trigger only - keeps iOS simulator UI testing separate from PR checks
+# and deploy workflows.
+on:
+  workflow_dispatch:
+
+jobs:
+  ios-ui-tests:
+    name: Run Flutter integration tests on iOS simulator
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.4"
+          channel: stable
+          cache: true
+
+      - name: Create test .env
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+        run: |
+          cat > .env <<EOF
+          SUPABASE_URL=${SUPABASE_URL:-https://your-project.supabase.co}
+          SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-}
+          API_BASE_URL=${API_BASE_URL:-http://localhost:8000}
+          AUTH_ENABLED=true
+          EOF
+        working-directory: flutter
+
+      - name: Boot iOS simulator
+        id: simulator
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+
+          def run(*args):
+              return subprocess.check_output(args, text=True).strip()
+
+          data = json.loads(run("xcrun", "simctl", "list", "-j"))
+
+          runtime = next(
+              (
+                  runtime["identifier"]
+                  for runtime in reversed(data["runtimes"])
+                  if runtime.get("isAvailable")
+                  and runtime["identifier"].startswith("com.apple.CoreSimulator.SimRuntime.iOS-")
+              ),
+              None,
+          )
+          if runtime is None:
+              raise SystemExit("No available iOS simulator runtime found")
+
+          device_type = next(
+              (
+                  device_type["identifier"]
+                  for device_type in data["devicetypes"]
+                  if device_type["name"] == "iPhone 16"
+              ),
+              None,
+          )
+          if device_type is None:
+              raise SystemExit("iPhone 16 simulator type not found")
+
+          preferred_name = "GitHub Actions iPhone 16"
+          existing_devices = data["devices"].get(runtime, [])
+          udid = next(
+              (
+                  device["udid"]
+                  for device in existing_devices
+                  if device.get("isAvailable") and device["name"] == preferred_name
+              ),
+              None,
+          )
+
+          if udid is None:
+              udid = run(
+                  "xcrun",
+                  "simctl",
+                  "create",
+                  preferred_name,
+                  device_type,
+                  runtime,
+              )
+
+          subprocess.run(["xcrun", "simctl", "boot", udid], check=False)
+          subprocess.check_call(["xcrun", "simctl", "bootstatus", udid, "-b"])
+          subprocess.check_call(["open", "-a", "Simulator", "--args", "-CurrentDeviceUDID", udid])
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write(f"udid={udid}\n")
+          PY
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+        working-directory: flutter
+
+      - name: Patch camera_avfoundation for Xcode 16 / iOS 18 SDK
+        run: |
+          SWIFT_FILE=$(find ~/.pub-cache -path "*/camera_avfoundation-*/DefaultCamera.swift" | head -1)
+          if [ -n "$SWIFT_FILE" ]; then
+            sed -i '' \
+              -e 's/AVCaptureSession\.wasInterruptedNotification/NSNotification.Name("AVCaptureSessionWasInterruptedNotification")/g' \
+              -e 's/AVCaptureSession\.runtimeErrorNotification/NSNotification.Name("AVCaptureSessionRuntimeErrorNotification")/g' \
+              "$SWIFT_FILE"
+            echo "Patched $SWIFT_FILE"
+          else
+            echo "WARNING: camera_avfoundation DefaultCamera.swift not found - skipping patch"
+          fi
+
+      - name: Verify integration test suite exists
+        run: |
+          if [ ! -d integration_test ]; then
+            echo "flutter/integration_test is missing"
+            exit 1
+          fi
+        working-directory: flutter
+
+      - name: Run Flutter integration tests
+        run: |
+          flutter test integration_test \
+            --dart-define=E2E_TEST_EMAIL=${{ secrets.E2E_TEST_EMAIL }} \
+            --dart-define=E2E_TEST_PASSWORD=${{ secrets.E2E_TEST_PASSWORD }} \
+            -d "${{ steps.simulator.outputs.udid }}"
+        working-directory: flutter

@@ -29,11 +29,23 @@ enum TimerPhase {
 }
 
 class WorkoutProvider with ChangeNotifier {
-  final ApiService _apiService = ApiService();
-  final AudioService _audioService = AudioService();
-  final HapticsService _hapticsService = HapticsService();
-  final SyncService _syncService = SyncService();
-  final Uuid _uuid = const Uuid();
+  WorkoutProvider({
+    ApiService? apiService,
+    AudioService? audioService,
+    HapticsService? hapticsService,
+    SyncService? syncService,
+    Uuid? uuid,
+  })  : _apiService = apiService ?? ApiService(),
+        _audioService = audioService ?? AudioService(),
+        _hapticsService = hapticsService ?? HapticsService(),
+        _syncService = syncService ?? SyncService(),
+        _uuid = uuid ?? const Uuid();
+
+  final ApiService _apiService;
+  final AudioService _audioService;
+  final HapticsService _hapticsService;
+  final SyncService _syncService;
+  final Uuid _uuid;
 
   // Auth reference
   AuthProvider? _authProvider;
@@ -71,8 +83,6 @@ class WorkoutProvider with ChangeNotifier {
 
   // Session tracking
   WorkoutSession? _currentSession;
-  DateTime? _sessionStartTime;
-
   // UI state - show AI input view while timer is running
   bool _showInputOverride = false;
 
@@ -217,8 +227,12 @@ class WorkoutProvider with ChangeNotifier {
 
   /// Current work round (1-indexed, 0 if not started or in countdown)
   int get currentWorkRound {
-    if (_timerState == TimerState.idle || _timerState == TimerState.countdown) return 0;
-    if (_timerState == TimerState.completed) return _finalWorkRound ?? totalWorkRounds;
+    if (_timerState == TimerState.idle || _timerState == TimerState.countdown) {
+      return 0;
+    }
+    if (_timerState == TimerState.completed) {
+      return _finalWorkRound ?? totalWorkRounds;
+    }
 
     int workCount = 0;
     for (int i = 0; i < _currentIntervalIndex; i++) {
@@ -231,8 +245,12 @@ class WorkoutProvider with ChangeNotifier {
 
   /// Current rest round (1-indexed, 0 if not started or in countdown)
   int get currentRestRound {
-    if (_timerState == TimerState.idle || _timerState == TimerState.countdown) return 0;
-    if (_timerState == TimerState.completed) return _finalRestRound ?? totalRestRounds;
+    if (_timerState == TimerState.idle || _timerState == TimerState.countdown) {
+      return 0;
+    }
+    if (_timerState == TimerState.completed) {
+      return _finalRestRound ?? totalRestRounds;
+    }
 
     int restCount = 0;
     for (int i = 0; i < _currentIntervalIndex; i++) {
@@ -333,8 +351,10 @@ class WorkoutProvider with ChangeNotifier {
 
     // When running: add 1 to show where we'll be at end of current second
     // When paused: show exact position (no offset)
-    final isRunning = _timerState == TimerState.running || _timerState == TimerState.rest;
-    final elapsed = isRunning ? _intervalElapsedSeconds + 1 : _intervalElapsedSeconds;
+    final isRunning =
+        _timerState == TimerState.running || _timerState == TimerState.rest;
+    final elapsed =
+        isRunning ? _intervalElapsedSeconds + 1 : _intervalElapsedSeconds;
     return elapsed.clamp(0, effectiveDuration) / effectiveDuration;
   }
 
@@ -379,7 +399,8 @@ class WorkoutProvider with ChangeNotifier {
 
     // If there's an interval with duration, show that duration (countdown timer)
     // Otherwise show 00:00 (count-up timer)
-    final displaySeconds = (interval != null && effectiveDuration > 0) ? effectiveDuration : 0;
+    final displaySeconds =
+        (interval != null && effectiveDuration > 0) ? effectiveDuration : 0;
     final minutes = displaySeconds ~/ 60;
     final seconds = displaySeconds % 60;
     return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
@@ -465,7 +486,8 @@ class WorkoutProvider with ChangeNotifier {
       final extractedText = result['raw_text'] as String?;
 
       // Convert API response to Workout model
-      final workout = _createWorkoutFromResponse(result, extractedText: extractedText);
+      final workout =
+          _createWorkoutFromResponse(result, extractedText: extractedText);
 
       _currentWorkout = workout;
       _loadedFromWorkoutId = null;
@@ -474,7 +496,8 @@ class WorkoutProvider with ChangeNotifier {
       notifyListeners();
     } catch (e, stackTrace) {
       debugPrint('[WorkoutProvider] parseWorkoutFromImage error: $e');
-      debugPrint('[WorkoutProvider] parseWorkoutFromImage stackTrace: $stackTrace');
+      debugPrint(
+          '[WorkoutProvider] parseWorkoutFromImage stackTrace: $stackTrace');
       final session = Supabase.instance.client.auth.currentSession;
       await Sentry.captureException(
         e,
@@ -547,82 +570,94 @@ class WorkoutProvider with ChangeNotifier {
 
     final isApiException = e is ApiException;
     final statusCode = e is ApiException ? e.statusCode : null;
-    final isColdStart =
-        (statusCode != null && (statusCode == 503 || statusCode == 502 || statusCode == 504 || statusCode == 408)) ||
-        (isApiException && (msg.contains('timed out') || msg.contains('Timeout') || msg.contains('starting up')));
+    final isColdStart = (statusCode != null &&
+            (statusCode == 503 ||
+                statusCode == 502 ||
+                statusCode == 504 ||
+                statusCode == 408)) ||
+        (isApiException &&
+            (msg.contains('timed out') ||
+                msg.contains('Timeout') ||
+                msg.contains('starting up')));
 
     if (isColdStart) {
       return 'The server is starting up (cold start). This can take a minute on first use—please try again.';
-    } else if (msg.contains('Network error') ||
+    }
+    if (statusCode == 401 ||
+        msg.contains('expired') ||
+        msg.contains('authentication token') ||
+        msg.contains('Invalid or expired')) {
+      return 'Your session expired. Please sign in again.';
+    }
+    if (msg.contains('Network error') ||
         msg.contains('Connection') ||
         msg.contains('Connection refused') ||
         msg.contains('Failed host lookup')) {
       return 'Cannot reach the server. Is the backend running? On device/simulator, set API_BASE_URL in .env to your computer\'s IP (e.g. http://192.168.1.x:8000).';
-    } else if (isImage && msg.contains('Could not extract')) {
-      return 'Could not read workout from image. Please try a clearer photo.';
-    } else {
-      return isImage
-          ? 'Failed to extract workout from image. Please try again.'
-          : 'Failed to parse workout. Please try again.';
     }
+    if (isImage && msg.contains('Could not extract')) {
+      return 'Could not read workout from image. Please try a clearer photo.';
+    }
+    return isImage
+        ? 'Failed to extract workout from image. Please try again.'
+        : 'Failed to parse workout. Please try again.';
   }
 
-  Workout _createWorkoutFromResponse(Map<String, dynamic> response, {String? extractedText}) {
+  Workout _createWorkoutFromResponse(Map<String, dynamic> response,
+      {String? extractedText}) {
     final userId = _authProvider?.user?.id ?? 'anonymous';
 
     // Parse movements
-    final movementsList = (response['movements'] as List<dynamic>?)
-            ?.map((m) {
-              final map = m as Map<String, dynamic>;
-              // Handle reps as int or string (AI may return either)
-              int? reps;
-              final repsValue = map['reps'];
-              if (repsValue is int) {
-                reps = repsValue;
-              } else if (repsValue is String) {
-                reps = int.tryParse(repsValue);
+    final movementsList = (response['movements'] as List<dynamic>?)?.map((m) {
+          final map = m as Map<String, dynamic>;
+          // Handle reps as int or string (AI may return either)
+          int? reps;
+          final repsValue = map['reps'];
+          if (repsValue is int) {
+            reps = repsValue;
+          } else if (repsValue is String) {
+            reps = int.tryParse(repsValue);
+          }
+          // Handle weight as num or string (AI returns string like "225#")
+          double? weight;
+          String? weightUnit;
+          final weightValue = map['weight'];
+          if (weightValue is num) {
+            weight = weightValue.toDouble();
+          } else if (weightValue is String) {
+            // Extract numeric part from strings like "225#" or "95 lbs"
+            final match = RegExp(r'(\d+(?:\.\d+)?)').firstMatch(weightValue);
+            if (match != null) {
+              weight = double.tryParse(match.group(1)!);
+            }
+            // Extract unit from weight string if not separately provided
+            if (map['weight_unit'] == null) {
+              if (weightValue.contains('#') || weightValue.contains('lb')) {
+                weightUnit = 'lbs';
+              } else if (weightValue.contains('kg')) {
+                weightUnit = 'kg';
               }
-              // Handle weight as num or string (AI returns string like "225#")
-              double? weight;
-              String? weightUnit;
-              final weightValue = map['weight'];
-              if (weightValue is num) {
-                weight = weightValue.toDouble();
-              } else if (weightValue is String) {
-                // Extract numeric part from strings like "225#" or "95 lbs"
-                final match = RegExp(r'(\d+(?:\.\d+)?)').firstMatch(weightValue);
-                if (match != null) {
-                  weight = double.tryParse(match.group(1)!);
-                }
-                // Extract unit from weight string if not separately provided
-                if (map['weight_unit'] == null) {
-                  if (weightValue.contains('#') || weightValue.contains('lb')) {
-                    weightUnit = 'lbs';
-                  } else if (weightValue.contains('kg')) {
-                    weightUnit = 'kg';
-                  }
-                }
-              }
-              // Handle duration as int or string
-              int? durationSeconds;
-              final durValue = map['duration'] ?? map['duration_seconds'];
-              if (durValue is int) {
-                durationSeconds = durValue;
-              } else if (durValue is String) {
-                durationSeconds = int.tryParse(durValue);
-              }
-              return Movement(
-                id: _uuid.v4(),
-                name: map['name'] as String? ?? '',
-                reps: reps,
-                durationSeconds: durationSeconds,
-                unit: map['unit'] as String?,
-                weight: weight,
-                weightUnit: weightUnit ?? map['weight_unit'] as String?,
-                notes: map['notes'] as String?,
-              );
-            })
-            .toList() ??
+            }
+          }
+          // Handle duration as int or string
+          int? durationSeconds;
+          final durValue = map['duration'] ?? map['duration_seconds'];
+          if (durValue is int) {
+            durationSeconds = durValue;
+          } else if (durValue is String) {
+            durationSeconds = int.tryParse(durValue);
+          }
+          return Movement(
+            id: _uuid.v4(),
+            name: map['name'] as String? ?? '',
+            reps: reps,
+            durationSeconds: durationSeconds,
+            unit: map['unit'] as String?,
+            weight: weight,
+            weightUnit: weightUnit ?? map['weight_unit'] as String?,
+            notes: map['notes'] as String?,
+          );
+        }).toList() ??
         [];
 
     // Parse timer config using fromJson to properly parse intervals
@@ -636,7 +671,9 @@ class WorkoutProvider with ChangeNotifier {
       rawInput: _workoutInput,
       notes: _workoutInput.isNotEmpty ? _workoutInput : extractedText,
       type: WorkoutTypeExtension.fromString(
-        response['workout_type'] as String? ?? response['type'] as String? ?? 'custom',
+        response['workout_type'] as String? ??
+            response['type'] as String? ??
+            'custom',
       ),
       timerConfig: TimerConfig.fromJson(timerConfigMap),
       movements: movementsList,
@@ -664,16 +701,14 @@ class WorkoutProvider with ChangeNotifier {
     final config = _currentWorkout!.timerConfig;
 
     if (_timerState == TimerState.idle) {
-      // Create session
-      _startSession();
-
       // Skip countdown if hasCountdown is false
       if (!config.hasCountdown) {
         _startWorkPhase();
       } else {
         // Start with countdown phase
         _timerState = TimerState.countdown;
-        _remainingSeconds = config.countdownSeconds > 0 ? config.countdownSeconds : 5;
+        _remainingSeconds =
+            config.countdownSeconds > 0 ? config.countdownSeconds : 5;
         _startCountdownTimer();
       }
     } else if (_timerState == TimerState.paused) {
@@ -708,7 +743,10 @@ class WorkoutProvider with ChangeNotifier {
   }
 
   void _startWorkPhase() {
-    _sessionStartTime = DateTime.now();
+    // Create session when work actually starts (so startedAt excludes countdown)
+    if (_currentSession == null) {
+      _startSession();
+    }
 
     // Initialize interval state
     _currentIntervalIndex = 0;
@@ -765,7 +803,9 @@ class WorkoutProvider with ChangeNotifier {
       // 1. Halfway point exists (duration > 1)
       // 2. Remaining time at halfway > 10 (don't conflict with 10s warning)
       // 3. We've reached the halfway point
-      if (halfwayPoint > 0 && remainingAtHalfway > 10 && _intervalElapsedSeconds >= halfwayPoint) {
+      if (halfwayPoint > 0 &&
+          remainingAtHalfway > 10 &&
+          _intervalElapsedSeconds >= halfwayPoint) {
         _audioService.playHalfway();
         _announcedHalfway = true;
       }
@@ -792,7 +832,9 @@ class WorkoutProvider with ChangeNotifier {
 
     // "Next round" voice announcement at 5 seconds (before 3, 2, 1 countdown)
     // Only announce if there's another work interval coming (not rest)
-    if (remaining == 5 && !_announcedNextRound && _currentIntervalIndex < intervals.length - 1) {
+    if (remaining == 5 &&
+        !_announcedNextRound &&
+        _currentIntervalIndex < intervals.length - 1) {
       final nextInterval = intervals[_currentIntervalIndex + 1];
       if (nextInterval.isWork) {
         _audioService.playNextRoundVoice();
@@ -909,7 +951,6 @@ class WorkoutProvider with ChangeNotifier {
     _finalRestRound = null;
     _counter = 0;
     _currentSession = null;
-    _sessionStartTime = null;
     _announcedHalfway = false;
     _announcedTenSeconds = false;
     _announcedNextRound = false;
@@ -974,7 +1015,8 @@ class WorkoutProvider with ChangeNotifier {
     }
 
     // For Work/Rest timer: capture work duration for the rest interval
-    if (_currentWorkout?.type == WorkoutType.workRest && currentInterval?.isWork == true) {
+    if (_currentWorkout?.type == WorkoutType.workRest &&
+        currentInterval?.isWork == true) {
       _dynamicRestDuration = _intervalElapsedSeconds;
     }
 
@@ -991,7 +1033,8 @@ class WorkoutProvider with ChangeNotifier {
   void _startSession() {
     final userId = _authProvider?.user?.id ?? 'anonymous';
     // Only link to workout in DB when this workout was loaded from saved (so it exists in Supabase)
-    final workoutIdForSession = (_loadedFromWorkoutId != null && _currentWorkout?.id == _loadedFromWorkoutId)
+    final workoutIdForSession = (_loadedFromWorkoutId != null &&
+            _currentWorkout?.id == _loadedFromWorkoutId)
         ? _currentWorkout!.id
         : null;
 
@@ -1047,7 +1090,8 @@ class WorkoutProvider with ChangeNotifier {
 
   /// Returns true if the user already has a saved workout with this name (case-insensitive).
   /// Pass [excludeWorkoutId] when updating an existing workout so the current name is allowed.
-  Future<bool> isWorkoutNameTaken(String userId, String name, {String? excludeWorkoutId}) async {
+  Future<bool> isWorkoutNameTaken(String userId, String name,
+      {String? excludeWorkoutId}) async {
     final workouts = await _syncService.getWorkouts(userId);
     final normalized = name.trim().toLowerCase();
     if (normalized.isEmpty) return false;
@@ -1149,7 +1193,8 @@ class WorkoutProvider with ChangeNotifier {
       rounds: rounds,
       intervalSeconds: intervalSeconds,
     );
-    final defaultName = '${type.displayName.toUpperCase()} - ${_formatShortDate(DateTime.now())}';
+    final defaultName =
+        '${type.displayName.toUpperCase()} - ${_formatShortDate(DateTime.now())}';
     return Workout(
       id: _uuid.v4(),
       userId: userId,
@@ -1172,7 +1217,20 @@ class WorkoutProvider with ChangeNotifier {
   }
 
   static String _formatShortDate(DateTime date) {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
     return '${months[date.month - 1]} ${date.day}';
   }
 

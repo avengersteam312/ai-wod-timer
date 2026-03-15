@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
+import '../../ui_test_keys.dart';
 
 /// Recording controls for video capture
 class RecordingControls extends StatelessWidget {
@@ -34,6 +35,7 @@ class RecordingControls extends StatelessWidget {
           children: [
             // Close button
             _ControlButton(
+              key: UiTestKeys.videoCloseButton,
               icon: Icons.close,
               onTap: onClose,
               size: 48,
@@ -41,9 +43,15 @@ class RecordingControls extends StatelessWidget {
 
             // Record/Stop button
             if (isRecording)
-              _StopButton(onTap: onStopRecording)
+              _StopButton(
+                key: UiTestKeys.videoStopButton,
+                onTap: onStopRecording,
+              )
             else
-              _RecordButton(onTap: onStartRecording),
+              _RecordButton(
+                key: UiTestKeys.videoRecordButton,
+                onTap: onStartRecording,
+              ),
 
             // Flip camera button
             _ControlButton(
@@ -166,7 +174,7 @@ class _RecordingTimeIndicatorState extends State<RecordingTimeIndicator>
 class _RecordButton extends StatelessWidget {
   final VoidCallback? onTap;
 
-  const _RecordButton({this.onTap});
+  const _RecordButton({super.key, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -198,7 +206,7 @@ class _RecordButton extends StatelessWidget {
 class _StopButton extends StatelessWidget {
   final VoidCallback? onTap;
 
-  const _StopButton({this.onTap});
+  const _StopButton({super.key, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -236,6 +244,7 @@ class _ControlButton extends StatelessWidget {
   final double size;
 
   const _ControlButton({
+    super.key,
     required this.icon,
     this.onTap,
     this.size = 44,

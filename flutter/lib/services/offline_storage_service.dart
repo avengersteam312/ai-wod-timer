@@ -9,6 +9,7 @@ class OfflineStorageService {
       OfflineStorageService._internal();
   factory OfflineStorageService() => _instance;
   OfflineStorageService._internal();
+  OfflineStorageService.test();
 
   static const String _workoutsBox = 'workouts';
   static const String _sessionsBox = 'sessions';

@@ -25,6 +25,7 @@ dist-ssr/
 .env
 .env.local
 .env.*.local
+flutter/e2e.local.json
 
 # IDE
 .vscode/
@@ -53,6 +54,8 @@ yarn-error.log*
 # Build
 build/
 *.egg
+flutter/test/output_results/*
+!flutter/test/output_results/.gitkeep
 
 # Claude/Ralph Code
 .ralph/

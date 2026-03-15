@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../ui_test_keys.dart';
 import '../theme/app_theme.dart';
 import '../utils/workout_name.dart';
 import '../utils/snackbar_utils.dart';
@@ -143,6 +144,7 @@ class _SaveTemplateModalState extends State<SaveTemplateModal> {
           const Text('Timer name', style: AppTextStyles.label),
           const SizedBox(height: 8),
           TextField(
+            key: UiTestKeys.saveTemplateNameField,
             controller: _controller,
             maxLength: maxWorkoutNameLength,
             autofocus: true,
@@ -156,13 +158,16 @@ class _SaveTemplateModalState extends State<SaveTemplateModal> {
             children: [
               Expanded(
                 child: OutlinedButton(
-                  onPressed: _isSaving ? null : () => Navigator.pop(context, false),
+                  key: UiTestKeys.saveTemplateCancelButton,
+                  onPressed:
+                      _isSaving ? null : () => Navigator.pop(context, false),
                   child: const Text('Cancel'),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton(
+                  key: UiTestKeys.saveTemplateSubmitButton,
                   onPressed: _isSaving || _controller.text.trim().isEmpty
                       ? null
                       : _handleSave,

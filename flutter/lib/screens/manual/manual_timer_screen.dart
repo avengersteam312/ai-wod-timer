@@ -5,6 +5,7 @@ import '../../models/movement.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/workout_provider.dart';
 import '../../theme/app_theme.dart';
+import '../../ui_test_keys.dart';
 import '../../widgets/auth_button.dart';
 import '../../utils/workout_name.dart';
 import '../../widgets/manual/timer_type_selector.dart';
@@ -105,7 +106,6 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
     }
   }
 
-
   @override
   void dispose() {
     widget.resetNotifier?.removeListener(_onResetRequested);
@@ -128,11 +128,20 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
 
     setState(() {
       _selectedType = type;
-      _rounds = config.workRounds > 0 ? config.workRounds : (config.rounds ?? 1);
-      _workSeconds = workIntervals.isNotEmpty ? workIntervals.first.duration : (config.workSeconds ?? 20);
-      _restSeconds = restIntervals.isNotEmpty ? restIntervals.first.duration : (config.restSeconds ?? 10);
-      _totalSeconds = config.totalDuration > 0 ? config.totalDuration : (config.totalSeconds ?? 600);
-      _intervalSeconds = workIntervals.isNotEmpty ? workIntervals.first.duration : (config.intervalSeconds ?? 60);
+      _rounds =
+          config.workRounds > 0 ? config.workRounds : (config.rounds ?? 1);
+      _workSeconds = workIntervals.isNotEmpty
+          ? workIntervals.first.duration
+          : (config.workSeconds ?? 20);
+      _restSeconds = restIntervals.isNotEmpty
+          ? restIntervals.first.duration
+          : (config.restSeconds ?? 10);
+      _totalSeconds = config.totalDuration > 0
+          ? config.totalDuration
+          : (config.totalSeconds ?? 600);
+      _intervalSeconds = workIntervals.isNotEmpty
+          ? workIntervals.first.duration
+          : (config.intervalSeconds ?? 60);
       _pendingMovements = List.from(pending.movements);
       // Use rawInput (extracted text from image) if notes is empty
       _workoutNotes = pending.notes?.isNotEmpty == true
@@ -184,6 +193,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
         actions: [
           if (auth.isAuthenticated)
             IconButton(
+              key: UiTestKeys.manualSaveButton,
               icon: const Icon(Icons.save_outlined),
               tooltip: 'Save timer',
               onPressed: _showSaveModal,
@@ -203,6 +213,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
 
                   // Timer type selector
                   TimerTypeSelector(
+                    key: UiTestKeys.manualTimerTypeSelector,
                     selectedType: _selectedType,
                     onTypeChanged: (type) {
                       setState(() {
@@ -225,6 +236,11 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
                           // Editing banner (only show for AI-created timers)
                           if (_isEditingFromTimer && _isFromAiTimer) ...[
                             _buildEditingBanner(),
+                            const SizedBox(height: 16),
+                          ],
+
+                          if (_pendingMovements.isNotEmpty) ...[
+                            _buildMovementsList(),
                             const SizedBox(height: 16),
                           ],
 
@@ -261,6 +277,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
                 right: 24,
                 bottom: 16,
                 child: ElevatedButton(
+                  key: UiTestKeys.manualStartButton,
                   onPressed: _startTimer,
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
@@ -289,11 +306,12 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
       ),
       child: Row(
         children: [
-          Icon(Icons.tune, color: AppColors.primary, size: 16),
+          const Icon(Icons.tune, color: AppColors.primary, size: 16),
           const SizedBox(width: 8),
           Text(
             'Editing AI timer — adjust and start',
-            style: AppTextStyles.bodySmall.copyWith(color: AppColors.primaryLight),
+            style:
+                AppTextStyles.bodySmall.copyWith(color: AppColors.primaryLight),
           ),
         ],
       ),
@@ -332,7 +350,11 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
                   ),
                 ),
                 IconButton(
-                  icon: Icon(Icons.edit_outlined, size: 18, color: AppColors.textSecondary),
+                  icon: const Icon(
+                    Icons.edit_outlined,
+                    size: 18,
+                    color: AppColors.textSecondary,
+                  ),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                   tooltip: 'Edit movement',
@@ -348,8 +370,10 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
 
   void _showMovementEditSheet(int index, Movement movement) {
     final nameController = TextEditingController(text: movement.name);
-    final repsController = TextEditingController(text: movement.reps?.toString() ?? '');
-    final weightController = TextEditingController(text: movement.weight?.toString() ?? '');
+    final repsController =
+        TextEditingController(text: movement.reps?.toString() ?? '');
+    final weightController =
+        TextEditingController(text: movement.weight?.toString() ?? '');
 
     showModalBottomSheet(
       context: context,
@@ -371,7 +395,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
           children: [
             Row(
               children: [
-                Text('Edit Movement', style: AppTextStyles.h3),
+                const Text('Edit Movement', style: AppTextStyles.h3),
                 const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.close),
@@ -380,7 +404,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            Text('Name', style: AppTextStyles.label),
+            const Text('Name', style: AppTextStyles.label),
             const SizedBox(height: 8),
             TextField(
               controller: nameController,
@@ -393,7 +417,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Reps', style: AppTextStyles.label),
+                      const Text('Reps', style: AppTextStyles.label),
                       const SizedBox(height: 8),
                       TextField(
                         controller: repsController,
@@ -408,11 +432,13 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Weight (${movement.weightUnit ?? 'lbs'})', style: AppTextStyles.label),
+                      Text('Weight (${movement.weightUnit ?? 'lbs'})',
+                          style: AppTextStyles.label),
                       const SizedBox(height: 8),
                       TextField(
                         controller: weightController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
                         decoration: const InputDecoration(hintText: 'optional'),
                       ),
                     ],
@@ -426,9 +452,12 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
               child: ElevatedButton(
                 onPressed: () {
                   final updated = movement.copyWith(
-                    name: nameController.text.trim().isNotEmpty ? nameController.text.trim() : movement.name,
+                    name: nameController.text.trim().isNotEmpty
+                        ? nameController.text.trim()
+                        : movement.name,
                     reps: int.tryParse(repsController.text) ?? movement.reps,
-                    weight: double.tryParse(weightController.text) ?? movement.weight,
+                    weight: double.tryParse(weightController.text) ??
+                        movement.weight,
                   );
                   setState(() {
                     _pendingMovements[index] = updated;
@@ -544,7 +573,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
           maxValue: 30,
           onChanged: (value) {
             setState(() => _countdownSeconds = value);
-                      },
+          },
         ),
       ],
     );
@@ -562,7 +591,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
         ),
         child: Row(
           children: [
-            Icon(
+            const Icon(
               Icons.edit_note,
               size: 20,
               color: AppColors.textSecondary,
@@ -576,7 +605,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
                 ),
               ),
             ),
-            Icon(
+            const Icon(
               Icons.chevron_right,
               size: 20,
               color: AppColors.textMuted,
@@ -610,7 +639,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
           children: [
             Row(
               children: [
-                Text('Notes', style: AppTextStyles.h3),
+                const Text('Notes', style: AppTextStyles.h3),
                 const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.close),
@@ -683,7 +712,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
           ),
           child: Column(
             children: [
-              Icon(
+              const Icon(
                 Icons.timer,
                 size: 64,
                 color: AppColors.primary,
@@ -696,7 +725,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
                 ),
               ),
               const SizedBox(height: 8),
-              Text(
+              const Text(
                 'Timer will count up from 00:00',
                 style: AppTextStyles.bodySmall,
               ),
@@ -716,7 +745,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
       step: 60,
       onChanged: (value) {
         setState(() => _totalSeconds = value);
-              },
+      },
     );
   }
 
@@ -739,7 +768,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
           maxValue: 30,
           onChanged: (value) {
             setState(() => _rounds = value);
-                      },
+          },
         ),
         const SizedBox(height: 16),
 
@@ -759,7 +788,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
           step: 30,
           onChanged: (value) {
             setState(() => _intervalSeconds = value);
-                      },
+          },
         ),
       ],
     );
@@ -849,7 +878,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
           maxValue: 50,
           onChanged: (value) {
             setState(() => _rounds = value);
-                      },
+          },
         ),
         const SizedBox(height: 24),
         // Fixed rest toggle
@@ -879,7 +908,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
                     _restSeconds = 30;
                   }
                 });
-                              },
+              },
             ),
           ],
         ),
@@ -892,7 +921,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
             step: 5,
             onChanged: (value) {
               setState(() => _restSeconds = value);
-                          },
+            },
           ),
         ],
       ],
@@ -988,7 +1017,8 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
         const SizedBox(height: 8),
         QuickSelectGrid(
           options: quickSelectOptions,
-          selectedValue: null, // No selection state - tapping starts immediately
+          selectedValue:
+              null, // No selection state - tapping starts immediately
           onSelected: (seconds) {
             // Start timer immediately with selected duration
             _startRestTimer(seconds);
@@ -1045,7 +1075,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
       step: 60,
       onChanged: (value) {
         setState(() => _totalSeconds = value);
-              },
+      },
     );
   }
 

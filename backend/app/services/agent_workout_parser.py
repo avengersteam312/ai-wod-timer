@@ -90,10 +90,7 @@ class AgentWorkoutParser:
             duration = i.get("duration", 0)
             # Convert float to int for duration
             duration = int(duration) if isinstance(duration, float) else duration
-            intervals.append(Interval(
-                duration=duration,
-                type=i.get("type", "work")
-            ))
+            intervals.append(Interval(duration=duration, type=i.get("type", "work")))
 
         # Strip trailing rest if needed
         intervals = self._strip_trailing_rest(intervals, raw_text)

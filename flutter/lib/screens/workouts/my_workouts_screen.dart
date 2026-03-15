@@ -5,23 +5,36 @@ import '../../providers/auth_provider.dart';
 import '../../providers/workout_provider.dart';
 import '../../services/sync_service.dart';
 import '../../theme/app_theme.dart';
+import '../../ui_test_keys.dart';
 import '../../utils/snackbar_utils.dart';
 import '../../widgets/workout_card.dart';
 
 class MyWorkoutsScreen extends StatefulWidget {
   final VoidCallback? onNavigateToTimer;
+  final SyncService? syncService;
+  final Future<List<Workout>> Function(String userId)? loadWorkouts;
+  final Future<void> Function(Workout workout)? updateWorkout;
+  final Future<void> Function(String workoutId)? deleteWorkout;
 
-  const MyWorkoutsScreen({super.key, this.onNavigateToTimer});
+  const MyWorkoutsScreen({
+    super.key,
+    this.onNavigateToTimer,
+    this.syncService,
+    this.loadWorkouts,
+    this.updateWorkout,
+    this.deleteWorkout,
+  });
 
   @override
   State<MyWorkoutsScreen> createState() => _MyWorkoutsScreenState();
 }
 
 class _MyWorkoutsScreenState extends State<MyWorkoutsScreen> {
-  final SyncService _syncService = SyncService();
   bool _isLoading = false;
   List<Workout> _workouts = [];
   String? _error;
+
+  SyncService get _syncService => widget.syncService ?? SyncService();
 
   @override
   void initState() {
@@ -39,7 +52,8 @@ class _MyWorkoutsScreenState extends State<MyWorkoutsScreen> {
       final authProvider = context.read<AuthProvider>();
       final userId = authProvider.user?.id ?? 'anonymous';
 
-      final workouts = await _syncService.getWorkouts(userId);
+      final workouts = await (widget.loadWorkouts?.call(userId) ??
+          _syncService.getWorkouts(userId));
 
       setState(() {
         _workouts = workouts;
@@ -59,7 +73,8 @@ class _MyWorkoutsScreenState extends State<MyWorkoutsScreen> {
     );
 
     try {
-      await _syncService.updateWorkout(updatedWorkout);
+      await (widget.updateWorkout?.call(updatedWorkout) ??
+          _syncService.updateWorkout(updatedWorkout));
       setState(() {
         final index = _workouts.indexWhere((w) => w.id == workout.id);
         if (index != -1) {
@@ -84,10 +99,12 @@ class _MyWorkoutsScreenState extends State<MyWorkoutsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: UiTestKeys.myWorkoutsScreen,
       appBar: AppBar(
         title: const Text('Saved Timers'),
         actions: [
           IconButton(
+            key: UiTestKeys.myWorkoutsRefreshButton,
             onPressed: _loadWorkouts,
             icon: const Icon(Icons.refresh),
           ),
@@ -127,42 +144,61 @@ class _MyWorkoutsScreenState extends State<MyWorkoutsScreen> {
           return Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Dismissible(
-              key: Key(workout.id),
+              key: UiTestKeys.myWorkout(workout.id),
               direction: DismissDirection.endToStart,
               dismissThresholds: const {DismissDirection.endToStart: 0.5},
               confirmDismiss: (direction) async {
                 return await showDialog<bool>(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: const Text('Delete Template'),
-                    content: Text('Are you sure you want to delete "${workout.name}"?'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('Cancel'),
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('Delete Template'),
+                        content: Text(
+                            'Are you sure you want to delete "${workout.name}"?'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx, false),
+                            child: const Text('Cancel'),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx, true),
+                            child: const Text('Delete'),
+                          ),
+                        ],
                       ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx, true),
-                        child: const Text('Delete'),
-                      ),
-                    ],
-                  ),
-                ) ?? false;
+                    ) ??
+                    false;
               },
               onDismissed: (direction) async {
+                final removedIndex =
+                    _workouts.indexWhere((w) => w.id == workout.id);
+                if (removedIndex == -1) return;
+
+                final removedWorkout = _workouts[removedIndex];
+                setState(() {
+                  _workouts.removeAt(removedIndex);
+                });
+
                 try {
-                  await _syncService.deleteWorkout(workout.id);
-                  setState(() {
-                    _workouts.removeWhere((w) => w.id == workout.id);
-                  });
-                  if (mounted) {
-                    AppSnackBar.showSuccess(context, 'Template deleted');
-                  }
+                  await (widget.deleteWorkout?.call(workout.id) ??
+                      _syncService.deleteWorkout(workout.id));
+                  if (!context.mounted) return;
+                  AppSnackBar.showSuccess(context, 'Template deleted');
                 } catch (e) {
-                  if (mounted) {
-                    AppSnackBar.showError(context, 'Failed to delete template');
-                    _loadWorkouts();
-                  }
+                  if (!mounted) return;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (!mounted) return;
+                    setState(() {
+                      if (!_workouts.any((w) => w.id == removedWorkout.id)) {
+                        final insertIndex = removedIndex.clamp(
+                          0,
+                          _workouts.length,
+                        );
+                        _workouts.insert(insertIndex, removedWorkout);
+                      }
+                    });
+                  });
+                  if (!context.mounted) return;
+                  AppSnackBar.showError(context, 'Failed to delete template');
                 }
               },
               background: Container(
@@ -199,7 +235,7 @@ class _MyWorkoutsScreenState extends State<MyWorkoutsScreen> {
             Container(
               width: 80,
               height: 80,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: AppColors.cardBackground,
                 shape: BoxShape.circle,
               ),
@@ -210,7 +246,7 @@ class _MyWorkoutsScreenState extends State<MyWorkoutsScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            Text(
+            const Text(
               'No Workouts Yet',
               style: AppTextStyles.h3,
             ),
@@ -241,7 +277,7 @@ class _MyWorkoutsScreenState extends State<MyWorkoutsScreen> {
               color: AppColors.error,
             ),
             const SizedBox(height: 16),
-            Text(
+            const Text(
               'Something went wrong',
               style: AppTextStyles.h3,
             ),

@@ -23,6 +23,22 @@ class AuthProvider with ChangeNotifier {
     _init();
   }
 
+  AuthProvider.test({
+    AppUser? user,
+    bool isLoading = false,
+    String? error,
+    String? successMessage,
+    bool isInPasswordRecovery = false,
+    bool emailJustVerified = false,
+    bool passwordJustUpdated = false,
+  })  : _user = user,
+        _isLoading = isLoading,
+        _error = error,
+        _successMessage = successMessage,
+        _isInPasswordRecovery = isInPasswordRecovery,
+        _emailJustVerified = emailJustVerified,
+        _passwordJustUpdated = passwordJustUpdated;
+
   AuthService get authService {
     _authService ??= AuthService();
     return _authService!;
@@ -55,7 +71,8 @@ class AuthProvider with ChangeNotifier {
         debugPrint('Auth state error: $error');
         // Handle expired/invalid email links gracefully
         final errorStr = error.toString().toLowerCase();
-        if (errorStr.contains('expired') || errorStr.contains('otp_expired') ||
+        if (errorStr.contains('expired') ||
+            errorStr.contains('otp_expired') ||
             errorStr.contains('invalid')) {
           _error = 'Email link has expired. Please request a new one.';
         } else {

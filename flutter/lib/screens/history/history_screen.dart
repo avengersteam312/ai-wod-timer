@@ -5,24 +5,35 @@ import '../../models/workout_session.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/sync_service.dart';
 import '../../theme/app_theme.dart';
+import '../../ui_test_keys.dart';
 import '../../utils/snackbar_utils.dart';
 import '../../widgets/auth_button.dart';
 import '../../widgets/session_card.dart';
 
 class HistoryScreen extends StatefulWidget {
   final bool isVisible;
+  final SyncService? syncService;
+  final Future<List<WorkoutSession>> Function(String userId)? loadSessions;
+  final Future<void> Function(String sessionId)? deleteSession;
 
-  const HistoryScreen({super.key, this.isVisible = false});
+  const HistoryScreen({
+    super.key,
+    this.isVisible = false,
+    this.syncService,
+    this.loadSessions,
+    this.deleteSession,
+  });
 
   @override
   State<HistoryScreen> createState() => _HistoryScreenState();
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
-  final SyncService _syncService = SyncService();
   bool _isLoading = false;
   List<WorkoutSession> _sessions = [];
   String? _error;
+
+  SyncService get _syncService => widget.syncService ?? SyncService();
 
   @override
   void initState() {
@@ -49,7 +60,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
       final authProvider = context.read<AuthProvider>();
       final userId = authProvider.user?.id ?? 'anonymous';
 
-      final sessions = await _syncService.getSessions(userId);
+      final sessions = await (widget.loadSessions?.call(userId) ??
+          _syncService.getSessions(userId));
 
       setState(() {
         _sessions = sessions;
@@ -144,9 +156,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final completedSessions =
         _sessions.where((s) => s.status == SessionStatus.completed).toList();
     final totalMinutes = completedSessions.fold<int>(
-      0,
-      (sum, s) => sum + (s.durationSeconds ?? 0),
-    ) ~/
+          0,
+          (sum, s) => sum + (s.durationSeconds ?? 0),
+        ) ~/
         60;
 
     // Get unique workout days this week
@@ -221,7 +233,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               return Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                 child: Dismissible(
-                  key: Key(session.id),
+                  key: UiTestKeys.historySession(session.id),
                   direction: DismissDirection.endToStart,
                   dismissThresholds: const {DismissDirection.endToStart: 0.5},
                   background: Container(
@@ -257,7 +269,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   Future<void> _deleteSession(WorkoutSession session) async {
     try {
-      await _syncService.deleteSession(session.id);
+      await (widget.deleteSession?.call(session.id) ??
+          _syncService.deleteSession(session.id));
       setState(() {
         _sessions.removeWhere((s) => s.id == session.id);
       });
@@ -287,7 +300,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             Container(
               width: 80,
               height: 80,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: AppColors.cardBackground,
                 shape: BoxShape.circle,
               ),
@@ -298,7 +311,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            Text(
+            const Text(
               'No History',
               style: AppTextStyles.h3,
             ),
@@ -329,7 +342,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               color: AppColors.error,
             ),
             const SizedBox(height: 16),
-            Text(
+            const Text(
               'Something went wrong',
               style: AppTextStyles.h3,
             ),
@@ -343,6 +356,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             ),
             const SizedBox(height: 24),
             ElevatedButton(
+              key: UiTestKeys.historyRetryButton,
               onPressed: _loadHistory,
               child: const Text('Retry'),
             ),
@@ -438,7 +452,8 @@ class _SessionDetailsSheet extends StatelessWidget {
                           icon: Icons.repeat,
                         ),
                       ),
-                    ] else if (!(session.hasRestIntervals && session.formattedWorkTime != null)) ...[
+                    ] else if (!(session.hasRestIntervals &&
+                        session.formattedWorkTime != null)) ...[
                       const SizedBox(width: 16),
                       const Spacer(),
                     ],
@@ -469,7 +484,7 @@ class _SessionDetailsSheet extends StatelessWidget {
                 // Notes
                 if (session.notes != null && session.notes!.isNotEmpty) ...[
                   const SizedBox(height: 24),
-                  Text(
+                  const Text(
                     'Notes',
                     style: AppTextStyles.label,
                   ),
@@ -523,7 +538,7 @@ class _SessionDetailsSheet extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(

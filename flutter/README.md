@@ -53,12 +53,6 @@ OPENAI_API_KEY=your-openai-api-key
 SUPABASE_JWT_SECRET=your-supabase-jwt-secret
 ```
 
-### 4. Generate Hive Adapters (if needed)
-
-```bash
-flutter pub run build_runner build
-```
-
 ## Running the App
 
 ### iOS Simulator
@@ -116,6 +110,10 @@ flutter build ipa --release
 ```bash
 flutter test
 ```
+
+For the full Flutter testing matrix, including deterministic integration tests,
+real auth/backend smoke tests, device requirements, and pre-commit coverage,
+see [test/README.md](./test/README.md).
 
 ### Analyze Code
 

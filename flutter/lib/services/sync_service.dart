@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'offline_storage_service.dart';
@@ -10,12 +9,66 @@ import '../models/workout_session.dart';
 class SyncService {
   static final SyncService _instance = SyncService._internal();
   factory SyncService() => _instance;
-  SyncService._internal();
+  SyncService._internal({
+    OfflineStorageService? storage,
+    Connectivity? connectivity,
+    bool Function()? hasSupabaseConfig,
+    Future<List<Workout>> Function(String userId)? fetchRemoteWorkouts,
+    Future<List<WorkoutSession>> Function(String userId)? fetchRemoteSessions,
+    Future<void> Function(Map<String, dynamic> workout)? upsertRemoteWorkout,
+    Future<void> Function(String workoutId)? deleteRemoteWorkout,
+    Future<void> Function(Map<String, dynamic> session)? upsertRemoteSession,
+    Future<void> Function(String sessionId)? deleteRemoteSession,
+    bool initialOnline = true,
+  })  : _storage = storage ?? OfflineStorageService(),
+        _connectivity = connectivity ?? Connectivity(),
+        _hasSupabaseConfig = hasSupabaseConfig ?? _defaultHasSupabaseConfig,
+        _fetchRemoteWorkouts = fetchRemoteWorkouts,
+        _fetchRemoteSessions = fetchRemoteSessions,
+        _upsertRemoteWorkout = upsertRemoteWorkout,
+        _deleteRemoteWorkout = deleteRemoteWorkout,
+        _upsertRemoteSession = upsertRemoteSession,
+        _deleteRemoteSession = deleteRemoteSession {
+    _isOnline = initialOnline;
+  }
+  SyncService.test({
+    OfflineStorageService? storage,
+    Connectivity? connectivity,
+    bool Function()? hasSupabaseConfig,
+    Future<List<Workout>> Function(String userId)? fetchRemoteWorkouts,
+    Future<List<WorkoutSession>> Function(String userId)? fetchRemoteSessions,
+    Future<void> Function(Map<String, dynamic> workout)? upsertRemoteWorkout,
+    Future<void> Function(String workoutId)? deleteRemoteWorkout,
+    Future<void> Function(Map<String, dynamic> session)? upsertRemoteSession,
+    Future<void> Function(String sessionId)? deleteRemoteSession,
+    bool initialOnline = true,
+  }) : this._internal(
+          storage: storage ?? OfflineStorageService.test(),
+          connectivity: connectivity,
+          hasSupabaseConfig: hasSupabaseConfig,
+          fetchRemoteWorkouts: fetchRemoteWorkouts,
+          fetchRemoteSessions: fetchRemoteSessions,
+          upsertRemoteWorkout: upsertRemoteWorkout,
+          deleteRemoteWorkout: deleteRemoteWorkout,
+          upsertRemoteSession: upsertRemoteSession,
+          deleteRemoteSession: deleteRemoteSession,
+          initialOnline: initialOnline,
+        );
 
-  final OfflineStorageService _storage = OfflineStorageService();
-  final Connectivity _connectivity = Connectivity();
+  final OfflineStorageService _storage;
+  final Connectivity _connectivity;
+  final bool Function() _hasSupabaseConfig;
+  final Future<List<Workout>> Function(String userId)? _fetchRemoteWorkouts;
+  final Future<List<WorkoutSession>> Function(String userId)?
+      _fetchRemoteSessions;
+  final Future<void> Function(Map<String, dynamic> workout)?
+      _upsertRemoteWorkout;
+  final Future<void> Function(String workoutId)? _deleteRemoteWorkout;
+  final Future<void> Function(Map<String, dynamic> session)?
+      _upsertRemoteSession;
+  final Future<void> Function(String sessionId)? _deleteRemoteSession;
 
-  StreamSubscription<ConnectivityResult>? _connectivitySubscription;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   bool _isOnline = true;
   bool _isSyncing = false;
 
@@ -25,20 +78,21 @@ class SyncService {
   bool get isSyncing => _isSyncing;
 
   SupabaseClient get _client => Supabase.instance.client;
+  static bool _defaultHasSupabaseConfig() => AppConfig.hasSupabaseConfig;
 
   Future<void> init() async {
     await _storage.init();
 
     // Check initial connectivity
-    final result = await _connectivity.checkConnectivity();
-    _isOnline = result != ConnectivityResult.none;
+    final results = await _connectivity.checkConnectivity();
+    _isOnline = results.any((r) => r != ConnectivityResult.none);
     _onlineController.add(_isOnline);
 
     // Listen to connectivity changes
     _connectivitySubscription = _connectivity.onConnectivityChanged.listen(
-      (result) async {
+      (results) async {
         final wasOnline = _isOnline;
-        _isOnline = result != ConnectivityResult.none;
+        _isOnline = results.any((r) => r != ConnectivityResult.none);
 
         if (_isOnline != wasOnline) {
           _onlineController.add(_isOnline);
@@ -59,7 +113,7 @@ class SyncService {
 
   // Sync Queue Processing
   Future<void> processSyncQueue() async {
-    if (!_isOnline || _isSyncing || !AppConfig.hasSupabaseConfig) return;
+    if (!_isOnline || _isSyncing || !_hasSupabaseConfig()) return;
 
     _isSyncing = true;
 
@@ -70,8 +124,7 @@ class SyncService {
         try {
           await _processSyncOperation(operation);
           await _storage.removeFromSyncQueue(operation.id);
-        } catch (e) {
-          debugPrint('Error processing sync operation: $e');
+        } catch (_) {
           // Keep in queue for retry
         }
       }
@@ -96,14 +149,11 @@ class SyncService {
       case SyncOperationType.create:
       case SyncOperationType.update:
         if (operation.data != null) {
-          await _client.from('workouts').upsert(operation.data!);
+          await _upsertWorkout(operation.data!);
         }
         break;
       case SyncOperationType.delete:
-        await _client
-            .from('workouts')
-            .delete()
-            .eq('id', operation.entityId);
+        await _deleteWorkoutRemote(operation.entityId);
         break;
     }
   }
@@ -113,40 +163,92 @@ class SyncService {
       case SyncOperationType.create:
       case SyncOperationType.update:
         if (operation.data != null) {
-          await _client.from('workout_sessions').upsert(operation.data!);
+          await _upsertSession(operation.data!);
         }
         break;
       case SyncOperationType.delete:
-        await _client
-            .from('workout_sessions')
-            .delete()
-            .eq('id', operation.entityId);
+        await _deleteSessionRemote(operation.entityId);
         break;
     }
+  }
+
+  Future<List<Workout>> _getRemoteWorkouts(String userId) async {
+    if (_fetchRemoteWorkouts != null) {
+      return _fetchRemoteWorkouts!(userId);
+    }
+
+    final response = await _client
+        .from('workouts')
+        .select()
+        .eq('user_id', userId)
+        .order('created_at', ascending: false);
+
+    return (response as List)
+        .map((json) => Workout.fromJson(json as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<List<WorkoutSession>> _getRemoteSessions(String userId) async {
+    if (_fetchRemoteSessions != null) {
+      return _fetchRemoteSessions!(userId);
+    }
+
+    final response = await _client
+        .from('workout_sessions')
+        .select()
+        .eq('user_id', userId)
+        .order('started_at', ascending: false);
+
+    return (response as List)
+        .map((json) => WorkoutSession.fromJson(json as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<void> _upsertWorkout(Map<String, dynamic> workout) async {
+    if (_upsertRemoteWorkout != null) {
+      await _upsertRemoteWorkout!(workout);
+      return;
+    }
+    await _client.from('workouts').upsert(workout);
+  }
+
+  Future<void> _deleteWorkoutRemote(String workoutId) async {
+    if (_deleteRemoteWorkout != null) {
+      await _deleteRemoteWorkout!(workoutId);
+      return;
+    }
+    await _client.from('workouts').delete().eq('id', workoutId);
+  }
+
+  Future<void> _upsertSession(Map<String, dynamic> session) async {
+    if (_upsertRemoteSession != null) {
+      await _upsertRemoteSession!(session);
+      return;
+    }
+    await _client.from('workout_sessions').upsert(session);
+  }
+
+  Future<void> _deleteSessionRemote(String sessionId) async {
+    if (_deleteRemoteSession != null) {
+      await _deleteRemoteSession!(sessionId);
+      return;
+    }
+    await _client.from('workout_sessions').delete().eq('id', sessionId);
   }
 
   // Workout Sync Methods
   Future<List<Workout>> getWorkouts(String userId) async {
     // Try to get from remote first if online and Supabase is configured
     // Skip for anonymous users (not a valid UUID)
-    if (_isOnline && AppConfig.hasSupabaseConfig && userId != 'anonymous') {
+    if (_isOnline && _hasSupabaseConfig() && userId != 'anonymous') {
       try {
-        final response = await _client
-            .from('workouts')
-            .select()
-            .eq('user_id', userId)
-            .order('created_at', ascending: false);
-
-        final workouts = (response as List)
-            .map((json) => Workout.fromJson(json as Map<String, dynamic>))
-            .toList();
+        final workouts = await _getRemoteWorkouts(userId);
 
         // Cache locally
         await _storage.saveWorkouts(workouts);
 
         return workouts;
-      } catch (e) {
-        debugPrint('Error fetching workouts from remote: $e');
+      } catch (_) {
       }
     }
 
@@ -162,17 +264,16 @@ class SyncService {
     // Always save locally first
     await _storage.saveWorkout(workout);
 
-    if (_isOnline && AppConfig.hasSupabaseConfig) {
+    if (_isOnline && _hasSupabaseConfig()) {
       try {
-        await _client.from('workouts').upsert(workout.toJson());
+        await _upsertWorkout(workout.toJson());
         return true;
-      } catch (e) {
-        debugPrint('Error saving workout to remote: $e');
+      } catch (_) {
         await _queueWorkoutSync(workout, SyncOperationType.create);
         return false;
       }
     }
-    if (AppConfig.hasSupabaseConfig) {
+    if (_hasSupabaseConfig()) {
       await _queueWorkoutSync(workout, SyncOperationType.create);
     }
     return false;
@@ -181,15 +282,14 @@ class SyncService {
   Future<void> updateWorkout(Workout workout) async {
     await _storage.saveWorkout(workout);
 
-    if (_isOnline && AppConfig.hasSupabaseConfig) {
+    if (_isOnline && _hasSupabaseConfig()) {
       try {
         // Use upsert so a missing row (e.g. after offline create) is inserted instead of no-op
-        await _client.from('workouts').upsert(workout.toJson());
-      } catch (e) {
-        debugPrint('Error updating workout on remote: $e');
+        await _upsertWorkout(workout.toJson());
+      } catch (_) {
         await _queueWorkoutSync(workout, SyncOperationType.update);
       }
-    } else if (AppConfig.hasSupabaseConfig) {
+    } else if (_hasSupabaseConfig()) {
       await _queueWorkoutSync(workout, SyncOperationType.update);
     }
   }
@@ -197,14 +297,13 @@ class SyncService {
   Future<void> deleteWorkout(String id) async {
     await _storage.deleteWorkout(id);
 
-    if (_isOnline && AppConfig.hasSupabaseConfig) {
+    if (_isOnline && _hasSupabaseConfig()) {
       try {
-        await _client.from('workouts').delete().eq('id', id);
-      } catch (e) {
-        debugPrint('Error deleting workout from remote: $e');
+        await _deleteWorkoutRemote(id);
+      } catch (_) {
         await _queueWorkoutDelete(id, SyncEntityType.workout);
       }
-    } else if (AppConfig.hasSupabaseConfig) {
+    } else if (_hasSupabaseConfig()) {
       await _queueWorkoutDelete(id, SyncEntityType.workout);
     }
   }
@@ -238,24 +337,14 @@ class SyncService {
   // Session Sync Methods
   Future<List<WorkoutSession>> getSessions(String userId) async {
     // Skip remote fetch for anonymous users (not a valid UUID)
-    if (_isOnline && AppConfig.hasSupabaseConfig && userId != 'anonymous') {
+    if (_isOnline && _hasSupabaseConfig() && userId != 'anonymous') {
       try {
-        final response = await _client
-            .from('workout_sessions')
-            .select()
-            .eq('user_id', userId)
-            .order('started_at', ascending: false);
-
-        final sessions = (response as List)
-            .map((json) =>
-                WorkoutSession.fromJson(json as Map<String, dynamic>))
-            .toList();
+        final sessions = await _getRemoteSessions(userId);
 
         await _storage.saveSessions(sessions);
 
         return sessions;
-      } catch (e) {
-        debugPrint('Error fetching sessions from remote: $e');
+      } catch (_) {
       }
     }
 
@@ -265,14 +354,13 @@ class SyncService {
   Future<void> saveSession(WorkoutSession session) async {
     await _storage.saveSession(session);
 
-    if (_isOnline && AppConfig.hasSupabaseConfig) {
+    if (_isOnline && _hasSupabaseConfig()) {
       try {
-        await _client.from('workout_sessions').upsert(session.toJson());
-      } catch (e) {
-        debugPrint('Error saving session to remote: $e');
+        await _upsertSession(session.toJson());
+      } catch (_) {
         await _queueSessionSync(session, SyncOperationType.create);
       }
-    } else if (AppConfig.hasSupabaseConfig) {
+    } else if (_hasSupabaseConfig()) {
       await _queueSessionSync(session, SyncOperationType.create);
     }
   }
@@ -280,15 +368,14 @@ class SyncService {
   Future<void> updateSession(WorkoutSession session) async {
     await _storage.saveSession(session);
 
-    if (_isOnline && AppConfig.hasSupabaseConfig) {
+    if (_isOnline && _hasSupabaseConfig()) {
       try {
         // Use upsert so a missing row (e.g. after offline create) is inserted instead of no-op
-        await _client.from('workout_sessions').upsert(session.toJson());
-      } catch (e) {
-        debugPrint('Error updating session on remote: $e');
+        await _upsertSession(session.toJson());
+      } catch (_) {
         await _queueSessionSync(session, SyncOperationType.update);
       }
-    } else if (AppConfig.hasSupabaseConfig) {
+    } else if (_hasSupabaseConfig()) {
       await _queueSessionSync(session, SyncOperationType.update);
     }
   }
@@ -311,17 +398,13 @@ class SyncService {
   Future<void> deleteSession(String id) async {
     await _storage.deleteSession(id);
 
-    if (_isOnline && AppConfig.hasSupabaseConfig) {
+    if (_isOnline && _hasSupabaseConfig()) {
       try {
-        await _client
-            .from('workout_sessions')
-            .delete()
-            .eq('id', id);
-      } catch (e) {
-        debugPrint('Error deleting session from remote: $e');
+        await _deleteSessionRemote(id);
+      } catch (_) {
         await _queueSessionDelete(id);
       }
-    } else if (AppConfig.hasSupabaseConfig) {
+    } else if (_hasSupabaseConfig()) {
       await _queueSessionDelete(id);
     }
   }
@@ -339,7 +422,7 @@ class SyncService {
 
   // Full Sync
   Future<void> fullSync(String userId) async {
-    if (!_isOnline || !AppConfig.hasSupabaseConfig) return;
+    if (!_isOnline || !_hasSupabaseConfig()) return;
 
     try {
       // Process any pending operations first
@@ -348,8 +431,7 @@ class SyncService {
       // Fetch all data from remote
       await getWorkouts(userId);
       await getSessions(userId);
-    } catch (e) {
-      debugPrint('Error during full sync: $e');
+    } catch (_) {
     }
   }
 }

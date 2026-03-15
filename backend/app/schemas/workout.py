@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 from typing import Optional, List
 from enum import Enum
 
@@ -122,11 +122,12 @@ class ParsedWorkout(BaseModel):
 
 
 class WorkoutParseRequest(BaseModel):
-    workout_text: str = Field(..., min_length=1, description="Raw workout description")
-
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "workout_text": "AMRAP 20min:\n10 Wall Balls (20/14 lbs)\n10 Box Jumps (24/20 in)\n10 Burpees"
             }
         }
+    )
+
+    workout_text: str = Field(..., min_length=1, description="Raw workout description")

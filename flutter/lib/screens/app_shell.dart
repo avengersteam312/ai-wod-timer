@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../app_bootstrap.dart';
 import '../models/workout.dart';
 import '../providers/workout_provider.dart';
 import '../theme/app_theme.dart';
+import '../ui_test_keys.dart';
 import 'timer/timer_screen.dart';
 import 'manual/manual_timer_screen.dart';
 import 'history/history_screen.dart';
@@ -14,7 +16,12 @@ import 'history/history_screen.dart';
 /// 2. AI Timer - AI-powered workout parsing (default tab)
 /// 3. History - Workout history
 class AppShell extends StatefulWidget {
-  const AppShell({super.key});
+  const AppShell({
+    super.key,
+    this.shellDependencies = const AppShellDependencies(),
+  });
+
+  final AppShellDependencies shellDependencies;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -34,7 +41,6 @@ class _AppShellState extends State<AppShell> {
   bool _showDeleteZone = false;
   bool _isOverDeleteZone = false;
   void Function(Workout)? _onDeleteWorkout;
-
 
   // Called when user taps on bottom tab - allows switching without clearing timer
   void _onTabTapped(int index) {
@@ -131,22 +137,53 @@ class _AppShellState extends State<AppShell> {
 
     // When editing from timer, show Manual screen but keep Dashboard tab highlighted
     final displayIndex = _isEditingFromTimer ? 0 : _currentIndex;
+    final dashboardLabel = showTimerBadge ? workout.formattedTime : 'Dashboard';
+    final dashboardIconChild = showTimerBadge
+        ? const Badge(
+            backgroundColor: AppColors.success,
+            smallSize: 8,
+            child: Icon(Icons.dashboard_outlined),
+          )
+        : const Icon(Icons.dashboard_outlined);
+    final dashboardActiveIconChild = showTimerBadge
+        ? Badge(
+            backgroundColor: AppColors.success,
+            smallSize: 8,
+            child: Icon(
+              Icons.dashboard,
+              color:
+                  shouldMuteAITimer ? AppColors.textMuted : AppColors.primary,
+            ),
+          )
+        : Icon(
+            Icons.dashboard,
+            color: shouldMuteAITimer ? AppColors.textMuted : AppColors.primary,
+          );
 
     return Scaffold(
       body: IndexedStack(
         index: displayIndex,
         children: [
           ManualTimerScreen(
+            key: UiTestKeys.manualScreen,
             onNavigateToTimer: _navigateToTimer,
             resetNotifier: _resetNotifier,
           ),
           TimerScreen(
+            key: UiTestKeys.dashboardScreen,
             onNavigateToManual: _navigateToManual,
             onNavigateToManualForEdit: _navigateToManualForEdit,
             isDashboardVisible: displayIndex == 1,
             onDragStateChanged: _setShowDeleteZone,
+            syncService: widget.shellDependencies.syncService,
+            imagePicker: widget.shellDependencies.imagePicker,
+            videoPreviewBuilder: widget.shellDependencies.videoPreviewBuilder,
           ),
-          HistoryScreen(isVisible: displayIndex == 2),
+          HistoryScreen(
+            key: UiTestKeys.historyScreen,
+            isVisible: displayIndex == 2,
+            syncService: widget.shellDependencies.syncService,
+          ),
         ],
       ),
       bottomNavigationBar: _showDeleteZone
@@ -165,7 +202,8 @@ class _AppShellState extends State<AppShell> {
               builder: (context, candidateData, rejectedData) {
                 return Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                   color: AppColors.error,
                   child: SafeArea(
                     top: false,
@@ -173,13 +211,17 @@ class _AppShellState extends State<AppShell> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
-                          _isOverDeleteZone ? Icons.delete : Icons.delete_outline,
+                          _isOverDeleteZone
+                              ? Icons.delete
+                              : Icons.delete_outline,
                           color: AppColors.textPrimary,
                           size: 20,
                         ),
                         const SizedBox(width: 10),
                         Text(
-                          _isOverDeleteZone ? 'Release to delete' : 'Drag here to delete',
+                          _isOverDeleteZone
+                              ? 'Release to delete'
+                              : 'Drag here to delete',
                           style: AppTextStyles.body.copyWith(
                             color: AppColors.textPrimary,
                           ),
@@ -202,46 +244,41 @@ class _AppShellState extends State<AppShell> {
               child: BottomNavigationBar(
                 currentIndex: _currentIndex,
                 onTap: _onTabTapped,
-                selectedItemColor: shouldMuteAITimer
-                    ? AppColors.textMuted
-                    : AppColors.primary,
+                selectedItemColor:
+                    shouldMuteAITimer ? AppColors.textMuted : AppColors.primary,
                 unselectedItemColor: AppColors.textMuted,
                 items: [
                   const BottomNavigationBarItem(
-                    icon: Icon(Icons.timer_outlined),
-                    activeIcon: Icon(Icons.timer),
+                    icon: KeyedSubtree(
+                      key: UiTestKeys.manualTab,
+                      child: Icon(Icons.timer_outlined),
+                    ),
+                    activeIcon: KeyedSubtree(
+                      key: UiTestKeys.manualTab,
+                      child: Icon(Icons.timer),
+                    ),
                     label: 'Manual',
                   ),
                   BottomNavigationBarItem(
-                    icon: showTimerBadge
-                        ? const Badge(
-                            backgroundColor: AppColors.success,
-                            smallSize: 8,
-                            child: Icon(Icons.dashboard_outlined),
-                          )
-                        : const Icon(Icons.dashboard_outlined),
-                    activeIcon: showTimerBadge
-                        ? Badge(
-                            backgroundColor: AppColors.success,
-                            smallSize: 8,
-                            child: Icon(
-                              Icons.dashboard,
-                              color: shouldMuteAITimer
-                                  ? AppColors.textMuted
-                                  : AppColors.primary,
-                            ),
-                          )
-                        : Icon(
-                            Icons.dashboard,
-                            color: shouldMuteAITimer
-                                ? AppColors.textMuted
-                                : AppColors.primary,
-                          ),
-                    label: showTimerBadge ? workout.formattedTime : 'Dashboard',
+                    icon: KeyedSubtree(
+                      key: UiTestKeys.dashboardTab,
+                      child: dashboardIconChild,
+                    ),
+                    activeIcon: KeyedSubtree(
+                      key: UiTestKeys.dashboardTab,
+                      child: dashboardActiveIconChild,
+                    ),
+                    label: dashboardLabel,
                   ),
                   const BottomNavigationBarItem(
-                    icon: Icon(Icons.history_outlined),
-                    activeIcon: Icon(Icons.history),
+                    icon: KeyedSubtree(
+                      key: UiTestKeys.historyTab,
+                      child: Icon(Icons.history_outlined),
+                    ),
+                    activeIcon: KeyedSubtree(
+                      key: UiTestKeys.historyTab,
+                      child: Icon(Icons.history),
+                    ),
                     label: 'History',
                   ),
                 ],

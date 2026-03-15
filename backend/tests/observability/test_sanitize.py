@@ -1,6 +1,7 @@
 """
 Guard test: sensitive field values must never appear in log output.
 """
+
 import structlog
 
 from app.observability.sanitize import SanitizingProcessor
@@ -27,7 +28,11 @@ class TestSanitizingProcessor:
 
     def test_token_is_redacted(self):
         processor = SanitizingProcessor()
-        event = {"event": "request", "token": "eyJhbGciOiJIUzI1NiJ9.xxx", "log_level": "info"}
+        event = {
+            "event": "request",
+            "token": "eyJhbGciOiJIUzI1NiJ9.xxx",
+            "log_level": "info",
+        }
         result = processor(None, None, event)
         assert result["token"] == "[REDACTED]"
 
@@ -39,7 +44,11 @@ class TestSanitizingProcessor:
 
     def test_authorization_is_redacted(self):
         processor = SanitizingProcessor()
-        event = {"event": "header", "authorization": "Bearer eyJ...", "log_level": "info"}
+        event = {
+            "event": "header",
+            "authorization": "Bearer eyJ...",
+            "log_level": "info",
+        }
         result = processor(None, None, event)
         assert result["authorization"] == "[REDACTED]"
 
@@ -77,7 +86,12 @@ class TestSanitizingProcessor:
 
     def test_case_insensitive_matching(self):
         processor = SanitizingProcessor()
-        event = {"event": "x", "PASSWORD": "hunter2", "Token": "abc", "log_level": "info"}
+        event = {
+            "event": "x",
+            "PASSWORD": "hunter2",
+            "Token": "abc",
+            "log_level": "info",
+        }
         result = processor(None, None, event)
         assert result["PASSWORD"] == "[REDACTED]"
         assert result["Token"] == "[REDACTED]"

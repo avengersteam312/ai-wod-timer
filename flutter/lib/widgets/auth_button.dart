@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/app_config.dart';
 import '../providers/auth_provider.dart';
+import '../ui_test_keys.dart';
 import '../providers/workout_provider.dart';
 import '../screens/auth/login_screen.dart';
 import '../theme/app_theme.dart';
@@ -23,6 +24,7 @@ class AuthButton extends StatelessWidget {
 
     if (auth.isAuthenticated) {
       return PopupMenuButton<String>(
+        key: UiTestKeys.authButton,
         icon: Container(
           width: 32,
           height: 32,
@@ -68,6 +70,7 @@ class AuthButton extends StatelessWidget {
       );
     } else {
       return IconButton(
+        key: UiTestKeys.authButton,
         icon: Container(
           width: 32,
           height: 32,

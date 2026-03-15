@@ -28,4 +28,5 @@ def log_security_event(
 
     if event == "auth.failure":
         from app.observability.metrics import security_auth_failures_total
+
         security_auth_failures_total.add(1, {"ip": ip})

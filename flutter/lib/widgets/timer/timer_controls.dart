@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
+import '../../ui_test_keys.dart';
 import 'play_pause_button.dart';
 
 /// Design-matched timer controls with reset, play/pause, and skip/complete buttons.
@@ -64,6 +65,7 @@ class TimerControls extends StatelessWidget {
     // Disable reset while timer is running (allow when paused, idle, or completed)
     final isDisabled = isRunning && !isPaused;
     return CircularControlButton(
+      key: UiTestKeys.timerResetButton,
       icon: Icons.refresh,
       onPressed: isDisabled ? () {} : onReset,
       size: secondaryButtonSize,
@@ -76,6 +78,7 @@ class TimerControls extends StatelessWidget {
   Widget _buildPlayPauseButton() {
     if (isCompleted) {
       return PlayPauseButton(
+        key: UiTestKeys.timerPlayPauseButton,
         isPlaying: false,
         onPressed: onPlayPause,
         size: mainButtonSize,
@@ -88,6 +91,7 @@ class TimerControls extends StatelessWidget {
     }
 
     return PlayPauseButton(
+      key: UiTestKeys.timerPlayPauseButton,
       isPlaying: isRunning,
       onPressed: onPlayPause,
       size: mainButtonSize,
@@ -100,6 +104,7 @@ class TimerControls extends StatelessWidget {
       final isDisabled = isCountdown || isIdle || isCompleted;
 
       return CircularControlButton(
+        key: UiTestKeys.timerStopButton,
         icon: Icons.stop,
         onPressed: isDisabled ? () {} : onComplete!,
         size: secondaryButtonSize,
@@ -200,10 +205,10 @@ class CompactTimerControls extends StatelessWidget {
       children: [
         // Left button: reset, coffee, or skip rest
         _buildLeftButton(),
-        SizedBox(width: buttonSpacing),
+        const SizedBox(width: buttonSpacing),
         // Center: play/pause or checkmark when completed
         _buildPlayPauseButton(),
-        SizedBox(width: buttonSpacing),
+        const SizedBox(width: buttonSpacing),
         // Right: stop button
         if (onStop != null) _buildStopButton(),
       ],
@@ -247,6 +252,7 @@ class CompactTimerControls extends StatelessWidget {
     // Disable reset while timer is running (allow when paused, idle, or completed)
     final isDisabled = isRunning && !isPaused;
     return CircularControlButton(
+      key: UiTestKeys.timerResetButton,
       icon: Icons.refresh,
       onPressed: isDisabled ? () {} : onReset,
       size: secondaryButtonSize,
@@ -259,6 +265,7 @@ class CompactTimerControls extends StatelessWidget {
   Widget _buildPlayPauseButton() {
     if (isCompleted) {
       return PlayPauseButton(
+        key: UiTestKeys.timerPlayPauseButton,
         isPlaying: false,
         onPressed: onPlayPause,
         size: mainButtonSize,
@@ -271,6 +278,7 @@ class CompactTimerControls extends StatelessWidget {
     }
 
     return PlayPauseButton(
+      key: UiTestKeys.timerPlayPauseButton,
       isPlaying: isRunning,
       onPressed: onPlayPause,
       size: mainButtonSize,
@@ -280,6 +288,7 @@ class CompactTimerControls extends StatelessWidget {
   Widget _buildStopButton() {
     final isDisabled = isCountdown || isIdle || isCompleted;
     return CircularControlButton(
+      key: UiTestKeys.timerStopButton,
       icon: Icons.stop,
       onPressed: isDisabled ? () {} : onStop!,
       size: secondaryButtonSize,

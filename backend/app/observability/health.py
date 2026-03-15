@@ -19,11 +19,7 @@ async def health():
     checks["openai_key"] = "ok" if os.getenv("OPENAI_API_KEY") else "missing"
     checks["supabase_jwt"] = "ok" if os.getenv("SUPABASE_JWT_SECRET") else "missing"
 
-    overall = (
-        "ok"
-        if all(v == "ok" for v in checks.values())
-        else "degraded"
-    )
+    overall = "ok" if all(v == "ok" for v in checks.values()) else "degraded"
 
     return {
         "status": overall,

@@ -103,11 +103,13 @@ class _DurationStepperState extends State<DurationStepper> {
     final newSeconds = newTotalSeconds % 60;
     if (_editingMinutes) {
       _minutesController.text = newMinutes.toString();
-      _minutesController.selection = TextSelection.collapsed(offset: _minutesController.text.length);
+      _minutesController.selection =
+          TextSelection.collapsed(offset: _minutesController.text.length);
     }
     if (_editingSeconds) {
       _secondsController.text = newSeconds.toString().padLeft(2, '0');
-      _secondsController.selection = TextSelection.collapsed(offset: _secondsController.text.length);
+      _secondsController.selection =
+          TextSelection.collapsed(offset: _secondsController.text.length);
     }
   }
 
@@ -196,8 +198,8 @@ class _DurationStepperState extends State<DurationStepper> {
                 onTap: _startEditingMinutes,
                 onSubmit: _submitMinutes,
               ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
                 child: Text(':', style: AppTextStyles.h2),
               ),
               // Seconds
@@ -297,7 +299,9 @@ class _StepperButton extends StatelessWidget {
           color: AppColors.cardBackground,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isEnabled ? AppColors.border : AppColors.border.withValues(alpha: 0.5),
+            color: isEnabled
+                ? AppColors.border
+                : AppColors.border.withValues(alpha: 0.5),
           ),
         ),
         child: Icon(

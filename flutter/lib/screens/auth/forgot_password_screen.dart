@@ -79,7 +79,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         const SizedBox(height: 24),
 
         // Title
-        Text(
+        const Text(
           'Reset Password',
           style: AppTextStyles.h1,
           textAlign: TextAlign.center,
@@ -120,7 +120,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 },
               ),
               const SizedBox(height: 24),
-
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -155,7 +154,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           width: 80,
           height: 80,
           decoration: BoxDecoration(
-            color: AppColors.success.withOpacity(0.1),
+            color: AppColors.success.withValues(alpha: 0.1),
             shape: BoxShape.circle,
           ),
           child: const Icon(
@@ -166,7 +165,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         ),
         const SizedBox(height: 24),
 
-        Text(
+        const Text(
           'Check your email',
           style: AppTextStyles.h1,
           textAlign: TextAlign.center,
