@@ -72,15 +72,17 @@ class AudioService {
     try {
       // Configure audio session to mix with other audio (e.g., music)
       final session = await audio_session.AudioSession.instance;
-      await session.configure(audio_session.AudioSessionConfiguration(
+      await session.configure(const audio_session.AudioSessionConfiguration(
         avAudioSessionCategory: audio_session.AVAudioSessionCategory.playback,
-        avAudioSessionCategoryOptions: audio_session.AVAudioSessionCategoryOptions.mixWithOthers,
+        avAudioSessionCategoryOptions:
+            audio_session.AVAudioSessionCategoryOptions.mixWithOthers,
         avAudioSessionMode: audio_session.AVAudioSessionMode.defaultMode,
-        androidAudioAttributes: const audio_session.AndroidAudioAttributes(
+        androidAudioAttributes: audio_session.AndroidAudioAttributes(
           contentType: audio_session.AndroidAudioContentType.sonification,
           usage: audio_session.AndroidAudioUsage.assistanceSonification,
         ),
-        androidAudioFocusGainType: audio_session.AndroidAudioFocusGainType.gainTransientMayDuck,
+        androidAudioFocusGainType:
+            audio_session.AndroidAudioFocusGainType.gainTransientMayDuck,
       ));
       debugPrint('Audio session configured for mixing with other audio');
 

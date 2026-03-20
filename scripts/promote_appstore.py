@@ -136,7 +136,7 @@ def attach_build(version_id: str, build_id: str) -> None:
 
 
 def submit_for_review(version_id: str) -> None:
-    print(f"Submitting for App Store review...")
+    print("Submitting for App Store review...")
     body = {
         "data": {
             "type": "appStoreVersionSubmissions",

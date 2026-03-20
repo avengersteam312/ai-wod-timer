@@ -7,9 +7,9 @@ import 'package:share_plus/share_plus.dart';
 
 /// Video export format options
 enum VideoExportFormat {
-  original,     // Original aspect ratio
-  square,       // 1:1 (Instagram feed)
-  portrait,     // 9:16 (TikTok, Reels, Stories)
+  original, // Original aspect ratio
+  square, // 1:1 (Instagram feed)
+  portrait, // 9:16 (TikTok, Reels, Stories)
 }
 
 /// Service for video recording and post-processing
@@ -63,12 +63,15 @@ class VideoService {
 
   /// Share video to other apps
   /// On iPad, sharePositionOrigin is required
-  Future<void> shareVideo(String videoPath, {String? text, Rect? sharePositionOrigin}) async {
+  Future<void> shareVideo(String videoPath,
+      {String? text, Rect? sharePositionOrigin}) async {
     try {
-      await Share.shareXFiles(
-        [XFile(videoPath)],
-        text: text ?? 'Check out my workout!',
-        sharePositionOrigin: sharePositionOrigin,
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(videoPath)],
+          text: text ?? 'Check out my workout!',
+          sharePositionOrigin: sharePositionOrigin,
+        ),
       );
     } catch (e) {
       debugPrint('[VideoService] Error sharing video: $e');

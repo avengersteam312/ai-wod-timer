@@ -81,7 +81,7 @@ class Movement {
     parts.add(name);
 
     if (weight != null) {
-      parts.add('@ ${weight}${weightUnit ?? 'lbs'}');
+      parts.add('@ $weight${weightUnit ?? 'lbs'}');
     }
 
     return parts.join(' ');

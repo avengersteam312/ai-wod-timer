@@ -101,7 +101,8 @@ class WorkoutCard extends StatelessWidget {
                   padding: const EdgeInsets.only(left: 12),
                   child: Icon(
                     workout.isFavorite ? Icons.star : Icons.star_border,
-                    color: workout.isFavorite ? Colors.amber : AppColors.textMuted,
+                    color:
+                        workout.isFavorite ? Colors.amber : AppColors.textMuted,
                     size: 22,
                   ),
                 ),
@@ -160,7 +161,7 @@ class WorkoutCardCompact extends StatelessWidget {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
+                color: AppColors.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(

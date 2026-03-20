@@ -2,7 +2,7 @@ import time
 import structlog
 from typing import Any, Dict
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
-from app.api.v1.dependencies import get_current_user
+from app.api.v1.dependencies import get_current_user_optional
 from app.schemas.workout import WorkoutParseRequest, ParsedWorkout
 from app.services.workout_parser import workout_parser
 from app.services.ai_service import ai_service
@@ -21,10 +21,13 @@ router = APIRouter()
 def _get_parser(use_agent: bool = None):
     """Get the appropriate parser based on config or override."""
     # Use explicit parameter if provided, otherwise use config
-    should_use_agent = use_agent if use_agent is not None else settings.USE_AGENT_WORKFLOW
+    should_use_agent = (
+        use_agent if use_agent is not None else settings.USE_AGENT_WORKFLOW
+    )
 
     if should_use_agent:
         from app.services.agent_workout_parser import agent_workout_parser
+
         return agent_workout_parser
     return workout_parser
 
@@ -32,11 +35,11 @@ def _get_parser(use_agent: bool = None):
 @router.post("/parse", response_model=ParsedWorkout)
 async def parse_workout(
     request: WorkoutParseRequest,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] | None = Depends(get_current_user_optional),
     use_agent: bool = Query(
         default=None,
-        description="Override to use agent-based parser (True) or standard parser (False)"
-    )
+        description="Override to use agent-based parser (True) or standard parser (False)",
+    ),
 ):
     """
     Parse workout text and generate AI-powered timer configuration
@@ -62,33 +65,38 @@ async def parse_workout(
         parsed = await parser.parse(request.workout_text)
         duration = time.perf_counter() - start
         workout_type = parsed.workout_type.value
-        ai_parse_requests_total.add(1, {"workout_type": workout_type, "model": "standard"})
+        ai_parse_requests_total.add(
+            1, {"workout_type": workout_type, "model": "standard"}
+        )
         workouts_parsed_total.add(1, {"workout_type": workout_type})
-        ai_parse_duration.record(duration, {"workout_type": workout_type, "stage": "parse"})
+        ai_parse_duration.record(
+            duration, {"workout_type": workout_type, "stage": "parse"}
+        )
         return parsed
     except ValueError as e:
-        ai_parse_errors_total.add(1, {"workout_type": "unknown", "error_type": "validation"})
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid workout format: {str(e)}"
+        ai_parse_errors_total.add(
+            1, {"workout_type": "unknown", "error_type": "validation"}
         )
+        raise HTTPException(status_code=400, detail=f"Invalid workout format: {str(e)}")
     except Exception as e:
-        ai_parse_errors_total.add(1, {"workout_type": "unknown", "error_type": "internal"})
+        ai_parse_errors_total.add(
+            1, {"workout_type": "unknown", "error_type": "internal"}
+        )
         log.error("parse.failed", exc_info=True, error=str(e))
         raise HTTPException(
             status_code=500,
-            detail="Failed to parse workout. Please check the format and try again."
+            detail="Failed to parse workout. Please check the format and try again.",
         )
 
 
 @router.post("/parse-image", response_model=ParsedWorkout)
 async def parse_workout_from_image(
     file: UploadFile = File(..., description="Image file containing workout text"),
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] | None = Depends(get_current_user_optional),
     use_agent: bool = Query(
         default=None,
-        description="Override to use agent-based parser (True) or standard parser (False)"
-    )
+        description="Override to use agent-based parser (True) or standard parser (False)",
+    ),
 ):
     """
     Parse workout from an image using a two-step process:
@@ -108,7 +116,7 @@ async def parse_workout_from_image(
     if file.content_type not in allowed_types:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid file type. Allowed types: {', '.join(allowed_types)}"
+            detail=f"Invalid file type. Allowed types: {', '.join(allowed_types)}",
         )
 
     # Limit file size (5MB - reduced since we compress client-side)
@@ -116,8 +124,7 @@ async def parse_workout_from_image(
     content = await file.read()
     if len(content) > max_size:
         raise HTTPException(
-            status_code=400,
-            detail="File too large. Maximum size is 5MB."
+            status_code=400, detail="File too large. Maximum size is 5MB."
         )
 
     try:
@@ -143,16 +150,15 @@ async def parse_workout_from_image(
         return result
 
     except ValueError as e:
-        raise HTTPException(
-            status_code=400,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        ai_parse_errors_total.add(1, {"workout_type": "unknown", "error_type": "image_parse"})
+        ai_parse_errors_total.add(
+            1, {"workout_type": "unknown", "error_type": "image_parse"}
+        )
         log.error("parse_image.failed", exc_info=True, error=str(e))
         raise HTTPException(
             status_code=500,
-            detail="Failed to parse workout from image. Please try again with a clearer image."
+            detail="Failed to parse workout from image. Please try again with a clearer image.",
         )
 
 

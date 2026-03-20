@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import '../../app_bootstrap.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/workout_provider.dart';
 import '../../providers/video_provider.dart';
@@ -13,6 +14,7 @@ import '../../theme/app_theme.dart';
 import '../../models/workout.dart';
 import '../../services/audio_service.dart';
 import '../../services/sync_service.dart';
+import '../../ui_test_keys.dart';
 import '../../utils/workout_name.dart';
 import '../../screens/workouts/my_workouts_screen.dart';
 import '../../screens/auth/login_screen.dart';
@@ -30,10 +32,16 @@ enum DashboardCreateMode { text, image }
 class TimerScreen extends StatefulWidget {
   final VoidCallback? onNavigateToManual;
   final VoidCallback? onNavigateToManualForEdit;
+
   /// True when the Dashboard tab is selected (used to refresh saved workouts when returning to tab).
   final bool isDashboardVisible;
+
   /// Callback to show/hide the delete zone in AppShell (covers nav bar)
-  final void Function(bool show, {void Function(Workout)? onDelete})? onDragStateChanged;
+  final void Function(bool show, {void Function(Workout)? onDelete})?
+      onDragStateChanged;
+  final SyncService? syncService;
+  final ImagePicker? imagePicker;
+  final VideoPreviewBuilder? videoPreviewBuilder;
 
   const TimerScreen({
     super.key,
@@ -41,6 +49,9 @@ class TimerScreen extends StatefulWidget {
     this.onNavigateToManualForEdit,
     this.isDashboardVisible = true,
     this.onDragStateChanged,
+    this.syncService,
+    this.imagePicker,
+    this.videoPreviewBuilder,
   });
 
   @override
@@ -51,7 +62,6 @@ class _TimerScreenState extends State<TimerScreen> {
   final _inputController = TextEditingController();
   final _scrollController = ScrollController();
   final _audioService = AudioService();
-  final _imagePicker = ImagePicker();
 
   // Save workout state
   bool _isSaved = false;
@@ -60,7 +70,6 @@ class _TimerScreenState extends State<TimerScreen> {
   bool _saveThenExit = false;
 
   // Saved timers (dashboard) state
-  final SyncService _syncService = SyncService();
   List<Workout> _savedWorkouts = [];
   bool _savedWorkoutsLoading = false;
   bool _savedWorkoutsLoaded = false;
@@ -68,7 +77,7 @@ class _TimerScreenState extends State<TimerScreen> {
 
   // Offline state
   bool _isOffline = false;
-  StreamSubscription<ConnectivityResult>? _connectivitySubscription;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
   // Notes state: closed, minimized, full
   NotesState _notesState = NotesState.closed;
@@ -81,6 +90,10 @@ class _TimerScreenState extends State<TimerScreen> {
   static const int _maxSavedWorkoutsDisplay = 9;
 
   DashboardCreateMode _createMode = DashboardCreateMode.text;
+
+  SyncService get _syncService => widget.syncService ?? SyncService();
+
+  ImagePicker get _imagePicker => widget.imagePicker ?? ImagePicker();
 
   @override
   void initState() {
@@ -103,8 +116,7 @@ class _TimerScreenState extends State<TimerScreen> {
         widget.isDashboardVisible && !oldWidget.isDashboardVisible;
     if (becameVisible && mounted) {
       // Clear old status messages
-      setState(() {
-      });
+      setState(() {});
       final userId = context.read<AuthProvider>().user?.id;
       if (userId != null) {
         _loadSavedWorkouts(userId);
@@ -143,13 +155,15 @@ class _TimerScreenState extends State<TimerScreen> {
     final connectivity = await Connectivity().checkConnectivity();
     if (!mounted) return;
     setState(() {
-      _isOffline = connectivity == ConnectivityResult.none;
+      _isOffline =
+          connectivity.every((result) => result == ConnectivityResult.none);
     });
     // Listen for connectivity changes
-    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((result) {
+    _connectivitySubscription =
+        Connectivity().onConnectivityChanged.listen((result) {
       if (!mounted) return;
       setState(() {
-        _isOffline = result == ConnectivityResult.none;
+        _isOffline = result.every((entry) => entry == ConnectivityResult.none);
       });
     });
   }
@@ -216,11 +230,13 @@ class _TimerScreenState extends State<TimerScreen> {
       context: context,
       defaultName: proposeWorkoutName(currentWorkout),
       onCheckNameTaken: userId != null
-          ? (name) => workout.isWorkoutNameTaken(
+          ? (name) => workout
+              .isWorkoutNameTaken(
                 userId,
                 name,
                 excludeWorkoutId: workout.loadedFromWorkoutId,
-              ).timeout(const Duration(seconds: 10), onTimeout: () => false)
+              )
+              .timeout(const Duration(seconds: 10), onTimeout: () => false)
           : null,
       onSave: (name) async {
         final workoutToSave = Workout(
@@ -256,62 +272,6 @@ class _TimerScreenState extends State<TimerScreen> {
       _saveThenExit = false;
       _goBackToInput(workout);
     }
-  }
-
-  void _showImagePickerModal(BuildContext context, WorkoutProvider workout) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.cardBackground,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Take Photo option
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.camera_alt, color: AppColors.primary),
-                ),
-                title: const Text('Take Photo'),
-                subtitle: const Text('Use your camera'),
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  await _pickImage(ImageSource.camera, workout);
-                },
-              ),
-              const SizedBox(height: 8),
-              // Choose from Gallery option
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.photo_library, color: AppColors.primary),
-                ),
-                title: const Text('Choose from Gallery'),
-                subtitle: const Text('Select an existing photo'),
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  await _pickImage(ImageSource.gallery, workout);
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   Future<void> _pickImage(ImageSource source, WorkoutProvider workout) async {
@@ -406,6 +366,25 @@ class _TimerScreenState extends State<TimerScreen> {
     }
   }
 
+  void _openVideoScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => VideoRecordingScreen(
+          videoPreviewBuilder: widget.videoPreviewBuilder,
+        ),
+      ),
+    );
+  }
+
+  void _openEditTimer(WorkoutProvider workout) {
+    if (!workout.isIdle || widget.onNavigateToManualForEdit == null) {
+      return;
+    }
+    workout.setPendingEdit(workout.currentWorkout!);
+    widget.onNavigateToManualForEdit!();
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -437,6 +416,7 @@ class _TimerScreenState extends State<TimerScreen> {
               ? AppBar(
                   automaticallyImplyLeading: false,
                   leading: IconButton(
+                    key: UiTestKeys.timerCancelButton,
                     icon: const Icon(Icons.close),
                     tooltip: 'Cancel timer',
                     onPressed: () =>
@@ -449,22 +429,16 @@ class _TimerScreenState extends State<TimerScreen> {
                     // Recording indicator (only when recording)
                     if (videoProvider.isRecording)
                       GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const VideoRecordingScreen(),
-                            ),
-                          );
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                        onTap: _openVideoScreen,
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 12),
                           child: _RecordingDot(),
                         ),
                       ),
                     // Save button for authenticated users (hide for already saved timers)
                     if (canSave && workout.loadedFromWorkoutId == null)
                       IconButton(
+                        key: UiTestKeys.manualSaveButton,
                         icon: const Icon(Icons.save_outlined),
                         tooltip: 'Save timer',
                         onPressed: () => _openSaveModal(context, workout),
@@ -500,9 +474,12 @@ class _TimerScreenState extends State<TimerScreen> {
                     // Voice toggle button (only affects voice, not beeps)
                     IconButton(
                       icon: Icon(
-                        _audioService.isMuted ? Icons.voice_over_off : Icons.record_voice_over,
+                        _audioService.isMuted
+                            ? Icons.voice_over_off
+                            : Icons.record_voice_over,
                       ),
-                      tooltip: _audioService.isMuted ? 'Enable voice' : 'Mute voice',
+                      tooltip:
+                          _audioService.isMuted ? 'Enable voice' : 'Mute voice',
                       onPressed: () {
                         setState(() {
                           _audioService.toggleMute();
@@ -521,110 +498,115 @@ class _TimerScreenState extends State<TimerScreen> {
             children: [
               SafeArea(
                 child: Column(
-              children: [
-                // Main content
-                Expanded(
-                  child: (workout.currentWorkout == null ||
-                          workout.showInputOverride)
-                      ? _buildInputView(context, workout)
-                      : GestureDetector(
-                          onHorizontalDragStart: (_) {
-                            setState(() => _isSwipingToEdit = true);
-                          },
-                          onHorizontalDragUpdate: (details) {
-                            if (_isSwipingToEdit) {
-                              final screenWidth =
-                                  MediaQuery.of(context).size.width;
-                              setState(() {
-                                _swipeOffset = (_swipeOffset + details.delta.dx)
-                                    .clamp(
-                                  -screenWidth, // Always allow swipe left for camera
-                                  workout.isIdle ? screenWidth : 0.0, // Only allow swipe right when idle
-                                );
-                              });
-                            }
-                          },
-                          onHorizontalDragEnd: (details) {
-                            final screenWidth =
-                                MediaQuery.of(context).size.width;
-                            final swipeThreshold = screenWidth * 0.5;
-
-                            // Swipe right -> open adjust timer (only when idle)
-                            if ((_swipeOffset >= swipeThreshold ||
-                                (details.primaryVelocity != null &&
-                                    details.primaryVelocity! > 300)) &&
-                                workout.isIdle &&
-                                widget.onNavigateToManualForEdit != null) {
-                              setState(() {
-                                _swipeOffset = screenWidth;
-                                _isSwipingToEdit = false;
-                              });
-                              Future.delayed(
-                                  const Duration(milliseconds: 200), () {
-                                if (mounted) {
-                                  workout.setPendingEdit(
-                                      workout.currentWorkout!);
-                                  widget.onNavigateToManualForEdit!();
-                                  setState(() => _swipeOffset = 0);
+                  children: [
+                    // Main content
+                    Expanded(
+                      child: (workout.currentWorkout == null ||
+                              workout.showInputOverride)
+                          ? _buildInputView(context, workout)
+                          : GestureDetector(
+                              onHorizontalDragStart: (_) {
+                                setState(() => _isSwipingToEdit = true);
+                              },
+                              onHorizontalDragUpdate: (details) {
+                                if (_isSwipingToEdit) {
+                                  final screenWidth =
+                                      MediaQuery.of(context).size.width;
+                                  setState(() {
+                                    _swipeOffset =
+                                        (_swipeOffset + details.delta.dx).clamp(
+                                      -screenWidth, // Always allow swipe left for camera
+                                      workout.isIdle
+                                          ? screenWidth
+                                          : 0.0, // Only allow swipe right when idle
+                                    );
+                                  });
                                 }
-                              });
-                              return;
-                            }
+                              },
+                              onHorizontalDragEnd: (details) {
+                                final screenWidth =
+                                    MediaQuery.of(context).size.width;
+                                final swipeThreshold = screenWidth * 0.5;
+                                final navigator = Navigator.of(context);
 
-                            // Swipe left -> open camera
-                            if (_swipeOffset <= -swipeThreshold ||
-                                (details.primaryVelocity != null &&
-                                    details.primaryVelocity! < -300)) {
-                              setState(() {
-                                _swipeOffset = -screenWidth;
-                                _isSwipingToEdit = false;
-                              });
-                              Future.delayed(
-                                  const Duration(milliseconds: 200), () {
-                                if (mounted) {
-                                  Navigator.push(
-                                    context,
-                                    PageRouteBuilder(
-                                      pageBuilder: (context, animation,
-                                              secondaryAnimation) =>
-                                          const VideoRecordingScreen(),
-                                      transitionsBuilder: (context, animation,
-                                              secondaryAnimation, child) =>
-                                          child,
-                                    ),
-                                  );
-                                  setState(() => _swipeOffset = 0);
+                                // Swipe right -> open adjust timer (only when idle)
+                                if ((_swipeOffset >= swipeThreshold ||
+                                        (details.primaryVelocity != null &&
+                                            details.primaryVelocity! > 300)) &&
+                                    workout.isIdle &&
+                                    widget.onNavigateToManualForEdit != null) {
+                                  setState(() {
+                                    _swipeOffset = screenWidth;
+                                    _isSwipingToEdit = false;
+                                  });
+                                  Future.delayed(
+                                      const Duration(milliseconds: 200), () {
+                                    if (mounted) {
+                                      _openEditTimer(workout);
+                                      setState(() => _swipeOffset = 0);
+                                    }
+                                  });
+                                  return;
                                 }
-                              });
-                              return;
-                            }
 
-                            setState(() {
-                              _swipeOffset = 0;
-                              _isSwipingToEdit = false;
-                            });
-                          },
-                          onHorizontalDragCancel: () {
-                            setState(() {
-                              _swipeOffset = 0;
-                              _isSwipingToEdit = false;
-                            });
-                          },
-                          child: AnimatedContainer(
-                            duration: _isSwipingToEdit
-                                ? Duration.zero
-                                : const Duration(milliseconds: 200),
-                            curve: Curves.easeOut,
-                            transform: Matrix4.translationValues(
-                                _swipeOffset, 0, 0),
-                            child: _buildTimerView(
-                                context, workout, videoProvider),
-                          ),
-                        ),
+                                // Swipe left -> open camera
+                                if (_swipeOffset <= -swipeThreshold ||
+                                    (details.primaryVelocity != null &&
+                                        details.primaryVelocity! < -300)) {
+                                  setState(() {
+                                    _swipeOffset = -screenWidth;
+                                    _isSwipingToEdit = false;
+                                  });
+                                  Future.delayed(
+                                      const Duration(milliseconds: 200), () {
+                                    if (mounted) {
+                                      navigator.push(
+                                        PageRouteBuilder(
+                                          pageBuilder: (context, animation,
+                                                  secondaryAnimation) =>
+                                              VideoRecordingScreen(
+                                            videoPreviewBuilder:
+                                                widget.videoPreviewBuilder,
+                                          ),
+                                          transitionsBuilder: (context,
+                                                  animation,
+                                                  secondaryAnimation,
+                                                  child) =>
+                                              child,
+                                        ),
+                                      );
+                                      setState(() => _swipeOffset = 0);
+                                    }
+                                  });
+                                  return;
+                                }
+
+                                setState(() {
+                                  _swipeOffset = 0;
+                                  _isSwipingToEdit = false;
+                                });
+                              },
+                              onHorizontalDragCancel: () {
+                                setState(() {
+                                  _swipeOffset = 0;
+                                  _isSwipingToEdit = false;
+                                });
+                              },
+                              child: AnimatedContainer(
+                                duration: _isSwipingToEdit
+                                    ? Duration.zero
+                                    : const Duration(milliseconds: 200),
+                                curve: Curves.easeOut,
+                                transform: Matrix4.translationValues(
+                                    _swipeOffset, 0, 0),
+                                child: _buildTimerView(
+                                    context, workout, videoProvider),
+                              ),
+                            ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
+              ),
             ],
           ),
         );
@@ -680,13 +662,16 @@ class _TimerScreenState extends State<TimerScreen> {
                       ),
                       if (prioritizedSaved.isNotEmpty)
                         GestureDetector(
+                          key: UiTestKeys.dashboardViewAllSavedWorkouts,
                           onTap: () async {
                             final authProvider = context.read<AuthProvider>();
                             await Navigator.push(
                               context,
                               MaterialPageRoute(
                                 builder: (_) => MyWorkoutsScreen(
-                                  onNavigateToTimer: () => Navigator.pop(context),
+                                  onNavigateToTimer: () =>
+                                      Navigator.pop(context),
+                                  syncService: widget.syncService,
                                 ),
                               ),
                             );
@@ -759,7 +744,8 @@ class _TimerScreenState extends State<TimerScreen> {
                         return LongPressDraggable<Workout>(
                           data: savedWorkout,
                           onDragStarted: () {
-                            widget.onDragStateChanged?.call(true, onDelete: _deleteWorkoutDirectly);
+                            widget.onDragStateChanged
+                                ?.call(true, onDelete: _deleteWorkoutDirectly);
                           },
                           onDragEnd: (_) {
                             widget.onDragStateChanged?.call(false);
@@ -770,7 +756,8 @@ class _TimerScreenState extends State<TimerScreen> {
                           feedback: LayoutBuilder(
                             builder: (context, constraints) {
                               // Calculate item width based on grid: 3 columns, 10px spacing, 20px padding each side
-                              final screenWidth = MediaQuery.of(context).size.width;
+                              final screenWidth =
+                                  MediaQuery.of(context).size.width;
                               final itemWidth = (screenWidth - 40 - 20) / 3;
                               return Material(
                                 color: Colors.transparent,
@@ -794,6 +781,8 @@ class _TimerScreenState extends State<TimerScreen> {
                           ),
                           child: _SavedTimerQuickCard(
                             workout: savedWorkout,
+                            cardKey: UiTestKeys.dashboardSavedWorkout(
+                                savedWorkout.id),
                             onTap: () {
                               workout.setWorkout(
                                 savedWorkout,
@@ -897,6 +886,7 @@ class _TimerScreenState extends State<TimerScreen> {
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
+              key: UiTestKeys.dashboardResumeButton,
               onPressed: () {
                 workout.setShowInputOverride(false);
               },
@@ -967,6 +957,7 @@ class _TimerScreenState extends State<TimerScreen> {
         children: [
           Expanded(
             child: _DashboardModeButton(
+              buttonKey: UiTestKeys.dashboardTextModeToggle,
               label: 'Write',
               icon: Icons.edit_outlined,
               isSelected: _createMode == DashboardCreateMode.text,
@@ -979,6 +970,7 @@ class _TimerScreenState extends State<TimerScreen> {
           ),
           Expanded(
             child: _DashboardModeButton(
+              buttonKey: UiTestKeys.dashboardImageModeToggle,
               label: 'Photo',
               icon: Icons.photo_camera_outlined,
               isSelected: _createMode == DashboardCreateMode.image,
@@ -1006,12 +998,12 @@ class _TimerScreenState extends State<TimerScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         TextField(
+          key: UiTestKeys.dashboardTextInput,
           controller: _inputController,
           minLines: 3,
           maxLines: 10,
           decoration: InputDecoration(
-            hintText:
-                'Paste or describe a workout to create a timer',
+            hintText: 'Paste or describe a workout to create a timer',
             alignLabelWithHint: true,
             fillColor: AppColors.inputBackground.withValues(alpha: 0.9),
             border: OutlineInputBorder(
@@ -1026,12 +1018,14 @@ class _TimerScreenState extends State<TimerScreen> {
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
+            key: UiTestKeys.dashboardCreateTimerButton,
             onPressed: isBusy
                 ? null
                 : () async {
                     if (!isAuthenticated && !_ensureAuthenticated()) return;
                     await workout.parseWorkout();
-                    if (mounted && workout.parseError != null) {
+                    if (!context.mounted) return;
+                    if (workout.parseError != null) {
                       AppSnackBar.showError(context, workout.parseError!);
                     }
                   },
@@ -1066,6 +1060,7 @@ class _TimerScreenState extends State<TimerScreen> {
     final isBusy = workout.isParsing || workout.isExtractingFromImage;
 
     Widget buildAction({
+      Key? buttonKey,
       required IconData icon,
       required String title,
       required String subtitle,
@@ -1074,6 +1069,7 @@ class _TimerScreenState extends State<TimerScreen> {
       return SizedBox(
         width: double.infinity,
         child: OutlinedButton(
+          key: buttonKey,
           onPressed: isBusy
               ? null
               : () {
@@ -1128,6 +1124,7 @@ class _TimerScreenState extends State<TimerScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         buildAction(
+          buttonKey: UiTestKeys.dashboardTakePhotoButton,
           icon: Icons.photo_camera_outlined,
           title: 'Take photo',
           subtitle: 'Use the camera for a new whiteboard photo.',
@@ -1135,6 +1132,7 @@ class _TimerScreenState extends State<TimerScreen> {
         ),
         const SizedBox(height: 12),
         buildAction(
+          buttonKey: UiTestKeys.dashboardChooseGalleryButton,
           icon: Icons.photo_library_outlined,
           title: 'Choose from gallery',
           subtitle: 'Import an existing image or screenshot.',
@@ -1180,7 +1178,8 @@ class _TimerScreenState extends State<TimerScreen> {
     }
   }
 
-  Widget _buildTimerView(BuildContext context, WorkoutProvider workout, VideoProvider videoProvider) {
+  Widget _buildTimerView(BuildContext context, WorkoutProvider workout,
+      VideoProvider videoProvider) {
     final currentWorkout = workout.currentWorkout!;
 
     return Stack(
@@ -1188,8 +1187,11 @@ class _TimerScreenState extends State<TimerScreen> {
       children: [
         // Swipe hint - left (edit timer, inactive when running)
         Positioned(
-            left: 8,
-            top: 32 + 100, // Align with timer numbers
+          left: 8,
+          top: 32 + 100, // Align with timer numbers
+          child: GestureDetector(
+            key: UiTestKeys.timerEditAction,
+            onTap: workout.isIdle ? () => _openEditTimer(workout) : null,
             child: Opacity(
               opacity: workout.isIdle ? 1.0 : 0.5,
               child: Row(
@@ -1203,7 +1205,6 @@ class _TimerScreenState extends State<TimerScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  // Vertical drag handle
                   Container(
                     width: 4,
                     height: 40,
@@ -1216,14 +1217,17 @@ class _TimerScreenState extends State<TimerScreen> {
               ),
             ),
           ),
+        ),
         // Swipe hint - right (camera)
         Positioned(
-            right: 8,
-            top: 32 + 100, // Align with timer numbers
+          right: 8,
+          top: 32 + 100, // Align with timer numbers
+          child: GestureDetector(
+            key: UiTestKeys.timerCameraAction,
+            onTap: _openVideoScreen,
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Vertical drag handle
                 Container(
                   width: 4,
                   height: 40,
@@ -1243,6 +1247,7 @@ class _TimerScreenState extends State<TimerScreen> {
               ],
             ),
           ),
+        ),
         // Main content
         SingleChildScrollView(
           controller: _scrollController,
@@ -1823,8 +1828,10 @@ class _DashboardModeButton extends StatelessWidget {
   final IconData icon;
   final bool isSelected;
   final VoidCallback onTap;
+  final Key? buttonKey;
 
   const _DashboardModeButton({
+    this.buttonKey,
     required this.label,
     required this.icon,
     required this.isSelected,
@@ -1836,6 +1843,7 @@ class _DashboardModeButton extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
+        key: buttonKey,
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: AnimatedContainer(
@@ -1891,8 +1899,10 @@ class _RecordingDot extends StatelessWidget {
 class _SavedTimerQuickCard extends StatelessWidget {
   final Workout workout;
   final VoidCallback onTap;
+  final Key? cardKey;
 
   const _SavedTimerQuickCard({
+    this.cardKey,
     required this.workout,
     required this.onTap,
   });
@@ -1902,6 +1912,7 @@ class _SavedTimerQuickCard extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
+        key: cardKey,
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: Container(

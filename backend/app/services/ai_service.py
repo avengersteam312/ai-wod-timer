@@ -78,7 +78,9 @@ class AIService:
         except Exception as e:
             raise Exception(f"AI parsing failed: {str(e)}")
 
-    async def extract_text_from_image(self, image_data: bytes, content_type: str) -> Tuple[str, str]:
+    async def extract_text_from_image(
+        self, image_data: bytes, content_type: str
+    ) -> Tuple[str, str]:
         """
         Use GPT-4o-mini Vision to extract workout text from an image.
         This is step 1 of a two-step process - just extracts text, doesn't parse.
@@ -90,7 +92,7 @@ class AIService:
         Returns:
             Tuple of (extracted_text, workout_name).
         """
-        base64_image = base64.b64encode(image_data).decode('utf-8')
+        base64_image = base64.b64encode(image_data).decode("utf-8")
         ai_vision_requests_total.add(1, {"content_type": content_type})
         t_start = time.perf_counter()
 
@@ -118,17 +120,17 @@ If no workout text is visible, return: {"error": "No workout text found"}"""
                         "content": [
                             {
                                 "type": "text",
-                                "text": "Extract the workout text from this image."
+                                "text": "Extract the workout text from this image.",
                             },
                             {
                                 "type": "image_url",
                                 "image_url": {
                                     "url": f"data:{content_type};base64,{base64_image}",
-                                    "detail": "auto"  # Let OpenAI choose optimal resolution
-                                }
-                            }
-                        ]
-                    }
+                                    "detail": "auto",  # Let OpenAI choose optimal resolution
+                                },
+                            },
+                        ],
+                    },
                 ],
                 temperature=0,
                 timeout=15.0,
@@ -137,7 +139,9 @@ If no workout text is visible, return: {"error": "No workout text found"}"""
             duration = time.perf_counter() - t_start
             ai_vision_duration.record(duration)
 
-            tokens_in, tokens_out = record_openai_usage(response, settings.AI_VISION_MODEL)
+            tokens_in, tokens_out = record_openai_usage(
+                response, settings.AI_VISION_MODEL
+            )
             log.info(
                 "vision.extract_success",
                 model=settings.AI_VISION_MODEL,
