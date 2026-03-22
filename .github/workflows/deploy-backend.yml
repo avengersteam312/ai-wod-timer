@@ -162,6 +162,12 @@ jobs:
             -d "${{ steps.simulator.outputs.udid }}"
         working-directory: flutter
 
+      - name: Notify Discord — approve prod deploy
+        run: |
+          curl -sf -X POST "${{ secrets.DISCORD_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"content\": \"✅ **E2E passed on staging** — approve prod deploy:\\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}"
+
       - name: Notify Discord on failure
         if: failure()
         run: |
