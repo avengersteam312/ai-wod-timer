@@ -690,6 +690,36 @@ Sentinel adds metrics to `metrics.py` (not inline at the call site) → instrume
 
 ---
 
+## CI Pipeline Audit
+
+When asked to review or optimize a CI pipeline, fetch the raw log and extract per-step durations. This surfaces bottlenecks and redundant steps that aren't visible in the GitHub UI.
+
+```bash
+gh run view --log --job=<JOB_ID> --repo <REPO> > /tmp/ci_log.txt
+
+python3 << 'EOF'
+import re
+from collections import defaultdict
+steps = defaultdict(list)
+with open('/tmp/ci_log.txt', 'rb') as f:
+    for line in f:
+        line = line.decode('utf-8', errors='ignore').strip()
+        parts = line.split('\t')
+        if len(parts) < 3: continue
+        step = parts[1].strip()
+        m = re.search(r'T(\d{2}):(\d{2}):(\d{2})\.', parts[2])
+        if not m: continue
+        t = int(m.group(1))*3600 + int(m.group(2))*60 + int(m.group(3))
+        steps[step].append(t)
+for dur, step in sorted([(max(t)-min(t), s) for s,t in steps.items()], reverse=True):
+    print(f"{dur:4}s  {step}")
+EOF
+```
+
+Report slowest steps first. Common findings: redundant cache steps, deprecated action versions, no-op patch steps. Always verify what a patch actually modifies before recommending it be kept.
+
+---
+
 ## Key Files in This Project
 
 | Layer | File | Sentinel hook |

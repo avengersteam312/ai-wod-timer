@@ -15,22 +15,19 @@ jobs:
   flutter-audit:
     name: Flutter security audit
     runs-on: ubuntu-latest
+    env:
+      OSV_SCANNER_VERSION: "2.0.2"  # https://github.com/google/osv-scanner/releases
     steps:
       - uses: actions/checkout@v5
 
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: "3.41.4"
-          channel: stable
-          cache: true
+      - name: Install osv-scanner
+        run: |
+          curl -sL "https://github.com/google/osv-scanner/releases/download/v${OSV_SCANNER_VERSION}/osv-scanner_linux_amd64" \
+            -o /usr/local/bin/osv-scanner
+          chmod +x /usr/local/bin/osv-scanner
 
-      - name: Install dependencies
-        run: flutter pub get
-        working-directory: flutter
-
-      - name: Security audit
-        run: flutter pub audit
-        working-directory: flutter
+      - name: Scan Flutter dependencies
+        run: osv-scanner scan --lockfile=flutter/pubspec.lock
 
   python-audit:
     name: Python security audit
