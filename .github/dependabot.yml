@@ -8,9 +8,6 @@ updates:
       day: saturday
       time: "09:00"
     open-pull-requests-limit: 5
-    labels:
-      - dependencies
-      - flutter
 
   # Python backend dependencies
   - package-ecosystem: pip
@@ -20,9 +17,6 @@ updates:
       day: saturday
       time: "09:00"
     open-pull-requests-limit: 5
-    labels:
-      - dependencies
-      - backend
 
   # GitHub Actions
   - package-ecosystem: github-actions
@@ -32,6 +26,3 @@ updates:
       day: saturday
       time: "09:00"
     open-pull-requests-limit: 5
-    labels:
-      - dependencies
-      - ci
