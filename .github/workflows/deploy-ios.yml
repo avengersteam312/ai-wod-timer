@@ -107,6 +107,9 @@ jobs:
         env:
           APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
 
+      - name: Enable FFmpeg for production
+        run: ./scripts/toggle_ffmpeg.sh enable
+
       - name: Update CocoaPods
         # Updates Sentry pod to match sentry_flutter's requirements and refreshes
         # Podfile.lock. Needed when Dependabot bumps sentry_flutter to a version

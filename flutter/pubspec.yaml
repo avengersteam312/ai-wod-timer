@@ -74,8 +74,10 @@ dependencies:
 
   # Video Processing (timer overlay baking)
   # Using community fork since original ffmpeg_kit was discontinued April 2025
-  # NOTE: Commented out for simulator testing - FFmpeg Kit doesn't support iOS simulator
-  # Uncomment for device builds: ffmpeg_kit_flutter_new: ^4.1.0
+  # FFmpeg doesn't support iOS simulator - managed via scripts/toggle_ffmpeg.sh
+  # Simulator/dev: disabled (default)
+  # Device/prod: enabled by CI or manually via: ./scripts/toggle_ffmpeg.sh enable
+  # ffmpeg_kit_flutter_new: ^4.1.0
 
 dev_dependencies:
   flutter_test:
