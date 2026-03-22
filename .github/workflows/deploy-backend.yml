@@ -136,6 +136,10 @@ jobs:
         run: flutter pub get
         working-directory: flutter
 
+      - name: Update Sentry pod
+        run: pod update Sentry
+        working-directory: flutter/ios
+
       - name: Run Flutter E2E smoke test against staging
         run: |
           flutter test integration_test/real_auth_smoke_test.dart \
