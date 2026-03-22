@@ -13,13 +13,14 @@ on:
     branches: [master]
     paths:
       - 'flutter/**'
+      - '!flutter/integration_test/**'
+      - '!flutter/test/**'
   workflow_dispatch:
 
 jobs:
   deploy-ios:
     name: Build & upload to TestFlight
     runs-on: macos-26
-    environment: Production
 
     steps:
       - uses: actions/checkout@v6
