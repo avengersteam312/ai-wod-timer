@@ -8,6 +8,7 @@ import '../../providers/workout_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../ui_test_keys.dart';
 import '../../widgets/auth_button.dart';
+import '../../widgets/app_drawer.dart';
 import '../../utils/workout_name.dart';
 import '../../widgets/manual/timer_type_selector.dart';
 import '../../widgets/manual/duration_stepper.dart';
@@ -19,11 +20,13 @@ import '../../widgets/report_problem_modal.dart';
 class ManualTimerScreen extends StatefulWidget {
   final VoidCallback? onNavigateToTimer;
   final ValueNotifier<int>? resetNotifier;
+  final GlobalKey<ScaffoldState>? scaffoldKey;
 
   const ManualTimerScreen({
     super.key,
     this.onNavigateToTimer,
     this.resetNotifier,
+    this.scaffoldKey,
   });
 
   @override
@@ -206,7 +209,11 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
     }
 
     return Scaffold(
+      key: widget.scaffoldKey,
+      drawer: const AppDrawer(),
+      drawerEnableOpenDragGesture: false,
       appBar: AppBar(
+        leading: const MenuButton(),
         title: Text(_isEditingFromTimer ? 'Adjust Timer' : 'Manual Timer'),
         actions: [
           if (auth.isAuthenticated)
@@ -216,7 +223,6 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
               tooltip: 'Save timer',
               onPressed: _showSaveModal,
             ),
-          const AuthButton(),
         ],
       ),
       body: GestureDetector(

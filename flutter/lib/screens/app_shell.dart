@@ -37,6 +37,17 @@ class _AppShellState extends State<AppShell> {
   // Notifier to trigger form reset in ManualTimerScreen
   final _resetNotifier = ValueNotifier<int>(0);
 
+  // Scaffold keys for closing drawers on tab switch
+  final _manualScaffoldKey = GlobalKey<ScaffoldState>();
+  final _timerScaffoldKey = GlobalKey<ScaffoldState>();
+  final _historyScaffoldKey = GlobalKey<ScaffoldState>();
+
+  void _closeAllDrawers() {
+    _manualScaffoldKey.currentState?.closeDrawer();
+    _timerScaffoldKey.currentState?.closeDrawer();
+    _historyScaffoldKey.currentState?.closeDrawer();
+  }
+
   // Drag-to-delete state (managed here to cover nav bar)
   bool _showDeleteZone = false;
   bool _isOverDeleteZone = false;
@@ -44,6 +55,9 @@ class _AppShellState extends State<AppShell> {
 
   // Called when user taps on bottom tab - allows switching without clearing timer
   void _onTabTapped(int index) {
+    // Close any open drawer before switching tabs
+    _closeAllDrawers();
+
     final workout = context.read<WorkoutProvider>();
 
     // If tapping Manual tab, always reset the form to start fresh
@@ -166,11 +180,13 @@ class _AppShellState extends State<AppShell> {
         children: [
           ManualTimerScreen(
             key: UiTestKeys.manualScreen,
+            scaffoldKey: _manualScaffoldKey,
             onNavigateToTimer: _navigateToTimer,
             resetNotifier: _resetNotifier,
           ),
           TimerScreen(
             key: UiTestKeys.dashboardScreen,
+            scaffoldKey: _timerScaffoldKey,
             onNavigateToManual: _navigateToManual,
             onNavigateToManualForEdit: _navigateToManualForEdit,
             isDashboardVisible: displayIndex == 1,
@@ -181,6 +197,7 @@ class _AppShellState extends State<AppShell> {
           ),
           HistoryScreen(
             key: UiTestKeys.historyScreen,
+            scaffoldKey: _historyScaffoldKey,
             isVisible: displayIndex == 2,
             syncService: widget.shellDependencies.syncService,
           ),

@@ -19,6 +19,7 @@ import '../../utils/workout_name.dart';
 import '../../screens/workouts/my_workouts_screen.dart';
 import '../../screens/auth/login_screen.dart';
 import '../../widgets/auth_button.dart';
+import '../../widgets/app_drawer.dart';
 import '../../widgets/timer/circular_timer_ring.dart';
 import '../../widgets/timer/timer_controls.dart';
 import '../../widgets/save_template_modal.dart';
@@ -42,6 +43,7 @@ class TimerScreen extends StatefulWidget {
   final SyncService? syncService;
   final ImagePicker? imagePicker;
   final VideoPreviewBuilder? videoPreviewBuilder;
+  final GlobalKey<ScaffoldState>? scaffoldKey;
 
   const TimerScreen({
     super.key,
@@ -52,6 +54,7 @@ class TimerScreen extends StatefulWidget {
     this.syncService,
     this.imagePicker,
     this.videoPreviewBuilder,
+    this.scaffoldKey,
   });
 
   @override
@@ -412,6 +415,9 @@ class _TimerScreenState extends State<TimerScreen> {
         }
 
         return Scaffold(
+          key: widget.scaffoldKey,
+          drawer: const AppDrawer(),
+          drawerEnableOpenDragGesture: false,
           appBar: workout.currentWorkout != null && !workout.showInputOverride
               ? AppBar(
                   automaticallyImplyLeading: false,
@@ -489,10 +495,8 @@ class _TimerScreenState extends State<TimerScreen> {
                   ],
                 )
               : AppBar(
+                  leading: const MenuButton(),
                   title: const Text('AI Workout Timer'),
-                  actions: const [
-                    AuthButton(),
-                  ],
                 ),
           body: Stack(
             children: [

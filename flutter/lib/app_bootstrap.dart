@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import 'providers/auth_provider.dart';
+import 'providers/settings_provider.dart';
 import 'providers/video_provider.dart';
 import 'providers/workout_provider.dart';
 import 'screens/app_shell.dart';
@@ -69,6 +70,15 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(
           create: (_) => bootstrap.createAuthProvider(),
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, SettingsProvider>(
+          create: (_) => SettingsProvider(),
+          update: (_, auth, settings) {
+            final nextSettings = settings ?? SettingsProvider();
+            // Initialize settings with user ID when auth changes
+            nextSettings.init(auth.user?.id);
+            return nextSettings;
+          },
         ),
         ChangeNotifierProxyProvider<AuthProvider, WorkoutProvider>(
           create: (_) => bootstrap.createWorkoutProvider(),

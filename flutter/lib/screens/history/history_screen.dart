@@ -8,6 +8,7 @@ import '../../theme/app_theme.dart';
 import '../../ui_test_keys.dart';
 import '../../utils/snackbar_utils.dart';
 import '../../widgets/auth_button.dart';
+import '../../widgets/app_drawer.dart';
 import '../../widgets/session_card.dart';
 
 class HistoryScreen extends StatefulWidget {
@@ -15,6 +16,7 @@ class HistoryScreen extends StatefulWidget {
   final SyncService? syncService;
   final Future<List<WorkoutSession>> Function(String userId)? loadSessions;
   final Future<void> Function(String sessionId)? deleteSession;
+  final GlobalKey<ScaffoldState>? scaffoldKey;
 
   const HistoryScreen({
     super.key,
@@ -22,6 +24,7 @@ class HistoryScreen extends StatefulWidget {
     this.syncService,
     this.loadSessions,
     this.deleteSession,
+    this.scaffoldKey,
   });
 
   @override
@@ -106,11 +109,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: widget.scaffoldKey,
+      drawer: const AppDrawer(),
+      drawerEnableOpenDragGesture: false,
       appBar: AppBar(
+        leading: const MenuButton(),
         title: const Text('History'),
-        actions: const [
-          AuthButton(),
-        ],
       ),
       body: SafeArea(
         child: _buildBody(),
