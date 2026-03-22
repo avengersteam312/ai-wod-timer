@@ -14,10 +14,20 @@ on:
 jobs:
   flutter-audit:
     name: Flutter security audit
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.3
-    with:
-      scan-args: |-
-        --lockfile=flutter/pubspec.lock
+    runs-on: ubuntu-latest
+    env:
+      OSV_SCANNER_VERSION: "2.0.2"  # https://github.com/google/osv-scanner/releases
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install osv-scanner
+        run: |
+          curl -sL "https://github.com/google/osv-scanner/releases/download/v${OSV_SCANNER_VERSION}/osv-scanner_linux_amd64" \
+            -o /usr/local/bin/osv-scanner
+          chmod +x /usr/local/bin/osv-scanner
+
+      - name: Scan Flutter dependencies
+        run: osv-scanner scan --lockfile=flutter/pubspec.lock
 
   python-audit:
     name: Python security audit
