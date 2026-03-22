@@ -72,6 +72,10 @@ dependencies:
   share_plus: ^12.0.1
   gallery_saver_plus: ^3.0.0
 
+  # Video Processing (timer overlay baking)
+  # Using community fork since original ffmpeg_kit was discontinued April 2025
+  ffmpeg_kit_flutter_new: ^4.1.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -95,4 +99,5 @@ flutter:
   assets:
     - assets/images/
     - assets/sounds/voice/
+    - assets/fonts/
     - .env

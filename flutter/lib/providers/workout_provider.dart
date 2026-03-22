@@ -727,18 +727,22 @@ class WorkoutProvider with ChangeNotifier {
 
   void _startCountdownTimer() {
     _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      // Calculate new value first
-      final newRemaining = _remainingSeconds - 1;
 
-      // Play sound IMMEDIATELY before any state changes
-      if (newRemaining <= 3 && newRemaining >= 0) {
-        _audioService.playCountdown(newRemaining);
+    // Play initial countdown sound immediately when countdown starts
+    if (_remainingSeconds <= 3 && _remainingSeconds >= 1) {
+      _audioService.playCountdown(_remainingSeconds);
+      _hapticsService.countdown();
+    }
+
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      // Decrement first
+      _remainingSeconds--;
+
+      // Play sound for current value (after decrement)
+      if (_remainingSeconds <= 3 && _remainingSeconds >= 0) {
+        _audioService.playCountdown(_remainingSeconds);
         _hapticsService.countdown();
       }
-
-      // Now update state
-      _remainingSeconds = newRemaining;
 
       if (_remainingSeconds <= 0) {
         timer.cancel();
