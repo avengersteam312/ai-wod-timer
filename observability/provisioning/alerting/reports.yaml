@@ -1,0 +1,39 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: reports
+    folder: AI WOD Timer Alerts
+    interval: 1m
+    rules:
+      - uid: new-user-report
+        title: NewUserReport
+        condition: C
+        for: 0s
+        labels:
+          severity: info
+          owner: backend
+        annotations:
+          summary: "New user report: {{ $labels.report_kind }}"
+          description: >
+            A user submitted a timer parsing feedback report.
+            Check Supabase dashboard: timer_reports table.
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: increase(timer_reports_total[1m])
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    params: [0]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]

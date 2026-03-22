@@ -1,6 +1,7 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import timer
+from app.api.v1.endpoints import timer, reports
 
 api_router = APIRouter()
 
 api_router.include_router(timer.router, prefix="/timer", tags=["timer"])
+api_router.include_router(reports.router, prefix="/reports", tags=["reports"])

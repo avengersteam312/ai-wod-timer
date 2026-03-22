@@ -7,6 +7,7 @@ import 'providers/video_provider.dart';
 import 'providers/workout_provider.dart';
 import 'screens/app_shell.dart';
 import 'screens/auth/update_password_screen.dart';
+import 'services/deep_link_service.dart';
 import 'services/sync_service.dart';
 import 'theme/app_theme.dart';
 import 'utils/snackbar_utils.dart';
@@ -106,6 +107,14 @@ class AuthWrapper extends StatefulWidget {
 }
 
 class _AuthWrapperState extends State<AuthWrapper> {
+  @override
+  void initState() {
+    super.initState();
+    // Initialize deep link handling after auth listeners are set up.
+    // This ensures password recovery deep links work even on cold start.
+    DeepLinkService().init();
+  }
+
   @override
   Widget build(BuildContext context) {
     // Auth is optional - always show AppShell.
