@@ -51,14 +51,21 @@ Future<void> _signIn(WidgetTester tester) async {
   await tester.pump();
   await tester.enterText(
       find.byKey(UiTestKeys.loginPasswordField), _e2ePassword);
-  // Wait for any loading states triggered by text input to settle before tapping.
-  await tester.pumpAndSettle(
-    const Duration(milliseconds: 100),
-    EnginePhase.sendSemanticsUpdate,
-    const Duration(seconds: 10),
-  );
-  await tester.tap(find.byKey(UiTestKeys.loginSubmitButton));
   await tester.pump();
+  // AuthProvider._isLoading starts as true and makes a real Supabase network
+  // call. pumpAndSettle settles frames but NOT IO — the loading overlay
+  // (app_bootstrap.dart) may still cover the form. Retry tapping every second
+  // until the submit button disappears (sign-in triggered) or 30s passes.
+  for (int i = 0; i < 30; i++) {
+    await tester.pump(const Duration(seconds: 1));
+    if (find.byKey(UiTestKeys.loginSubmitButton).evaluate().isEmpty) {
+      break; // form submitted, navigating away
+    }
+    await tester.tap(
+      find.byKey(UiTestKeys.loginSubmitButton),
+      warnIfMissed: false,
+    );
+  }
   await tester.pumpAndSettle(
     const Duration(milliseconds: 100),
     EnginePhase.sendSemanticsUpdate,
