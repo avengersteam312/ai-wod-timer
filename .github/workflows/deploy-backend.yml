@@ -1,0 +1,179 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "backend/**"
+      - "docker-compose.yml"
+      - ".github/workflows/deploy-backend.yml"
+  workflow_dispatch:
+
+jobs:
+  # ── Job 1: Deploy to staging + curl smoke test ────────────────────────────
+  deploy-staging:
+    name: Deploy → Staging
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Trigger Render staging deploy
+        run: curl -sf -X POST "${{ secrets.RENDER_DEPLOY_HOOK_STAGING }}"
+
+      - name: Wait for staging to be live
+        run: |
+          for i in $(seq 1 30); do
+            STATUS=$(curl -sf https://ai-wod-timer-be-staging.onrender.com/health \
+              | jq -r '.status' 2>/dev/null || echo "down")
+            [ "$STATUS" = "ok" ] && echo "Staging is up" && exit 0
+            echo "Waiting... ($i/30)"
+            sleep 10
+          done
+          echo "Staging did not become healthy in time" && exit 1
+
+      - name: Run backend smoke tests
+        run: bash scripts/smoke_test.sh https://ai-wod-timer-be-staging.onrender.com
+
+      - name: Notify Discord on failure
+        if: failure()
+        run: |
+          curl -sf -X POST "${{ secrets.DISCORD_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"content\": \"🚨 **Staging smoke test FAILED** — prod deploy is blocked.\\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}"
+
+  # ── Job 2: Flutter E2E integration tests against staging ─────────────────
+  flutter-e2e:
+    name: Flutter E2E → Staging
+    needs: deploy-staging
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.4"
+          channel: stable
+          cache: true
+
+      - name: Create .env pointing at staging
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          cat > flutter/.env <<EOF
+          SUPABASE_URL=${SUPABASE_URL}
+          SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+          API_BASE_URL=https://ai-wod-timer-be-staging.onrender.com
+          AUTH_ENABLED=true
+          EOF
+
+      - name: Boot iOS simulator
+        id: simulator
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+
+          def run(*args):
+              return subprocess.check_output(args, text=True).strip()
+
+          data = json.loads(run("xcrun", "simctl", "list", "-j"))
+
+          runtime = next(
+              (
+                  runtime["identifier"]
+                  for runtime in reversed(data["runtimes"])
+                  if runtime.get("isAvailable")
+                  and runtime["identifier"].startswith("com.apple.CoreSimulator.SimRuntime.iOS-")
+              ),
+              None,
+          )
+          if runtime is None:
+              raise SystemExit("No available iOS simulator runtime found")
+
+          device_type = next(
+              (
+                  device_type["identifier"]
+                  for device_type in data["devicetypes"]
+                  if device_type["name"] == "iPhone 16"
+              ),
+              None,
+          )
+          if device_type is None:
+              raise SystemExit("iPhone 16 simulator type not found")
+
+          preferred_name = "GitHub Actions iPhone 16"
+          existing_devices = data["devices"].get(runtime, [])
+          udid = next(
+              (
+                  device["udid"]
+                  for device in existing_devices
+                  if device.get("isAvailable") and device["name"] == preferred_name
+              ),
+              None,
+          )
+
+          if udid is None:
+              udid = run(
+                  "xcrun",
+                  "simctl",
+                  "create",
+                  preferred_name,
+                  device_type,
+                  runtime,
+              )
+
+          subprocess.run(["xcrun", "simctl", "boot", udid], check=False)
+          subprocess.check_call(["xcrun", "simctl", "bootstatus", udid, "-b"])
+          subprocess.check_call(["open", "-a", "Simulator", "--args", "-CurrentDeviceUDID", udid])
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write(f"udid={udid}\n")
+          PY
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+        working-directory: flutter
+
+      - name: Run Flutter E2E smoke test against staging
+        run: |
+          flutter test integration_test/real_auth_smoke_test.dart \
+            --dart-define=E2E_TEST_EMAIL=${{ secrets.E2E_TEST_EMAIL }} \
+            --dart-define=E2E_TEST_PASSWORD=${{ secrets.E2E_TEST_PASSWORD }} \
+            -d "${{ steps.simulator.outputs.udid }}"
+        working-directory: flutter
+
+      - name: Notify Discord on failure
+        if: failure()
+        run: |
+          curl -sf -X POST "${{ secrets.DISCORD_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"content\": \"🚨 **Flutter E2E FAILED on staging** — prod deploy is blocked.\\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}"
+
+  # ── Job 3: Manual approval gate + production deploy ───────────────────────
+  deploy-prod:
+    name: Deploy → Production
+    needs: flutter-e2e
+    runs-on: ubuntu-latest
+    environment: Production
+    steps:
+      - name: Trigger Render production deploy
+        run: curl -sf -X POST "${{ secrets.RENDER_DEPLOY_HOOK_PROD }}"
+
+      - name: Wait for production to be live
+        run: |
+          for i in $(seq 1 30); do
+            STATUS=$(curl -sf https://ai-wod-timer.onrender.com/health \
+              | jq -r '.status' 2>/dev/null || echo "down")
+            [ "$STATUS" = "ok" ] && echo "Production is up" && exit 0
+            echo "Waiting... ($i/30)"
+            sleep 10
+          done
+          echo "Production did not become healthy in time" && exit 1
+
+      - name: Notify Discord on success
+        run: |
+          curl -sf -X POST "${{ secrets.DISCORD_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"content\": \"✅ **Production deploy complete.**\\nCommit: \`${{ github.sha }}\`\"}"
