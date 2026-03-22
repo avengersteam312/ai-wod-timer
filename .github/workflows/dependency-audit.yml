@@ -45,7 +45,7 @@ jobs:
     name: Notify Discord on failure
     runs-on: ubuntu-latest
     needs: [flutter-audit, python-audit]
-    if: failure()
+    if: false  # disabled until audit jobs are stable
     steps:
       - name: Send Discord alert
         run: |
