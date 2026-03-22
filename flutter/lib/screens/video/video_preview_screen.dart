@@ -1,9 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 import '../../theme/app_theme.dart';
 import '../../services/video_service.dart';
 import '../../providers/video_provider.dart';
+import '../../providers/settings_provider.dart';
 import '../../utils/snackbar_utils.dart';
 
 /// Video preview and export screen
@@ -49,8 +51,14 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
   }
 
   Future<void> _processAndInitialize() async {
-    // Process video with FFmpeg if we have timer frames
-    if (widget.timerFrames != null && widget.timerFrames!.isNotEmpty) {
+    // Check if video overlay is enabled in settings
+    final settings = context.read<SettingsProvider>();
+    final overlayEnabled = settings.videoOverlayEnabled;
+
+    // Process video with FFmpeg if we have timer frames and overlay is enabled
+    if (overlayEnabled &&
+        widget.timerFrames != null &&
+        widget.timerFrames!.isNotEmpty) {
       setState(() {
         _isProcessing = true;
         _processingFailed = false;
@@ -70,7 +78,7 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
         _processingFailed = true;
       }
     } else {
-      // No timer frames, use raw video directly
+      // No timer frames or overlay disabled, use raw video directly
       _processedVideoPath = widget.videoPath;
     }
 
