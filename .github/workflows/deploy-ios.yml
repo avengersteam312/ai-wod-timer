@@ -22,7 +22,7 @@ jobs:
     environment: Production
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: subosito/flutter-action@v2
         with:
@@ -30,15 +30,8 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Cache pub packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.pub-cache
-          key: pub-cache-${{ hashFiles('flutter/pubspec.lock') }}
-          restore-keys: pub-cache-
-
       - name: Cache pip packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.pip-cache
           key: pip-cache-appstore-connect
