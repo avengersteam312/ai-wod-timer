@@ -57,19 +57,6 @@ jobs:
         run: flutter pub get
         working-directory: flutter
 
-      - name: Patch camera_avfoundation for Xcode 26 / iOS 26 SDK
-        # TESTING: patch disabled to verify if build passes without it on Xcode 26.
-        # Re-enable if build fails with AVCaptureSession compiler errors.
-        run: |
-          SWIFT_FILE=$(find ~/.pub-cache -path "*/camera_avfoundation-*/DefaultCamera.swift" | head -1)
-          if [ -n "$SWIFT_FILE" ]; then
-            echo "Found: $SWIFT_FILE"
-            echo "=== Relevant lines in DefaultCamera.swift ==="
-            grep -n "wasInterrupted\|runtimeError\|AVCaptureSession" "$SWIFT_FILE" || echo "No matching lines found"
-            echo "=== Patch disabled — not modifying file ==="
-          else
-            echo "WARNING: camera_avfoundation DefaultCamera.swift not found"
-          fi
 
       - name: Bump build number
         # Sets version to current pubspec version + CI run number as build number.
