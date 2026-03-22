@@ -24,6 +24,11 @@ run_flutter_analyze() {
   flutter analyze --no-fatal-infos
 }
 
+run_pip_compile() {
+  cd "$ROOT_DIR/backend"
+  venv/bin/pip-compile requirements.in -o requirements.txt --strip-extras -q
+}
+
 case "${1:-all}" in
   backend_pytest)
     run_backend_pytest
@@ -34,13 +39,16 @@ case "${1:-all}" in
   flutter_analyze)
     run_flutter_analyze
     ;;
+  pip_compile)
+    run_pip_compile
+    ;;
   all)
     run_backend_pytest
     run_flutter_test
     run_flutter_analyze
     ;;
   *)
-    echo "Usage: scripts/pre_commit_checks.sh [backend_pytest|flutter_test|flutter_analyze|all]" >&2
+    echo "Usage: scripts/pre_commit_checks.sh [backend_pytest|flutter_test|flutter_analyze|pip_compile|all]" >&2
     exit 1
     ;;
 esac

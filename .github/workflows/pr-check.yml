@@ -56,6 +56,13 @@ jobs:
           pip install -r requirements.txt
         working-directory: backend
 
+      - name: Check lockfile is up to date
+        run: |
+          pip-compile requirements.in -o /tmp/requirements_check.txt --strip-extras -q
+          diff <(tail -n +8 requirements.txt) <(tail -n +8 /tmp/requirements_check.txt) || \
+            (echo "requirements.txt is out of sync. Run: pip-compile requirements.in -o requirements.txt --strip-extras" && exit 1)
+        working-directory: backend
+
       - name: Lint (ruff)
         run: |
           pip install ruff

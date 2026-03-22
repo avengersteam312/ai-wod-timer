@@ -1,0 +1,29 @@
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.10.0
+pydantic-settings>=2.1.0
+sqlalchemy==2.0.48
+psycopg2-binary==2.9.11
+alembic==1.18.4
+openai>=2.9.0
+openai-agents>=0.6.0
+python-dotenv==1.2.2
+redis==7.3.0
+pytest==9.0.2
+pytest-asyncio==1.3.0
+httpx>=0.27.0
+python-multipart>=0.0.9
+PyJWT>=2.8.0
+
+# Observability
+structlog>=24.1.0
+sentry-sdk[fastapi]>=2.0.0
+opentelemetry-api>=1.24.0
+opentelemetry-sdk>=1.24.0
+opentelemetry-exporter-otlp-proto-http>=1.24.0
+opentelemetry-instrumentation-fastapi>=0.45b0
+opentelemetry-instrumentation-httpx>=0.45b0
+# prometheus-client removed — metrics now pushed via OTel OTLP (Render-compatible)
+
+# Lockfile tooling
+pip-tools>=7.0.0
