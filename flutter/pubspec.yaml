@@ -55,6 +55,10 @@ dependencies:
   # Utilities
   uuid: ^4.3.3
   intl: ^0.20.2
+  package_info_plus: ^8.3.0
+
+  # Deep Links (for manual auth callback handling)
+  app_links: ^6.4.1
 
   # Environment Variables
   flutter_dotenv: ^6.0.0
@@ -67,6 +71,13 @@ dependencies:
   video_player: ^2.9.2
   share_plus: ^12.0.1
   gallery_saver_plus: ^3.0.0
+
+  # Video Processing (timer overlay baking)
+  # Using community fork since original ffmpeg_kit was discontinued April 2025
+  # FFmpeg doesn't support iOS simulator - managed via scripts/toggle_ffmpeg.sh
+  # Simulator/dev: disabled (default)
+  # Device/prod: enabled by CI or manually via: ./scripts/toggle_ffmpeg.sh enable
+  # ffmpeg_kit_flutter_new: ^4.1.0
 
 dev_dependencies:
   flutter_test:
@@ -91,4 +102,5 @@ flutter:
   assets:
     - assets/images/
     - assets/sounds/voice/
+    - assets/fonts/
     - .env

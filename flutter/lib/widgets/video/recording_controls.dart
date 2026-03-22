@@ -10,6 +10,7 @@ class RecordingControls extends StatelessWidget {
   final VoidCallback? onStartRecording;
   final VoidCallback? onStopRecording;
   final VoidCallback? onStartTimer;
+  final VoidCallback? onStopTimer;
   final VoidCallback? onFlipCamera;
   final VoidCallback? onClose;
 
@@ -21,6 +22,7 @@ class RecordingControls extends StatelessWidget {
     this.onStartRecording,
     this.onStopRecording,
     this.onStartTimer,
+    this.onStopTimer,
     this.onFlipCamera,
     this.onClose,
   });
@@ -33,31 +35,87 @@ class RecordingControls extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            // Close button
-            _ControlButton(
-              key: UiTestKeys.videoCloseButton,
-              icon: Icons.close,
-              onTap: onClose,
-              size: 48,
+            // Close button - animate hide/show during recording
+            SizedBox(
+              width: 48,
+              height: 48,
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                transitionBuilder: (child, animation) {
+                  return ScaleTransition(
+                    scale: animation,
+                    child: FadeTransition(
+                      opacity: animation,
+                      child: child,
+                    ),
+                  );
+                },
+                child: isRecording
+                    ? const SizedBox.shrink(key: ValueKey('hidden'))
+                    : _ControlButton(
+                        key: UiTestKeys.videoCloseButton,
+                        icon: Icons.close,
+                        onTap: onClose,
+                        size: 48,
+                      ),
+              ),
             ),
 
-            // Record/Stop button
-            if (isRecording)
-              _StopButton(
-                key: UiTestKeys.videoStopButton,
-                onTap: onStopRecording,
-              )
-            else
-              _RecordButton(
-                key: UiTestKeys.videoRecordButton,
-                onTap: onStartRecording,
-              ),
+            // Main action button with animation:
+            // - Not recording: Show Record button
+            // - Recording + timer running: Show Stop Timer button
+            // - Recording + timer not running: Show Stop Recording button
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              transitionBuilder: (child, animation) {
+                return ScaleTransition(
+                  scale: animation,
+                  child: FadeTransition(
+                    opacity: animation,
+                    child: child,
+                  ),
+                );
+              },
+              child: !isRecording
+                  ? _RecordButton(
+                      key: const ValueKey('record'),
+                      onTap: onStartRecording,
+                    )
+                  : isTimerRunning
+                      ? _StopTimerButton(
+                          key: const ValueKey('stopTimer'),
+                          onTap: onStopTimer,
+                        )
+                      : _StopButton(
+                          key: const ValueKey('stopRecording'),
+                          onTap: onStopRecording,
+                        ),
+            ),
 
-            // Flip camera button
-            _ControlButton(
-              icon: Icons.flip_camera_ios,
-              onTap: onFlipCamera,
-              size: 48,
+            // Flip camera button - animate hide/show during recording
+            SizedBox(
+              width: 48,
+              height: 48,
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                transitionBuilder: (child, animation) {
+                  return ScaleTransition(
+                    scale: animation,
+                    child: FadeTransition(
+                      opacity: animation,
+                      child: child,
+                    ),
+                  );
+                },
+                child: isRecording
+                    ? const SizedBox.shrink(key: ValueKey('hidden'))
+                    : _ControlButton(
+                        key: const ValueKey('flip'),
+                        icon: Icons.flip_camera_ios,
+                        onTap: onFlipCamera,
+                        size: 48,
+                      ),
+              ),
             ),
           ],
         ),
@@ -228,6 +286,41 @@ class _StopButton extends StatelessWidget {
             height: 28,
             decoration: BoxDecoration(
               color: AppColors.error,
+              borderRadius: BorderRadius.circular(6),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Stop Timer button (square inside circle, same as stop recording but different color)
+class _StopTimerButton extends StatelessWidget {
+  final VoidCallback? onTap;
+
+  const _StopTimerButton({super.key, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 72,
+        height: 72,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: Colors.white,
+            width: 4,
+          ),
+        ),
+        child: Center(
+          child: Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: AppColors.timerWork,
               borderRadius: BorderRadius.circular(6),
             ),
           ),

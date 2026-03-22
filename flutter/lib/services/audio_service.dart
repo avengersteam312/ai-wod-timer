@@ -71,20 +71,26 @@ class AudioService {
 
     try {
       // Configure audio session to mix with other audio (e.g., music)
-      final session = await audio_session.AudioSession.instance;
-      await session.configure(const audio_session.AudioSessionConfiguration(
-        avAudioSessionCategory: audio_session.AVAudioSessionCategory.playback,
-        avAudioSessionCategoryOptions:
-            audio_session.AVAudioSessionCategoryOptions.mixWithOthers,
-        avAudioSessionMode: audio_session.AVAudioSessionMode.defaultMode,
-        androidAudioAttributes: audio_session.AndroidAudioAttributes(
-          contentType: audio_session.AndroidAudioContentType.sonification,
-          usage: audio_session.AndroidAudioUsage.assistanceSonification,
-        ),
-        androidAudioFocusGainType:
-            audio_session.AndroidAudioFocusGainType.gainTransientMayDuck,
-      ));
-      debugPrint('Audio session configured for mixing with other audio');
+      // Wrap in try-catch as this can fail after hot restart
+      try {
+        final session = await audio_session.AudioSession.instance;
+        await session.configure(const audio_session.AudioSessionConfiguration(
+          avAudioSessionCategory: audio_session.AVAudioSessionCategory.playback,
+          avAudioSessionCategoryOptions:
+              audio_session.AVAudioSessionCategoryOptions.mixWithOthers,
+          avAudioSessionMode: audio_session.AVAudioSessionMode.defaultMode,
+          androidAudioAttributes: audio_session.AndroidAudioAttributes(
+            contentType: audio_session.AndroidAudioContentType.sonification,
+            usage: audio_session.AndroidAudioUsage.assistanceSonification,
+          ),
+          androidAudioFocusGainType:
+              audio_session.AndroidAudioFocusGainType.gainTransientMayDuck,
+        ));
+        debugPrint('Audio session configured for mixing with other audio');
+      } catch (e) {
+        // Audio session config can fail after hot restart, continue anyway
+        debugPrint('Audio session config failed (may be hot restart): $e');
+      }
 
       // Generate beep sounds and save to temp files
       await _generateAndSaveBeepSounds();
@@ -218,7 +224,7 @@ class AudioService {
   }
 
   /// Play a beep sound (always plays, not affected by mute)
-  void _playBeep(SoundType sound) {
+  Future<void> _playBeep(SoundType sound) async {
     if (!_isInitialized) return;
 
     final player = _beepPlayers[sound];
@@ -230,8 +236,9 @@ class AudioService {
 
     try {
       // Play directly from file source - most reliable for instant playback
-      player.setVolume(_volume);
-      player.play(DeviceFileSource(filePath));
+      debugPrint('Playing beep: $sound, volume: $_volume, path: $filePath');
+      await player.setVolume(_volume);
+      await player.play(DeviceFileSource(filePath));
     } catch (e) {
       debugPrint('Failed to play beep $sound: $e');
     }
@@ -280,7 +287,7 @@ class AudioService {
     if (!_isInitialized) return;
 
     if (_isBeepSound(sound)) {
-      _playBeep(sound);
+      await _playBeep(sound);
     } else {
       await _playVoice(sound);
     }
@@ -302,19 +309,19 @@ class AudioService {
 
     switch (count) {
       case 3:
-        _playBeep(SoundType.countdown);
+        await _playBeep(SoundType.countdown);
         _playVoice(SoundType.voice3);
         break;
       case 2:
-        _playBeep(SoundType.countdown);
+        await _playBeep(SoundType.countdown);
         _playVoice(SoundType.voice2);
         break;
       case 1:
-        _playBeep(SoundType.countdown);
+        await _playBeep(SoundType.countdown);
         _playVoice(SoundType.voice1);
         break;
       case 0:
-        _playBeep(SoundType.go);
+        await _playBeep(SoundType.go);
         _playVoice(SoundType.voiceGo);
         break;
     }
@@ -322,53 +329,53 @@ class AudioService {
 
   Future<void> playGo() async {
     if (!_isInitialized) return;
-    _playBeep(SoundType.go);
+    await _playBeep(SoundType.go);
     _playVoice(SoundType.voiceGo);
   }
 
   Future<void> playComplete() async {
     if (!_isInitialized) return;
-    _playBeep(SoundType.complete);
+    await _playBeep(SoundType.complete);
   }
 
   Future<void> playRest() async {
     if (!_isInitialized) return;
-    _playBeep(SoundType.restBeep);
+    await _playBeep(SoundType.restBeep);
     _playVoice(SoundType.voiceRest);
   }
 
   Future<void> playHalfway() async {
     if (!_isInitialized) return;
-    _playBeep(SoundType.halfway);
+    await _playBeep(SoundType.halfway);
     _playVoice(SoundType.voiceHalfway);
   }
 
   Future<void> playLastRound() async {
     if (!_isInitialized) return;
-    _playVoice(SoundType.voiceLastRound);
+    await _playVoice(SoundType.voiceLastRound);
   }
 
   Future<void> playNextRound() async {
     if (!_isInitialized) return;
-    _playBeep(SoundType.nextRound);
+    await _playBeep(SoundType.nextRound);
     _playVoice(SoundType.voiceNextRound);
   }
 
   /// Play only "next round" voice (before countdown)
   Future<void> playNextRoundVoice() async {
     if (!_isInitialized) return;
-    _playVoice(SoundType.voiceNextRound);
+    await _playVoice(SoundType.voiceNextRound);
   }
 
   /// Play only next round beep (when round starts)
   Future<void> playNextRoundBeep() async {
     if (!_isInitialized) return;
-    _playBeep(SoundType.nextRound);
+    await _playBeep(SoundType.nextRound);
   }
 
   Future<void> playTenSeconds() async {
     if (!_isInitialized) return;
-    _playBeep(SoundType.tenSeconds);
+    await _playBeep(SoundType.tenSeconds);
     _playVoice(SoundType.voiceTenSeconds);
   }
 

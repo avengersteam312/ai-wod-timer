@@ -216,7 +216,7 @@ class FakeVideoProvider extends VideoProvider {
   }
 
   @override
-  Future<void> initializeCamera() async {
+  Future<void> initializeCamera({CameraDescription? specificCamera}) async {
     _state = RecordingState.initializing;
     notifyListeners();
     _isInitialized = true;

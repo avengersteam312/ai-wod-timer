@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../../models/workout.dart';
 import '../../models/movement.dart';
 import '../../providers/auth_provider.dart';
@@ -7,21 +8,25 @@ import '../../providers/workout_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../ui_test_keys.dart';
 import '../../widgets/auth_button.dart';
+import '../../widgets/app_drawer.dart';
 import '../../utils/workout_name.dart';
 import '../../widgets/manual/timer_type_selector.dart';
 import '../../widgets/manual/duration_stepper.dart';
 import '../../widgets/manual/quick_select_chip.dart';
 import '../../widgets/manual/number_stepper.dart';
 import '../../widgets/save_template_modal.dart';
+import '../../widgets/report_problem_modal.dart';
 
 class ManualTimerScreen extends StatefulWidget {
   final VoidCallback? onNavigateToTimer;
   final ValueNotifier<int>? resetNotifier;
+  final GlobalKey<ScaffoldState>? scaffoldKey;
 
   const ManualTimerScreen({
     super.key,
     this.onNavigateToTimer,
     this.resetNotifier,
+    this.scaffoldKey,
   });
 
   @override
@@ -55,6 +60,9 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
   bool _consumingPendingEdit = false;
   WorkoutProvider? _workoutProvider;
 
+  // Store original AI workout JSON for reports
+  Map<String, dynamic>? _originalAiWorkoutJson;
+
   @override
   void initState() {
     super.initState();
@@ -76,6 +84,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
       _isEditingFromTimer = false;
       _isFromAiTimer = false;
       _pendingMovements = [];
+      _originalAiWorkoutJson = null;
       _selectedType = WorkoutType.restTimer;
       _workoutNotes = '';
       _setDefaultsForType(WorkoutType.restTimer);
@@ -100,6 +109,7 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
         _isEditingFromTimer = false;
         _isFromAiTimer = false;
         _pendingMovements = [];
+        _originalAiWorkoutJson = null;
         _selectedType = WorkoutType.restTimer;
         _setDefaultsForType(WorkoutType.restTimer);
       });
@@ -126,6 +136,12 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
     final restIntervals = config.intervals.where((i) => i.isRest).toList();
     final type = _mapToManualType(pending.type);
 
+    // Store original JSON for reports (only for AI-generated timers)
+    // Sanitize to remove user-identifying fields
+    // Preserve existing AI state if already set (user may have started timer and come back)
+    final pendingIsFromAi = pending.rawInput?.isNotEmpty == true;
+    final newOriginalJson = pendingIsFromAi ? _sanitizeForReport(pending.toJson()) : null;
+
     setState(() {
       _selectedType = type;
       _rounds =
@@ -148,7 +164,12 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
           ? pending.notes!
           : (pending.rawInput ?? '');
       _isEditingFromTimer = true;
-      _isFromAiTimer = pending.rawInput?.isNotEmpty == true;
+      // Only update AI state if pending has rawInput, otherwise keep existing
+      if (pendingIsFromAi) {
+        _isFromAiTimer = true;
+        _originalAiWorkoutJson = newOriginalJson;
+      }
+      // If not from AI and we don't already have AI state, keep as-is (false/null)
     });
   }
 
@@ -188,7 +209,11 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
     }
 
     return Scaffold(
+      key: widget.scaffoldKey,
+      drawer: const AppDrawer(),
+      drawerEnableOpenDragGesture: false,
       appBar: AppBar(
+        leading: const MenuButton(),
         title: Text(_isEditingFromTimer ? 'Adjust Timer' : 'Manual Timer'),
         actions: [
           if (auth.isAuthenticated)
@@ -198,7 +223,6 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
               tooltip: 'Save timer',
               onPressed: _showSaveModal,
             ),
-          const AuthButton(),
         ],
       ),
       body: GestureDetector(
@@ -236,11 +260,6 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
                           // Editing banner (only show for AI-created timers)
                           if (_isEditingFromTimer && _isFromAiTimer) ...[
                             _buildEditingBanner(),
-                            const SizedBox(height: 16),
-                          ],
-
-                          if (_pendingMovements.isNotEmpty) ...[
-                            _buildMovementsList(),
                             const SizedBox(height: 16),
                           ],
 
@@ -308,169 +327,73 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
         children: [
           const Icon(Icons.tune, color: AppColors.primary, size: 16),
           const SizedBox(width: 8),
-          Text(
-            'Editing AI timer — adjust and start',
-            style:
-                AppTextStyles.bodySmall.copyWith(color: AppColors.primaryLight),
+          Expanded(
+            child: Text(
+              'Editing AI timer',
+              style:
+                  AppTextStyles.bodySmall.copyWith(color: AppColors.primaryLight),
+            ),
+          ),
+          TextButton.icon(
+            onPressed: _showReportModal,
+            icon: const Icon(Icons.flag_outlined, size: 16),
+            label: const Text('Report'),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.textSecondary,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildMovementsList() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'MOVEMENTS',
-          style: AppTextStyles.labelSmall.copyWith(
-            letterSpacing: 1.5,
-            color: AppColors.textMuted,
-          ),
-        ),
-        const SizedBox(height: 8),
-        ..._pendingMovements.asMap().entries.map((entry) {
-          final index = entry.key;
-          final movement = entry.value;
-          return Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: AppColors.cardBackground,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    movement.displayText,
-                    style: AppTextStyles.body,
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(
-                    Icons.edit_outlined,
-                    size: 18,
-                    color: AppColors.textSecondary,
-                  ),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  tooltip: 'Edit movement',
-                  onPressed: () => _showMovementEditSheet(index, movement),
-                ),
-              ],
-            ),
-          );
-        }),
-      ],
+  Future<void> _showReportModal() async {
+    if (_originalAiWorkoutJson == null) return;
+
+    // Get app version
+    final packageInfo = await PackageInfo.fromPlatform();
+    final appVersion = '${packageInfo.version}+${packageInfo.buildNumber}';
+
+    // Build current edited config from state
+    final editedConfig = _buildCurrentConfigJson();
+
+    if (!mounted) return;
+
+    await ReportProblemModal.show(
+      context: context,
+      originalParsed: _originalAiWorkoutJson!,
+      editedConfig: editedConfig,
+      appVersion: appVersion,
     );
   }
 
-  void _showMovementEditSheet(int index, Movement movement) {
-    final nameController = TextEditingController(text: movement.name);
-    final repsController =
-        TextEditingController(text: movement.reps?.toString() ?? '');
-    final weightController =
-        TextEditingController(text: movement.weight?.toString() ?? '');
+  /// Remove user-identifying fields from workout JSON for anonymous reports.
+  Map<String, dynamic> _sanitizeForReport(Map<String, dynamic> json) {
+    final sanitized = Map<String, dynamic>.from(json);
+    // Remove all user-identifying and database-generated fields
+    sanitized.remove('id');
+    sanitized.remove('user_id');
+    sanitized.remove('created_at');
+    sanitized.remove('updated_at');
+    return sanitized;
+  }
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.cardBackground,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          left: 24,
-          right: 24,
-          top: 24,
-          bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Text('Edit Movement', style: AppTextStyles.h3),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.pop(ctx),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            const Text('Name', style: AppTextStyles.label),
-            const SizedBox(height: 8),
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(hintText: 'Movement name'),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Reps', style: AppTextStyles.label),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: repsController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(hintText: 'e.g. 10'),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Weight (${movement.weightUnit ?? 'lbs'})',
-                          style: AppTextStyles.label),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: weightController,
-                        keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true),
-                        decoration: const InputDecoration(hintText: 'optional'),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  final updated = movement.copyWith(
-                    name: nameController.text.trim().isNotEmpty
-                        ? nameController.text.trim()
-                        : movement.name,
-                    reps: int.tryParse(repsController.text) ?? movement.reps,
-                    weight: double.tryParse(weightController.text) ??
-                        movement.weight,
-                  );
-                  setState(() {
-                    _pendingMovements[index] = updated;
-                  });
-                  Navigator.pop(ctx);
-                },
-                child: const Text('Done'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  /// Build a JSON representation of the current edited config.
+  Map<String, dynamic> _buildCurrentConfigJson() {
+    return {
+      'type': _selectedType.name,
+      'rounds': _rounds,
+      'work_seconds': _workSeconds,
+      'rest_seconds': _restSeconds,
+      'total_seconds': _totalSeconds,
+      'interval_seconds': _intervalSeconds,
+      'countdown_seconds': _countdownSeconds,
+      'movements': _pendingMovements.map((m) => m.toJson()).toList(),
+      'notes': _workoutNotes,
+    };
   }
 
   void _setDefaultsForType(WorkoutType type) {
@@ -1267,6 +1190,8 @@ class _ManualTimerScreenState extends State<ManualTimerScreen> {
       workout.updateCurrentWorkoutMovements(_pendingMovements);
     }
     _isEditingFromTimer = false;
+    // Keep _isFromAiTimer and _originalAiWorkoutJson so user can still report
+    // after starting the timer - only reset on explicit reset or new timer creation
 
     // Navigate back to timer tab
     widget.onNavigateToTimer?.call();

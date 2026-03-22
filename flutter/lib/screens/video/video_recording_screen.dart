@@ -9,6 +9,7 @@ import '../../ui_test_keys.dart';
 import '../../widgets/video/camera_preview.dart';
 import '../../widgets/video/timer_overlay.dart';
 import '../../widgets/video/recording_controls.dart';
+import '../../widgets/video/zoom_control.dart';
 import 'video_preview_screen.dart';
 
 /// Main video recording screen with camera preview and timer overlay
@@ -34,6 +35,12 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
   double _swipeOffset = 0;
   bool _isSwiping = false;
 
+  // Track last captured display time to avoid duplicates
+  String? _lastCapturedDisplayTime;
+
+  // Store reference for listener removal
+  WorkoutProvider? _workoutProvider;
+
   @override
   void initState() {
     super.initState();
@@ -47,6 +54,10 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
       } else if (!videoProvider.isInitialized) {
         _initializeCamera();
       }
+
+      // Listen to workout timer changes for frame capture synced with audio
+      _workoutProvider = context.read<WorkoutProvider>();
+      _workoutProvider?.addListener(_onWorkoutChanged);
     });
   }
 
@@ -54,8 +65,54 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _recordingTimer?.cancel();
+    _workoutProvider?.removeListener(_onWorkoutChanged);
     WakelockPlus.disable();
     super.dispose();
+  }
+
+  /// Called when workout state changes - syncs recording duration and captures frames
+  void _onWorkoutChanged() {
+    // Check if widget is still mounted
+    if (!mounted) return;
+
+    final videoProvider = context.read<VideoProvider>();
+    final workoutProvider = context.read<WorkoutProvider>();
+
+    if (!videoProvider.isRecording ||
+        videoProvider.recordingStartTime == null) {
+      return;
+    }
+
+    // Update recording duration synced with workout timer tick
+    final timestamp = DateTime.now().difference(videoProvider.recordingStartTime!);
+    videoProvider.updateRecordingDuration(timestamp);
+
+    // Only capture frames if workout exists
+    if (workoutProvider.currentWorkout == null) return;
+
+    // Only capture when display time changes (avoids duplicates)
+    final displayTime = workoutProvider.formattedTime;
+    if (displayTime == _lastCapturedDisplayTime) return;
+    _lastCapturedDisplayTime = displayTime;
+
+    // Capture frame with current recording timestamp (synced with beep)
+    videoProvider.captureTimerFrame(
+      TimerFrame(
+        timestamp: timestamp,
+        displayTime: displayTime,
+        progress: workoutProvider.progress,
+        roundIndicator: _getRoundIndicator(workoutProvider),
+        isRest: workoutProvider.isRest,
+        isWork: workoutProvider.isRunning,
+        recordingTime: _formatRecordingTime(timestamp),
+      ),
+    );
+  }
+
+  String _formatRecordingTime(Duration duration) {
+    final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
   }
 
   @override
@@ -81,20 +138,31 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
           videoProvider.recordingStartTime != null) {
         final duration =
             DateTime.now().difference(videoProvider.recordingStartTime!);
-        videoProvider.updateRecordingDuration(duration);
 
         final workoutProvider = context.read<WorkoutProvider>();
-        if (workoutProvider.currentWorkout != null) {
-          videoProvider.captureTimerFrame(
-            TimerFrame(
-              timestamp: duration,
-              displayTime: workoutProvider.formattedTime,
-              progress: workoutProvider.progress,
-              roundIndicator: _getRoundIndicator(workoutProvider),
-              isRest: workoutProvider.isRest,
-              isWork: workoutProvider.isRunning,
-            ),
-          );
+        final isTimerActive = workoutProvider.isRunning ||
+            workoutProvider.isRest ||
+            workoutProvider.isCountdown;
+
+        // Only update recording duration here when workout timer is NOT active
+        // (when active, it's synced via _onWorkoutChanged listener)
+        if (!isTimerActive) {
+          videoProvider.updateRecordingDuration(duration);
+
+          // Capture frames to keep overlay visible when timer is paused
+          if (workoutProvider.currentWorkout != null) {
+            videoProvider.captureTimerFrame(
+              TimerFrame(
+                timestamp: duration,
+                displayTime: workoutProvider.formattedTime,
+                progress: workoutProvider.progress,
+                roundIndicator: _getRoundIndicator(workoutProvider),
+                isRest: workoutProvider.isRest,
+                isWork: false,
+                recordingTime: _formatRecordingTime(duration),
+              ),
+            );
+          }
         }
 
         if (duration.inMinutes >= 10) {
@@ -122,17 +190,47 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
 
   Future<void> _startRecording() async {
     final videoProvider = context.read<VideoProvider>();
+    final workoutProvider = context.read<WorkoutProvider>();
+
     await videoProvider.startRecording();
     if (videoProvider.isRecording) {
+      // Reset frame tracking
+      _lastCapturedDisplayTime = null;
+
+      // Capture initial frame immediately at timestamp 0
+      if (workoutProvider.currentWorkout != null) {
+        _lastCapturedDisplayTime = workoutProvider.formattedTime;
+        videoProvider.captureTimerFrame(
+          TimerFrame(
+            timestamp: Duration.zero,
+            displayTime: workoutProvider.formattedTime,
+            progress: workoutProvider.progress,
+            roundIndicator: _getRoundIndicator(workoutProvider),
+            isRest: workoutProvider.isRest,
+            isWork: workoutProvider.isRunning,
+            recordingTime: '00:00',
+          ),
+        );
+      }
       _startRecordingTimer();
     }
+  }
+
+  void _stopTimer() {
+    final workoutProvider = context.read<WorkoutProvider>();
+    workoutProvider.pauseTimer();
   }
 
   Future<void> _stopRecording() async {
     _recordingTimer?.cancel();
 
     final videoProvider = context.read<VideoProvider>();
+    final timerFrames = List<TimerFrame>.from(videoProvider.timerFrames);
+    final recordingDate = videoProvider.recordingStartTime;
     final rawPath = await videoProvider.stopRecording();
+
+    // Dispose camera after stopping recording
+    videoProvider.disposeCamera();
 
     if (rawPath != null && mounted) {
       videoProvider.setProcessedVideoPath(rawPath);
@@ -143,7 +241,11 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
           MaterialPageRoute(
             builder: (_) =>
                 widget.videoPreviewBuilder?.call(rawPath) ??
-                VideoPreviewScreen(videoPath: rawPath),
+                VideoPreviewScreen(
+                  videoPath: rawPath,
+                  timerFrames: timerFrames,
+                  recordingDate: recordingDate,
+                ),
           ),
         );
       }
@@ -207,10 +309,10 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
 
     return Consumer2<VideoProvider, WorkoutProvider>(
       builder: (context, videoProvider, workoutProvider, _) {
+        // Timer is "active" for button display: running, rest, or countdown (not paused)
         final isTimerActive = workoutProvider.isRunning ||
             workoutProvider.isRest ||
-            workoutProvider.isCountdown ||
-            workoutProvider.isPaused;
+            workoutProvider.isCountdown;
 
         return GestureDetector(
           // Swipe right to go back to timer (keep recording)
@@ -293,7 +395,8 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
                         if (workoutProvider.currentWorkout != null)
                           TimerOverlay(
                             time: (workoutProvider.isIdle ||
-                                    workoutProvider.isCountdown)
+                                    workoutProvider.isCountdown ||
+                                    workoutProvider.isCompleted)
                                 ? workoutProvider.formattedInitialTime
                                 : workoutProvider.formattedTime,
                             progress: workoutProvider.progress,
@@ -336,6 +439,38 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
                       ),
                     ),
 
+                  // Zoom control (above recording controls) - animate hide during recording
+                  if (videoProvider.isInitialized &&
+                      videoProvider.zoomPresets.length > 1)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 160,
+                      child: Center(
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 200),
+                          transitionBuilder: (child, animation) {
+                            return ScaleTransition(
+                              scale: animation,
+                              child: FadeTransition(
+                                opacity: animation,
+                                child: child,
+                              ),
+                            );
+                          },
+                          child: videoProvider.isRecording
+                              ? const SizedBox.shrink(key: ValueKey('hidden'))
+                              : ZoomControl(
+                                  key: const ValueKey('zoom'),
+                                  currentZoom: videoProvider.currentZoom,
+                                  presets: videoProvider.zoomPresets,
+                                  onZoomChanged: videoProvider.setZoom,
+                                  enabled: !videoProvider.isProcessing,
+                                ),
+                        ),
+                      ),
+                    ),
+
                   // Recording controls (bottom)
                   Positioned(
                     left: 0,
@@ -347,7 +482,12 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
                       recordingDuration: videoProvider.recordingDuration,
                       onStartRecording: _startRecording,
                       onStopRecording: _stopRecording,
-                      onStartTimer: () => workoutProvider.startTimer(),
+                      onStartTimer: () {
+                        workoutProvider.startTimer();
+                        // Restart recording timer to sync with workout timer
+                        _startRecordingTimer();
+                      },
+                      onStopTimer: _stopTimer,
                       onFlipCamera: videoProvider.isRecording
                           ? null
                           : videoProvider.flipCamera,

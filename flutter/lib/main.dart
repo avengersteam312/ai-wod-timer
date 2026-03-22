@@ -31,6 +31,9 @@ Future<void> main() async {
         anonKey: AppConfig.supabaseAnonKey,
         authOptions: const FlutterAuthClientOptions(
           authFlowType: AuthFlowType.pkce,
+          // Disable automatic deep link handling so we can catch password recovery
+          // events even when app is cold-started. See: https://github.com/supabase/supabase-flutter/issues/937
+          detectSessionInUri: false,
         ),
       );
     }

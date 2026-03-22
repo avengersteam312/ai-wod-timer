@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:gallery_saver_plus/gallery_saver.dart';
 import 'package:share_plus/share_plus.dart';
+import '../providers/video_provider.dart';
+import 'ffmpeg_service.dart';
 
 /// Video export format options
 enum VideoExportFormat {
@@ -25,24 +27,49 @@ class VideoService {
     return '${directory.path}/${prefix}_$timestamp.mp4';
   }
 
-  /// Copy video to a new path (simple pass-through for MVP)
-  /// In future, this can be extended with native video processing
+  /// Process video with FFmpeg to bake in timer overlay, watermark, and date
+  /// Falls back to simple copy if no timer frames or FFmpeg fails
   Future<String?> processVideo({
     required String inputPath,
     VideoExportFormat format = VideoExportFormat.original,
+    List<TimerFrame>? timerFrames,
+    DateTime? recordingDate,
+    FFmpegProgressCallback? onProgress,
   }) async {
     try {
-      // For MVP, just copy the file as-is
-      // Timer overlay is visible during recording but not baked into video
-      final outputPath = await getOutputPath(prefix: 'wod_processed');
       final inputFile = File(inputPath);
-
-      if (await inputFile.exists()) {
-        await inputFile.copy(outputPath);
-        debugPrint('[VideoService] Video copied to: $outputPath');
-        return outputPath;
+      if (!await inputFile.exists()) {
+        debugPrint('[VideoService] Input file does not exist: $inputPath');
+        return null;
       }
-      return null;
+
+      // If we have timer frames, use FFmpeg to bake in overlays
+      if (timerFrames != null && timerFrames.isNotEmpty) {
+        debugPrint(
+            '[VideoService] Processing video with ${timerFrames.length} timer frames');
+
+        final processedPath = await FFmpegService().processVideoWithOverlay(
+          inputPath: inputPath,
+          frames: timerFrames,
+          recordingDate: recordingDate ?? DateTime.now(),
+          onProgress: onProgress,
+        );
+
+        if (processedPath != null) {
+          debugPrint('[VideoService] FFmpeg processing successful');
+          return processedPath;
+        }
+
+        // FFmpeg failed, fall back to simple copy
+        debugPrint(
+            '[VideoService] FFmpeg processing failed, falling back to copy');
+      }
+
+      // Simple copy fallback (no timer overlay)
+      final outputPath = await getOutputPath(prefix: 'wod_processed');
+      await inputFile.copy(outputPath);
+      debugPrint('[VideoService] Video copied to: $outputPath');
+      return outputPath;
     } catch (e) {
       debugPrint('[VideoService] Error processing video: $e');
       return null;

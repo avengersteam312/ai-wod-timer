@@ -436,6 +436,10 @@ class WorkoutProvider with ChangeNotifier {
       // Convert API response to Workout model (new workout from AI, not from saved)
       final workout = _createWorkoutFromResponse(result);
 
+      debugPrint('[WorkoutProvider] Created workout from AI:');
+      debugPrint('  rawInput: "${workout.rawInput}"');
+      debugPrint('  _workoutInput was: "$_workoutInput"');
+
       _currentWorkout = workout;
       _loadedFromWorkoutId = null;
       _showInputOverride = false; // Ensure timer view is shown after creating
@@ -664,12 +668,15 @@ class WorkoutProvider with ChangeNotifier {
     final timerConfigMap =
         response['timer_config'] as Map<String, dynamic>? ?? {};
 
+    // Use extractedText (from image) if _workoutInput is empty
+    final effectiveRawInput = _workoutInput.isNotEmpty ? _workoutInput : (extractedText ?? '');
+
     return Workout(
       id: _uuid.v4(),
       userId: userId,
       name: response['name'] as String? ?? 'Workout',
-      rawInput: _workoutInput,
-      notes: _workoutInput.isNotEmpty ? _workoutInput : extractedText,
+      rawInput: effectiveRawInput,
+      notes: effectiveRawInput,
       type: WorkoutTypeExtension.fromString(
         response['workout_type'] as String? ??
             response['type'] as String? ??
@@ -720,18 +727,22 @@ class WorkoutProvider with ChangeNotifier {
 
   void _startCountdownTimer() {
     _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      // Calculate new value first
-      final newRemaining = _remainingSeconds - 1;
 
-      // Play sound IMMEDIATELY before any state changes
-      if (newRemaining <= 3 && newRemaining >= 0) {
-        _audioService.playCountdown(newRemaining);
+    // Play initial countdown sound immediately when countdown starts
+    if (_remainingSeconds <= 3 && _remainingSeconds >= 1) {
+      _audioService.playCountdown(_remainingSeconds);
+      _hapticsService.countdown();
+    }
+
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      // Decrement first
+      _remainingSeconds--;
+
+      // Play sound for current value (after decrement)
+      if (_remainingSeconds <= 3 && _remainingSeconds >= 0) {
+        _audioService.playCountdown(_remainingSeconds);
         _hapticsService.countdown();
       }
-
-      // Now update state
-      _remainingSeconds = newRemaining;
 
       if (_remainingSeconds <= 0) {
         timer.cancel();

@@ -87,3 +87,9 @@ workouts_parsed_total = _meter.create_counter(
     "workouts_parsed_total",
     description="Successfully parsed workouts by type",
 )
+
+# ── User Feedback ─────────────────────────────────────────────────────────────
+timer_reports_total = _meter.create_counter(
+    "timer_reports_total",
+    description="Timer parsing problem reports by kind",
+)
