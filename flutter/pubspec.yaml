@@ -36,7 +36,7 @@ dependencies:
 
   # Audio
   audioplayers: ^6.6.0
-  audio_session: ^0.2.2
+  audio_session: ^0.2.3
   path_provider: ^2.1.2
 
   # Screen Wake Lock
