@@ -48,7 +48,7 @@ jobs:
           echo "Exported uid=$UID"
 
       - name: Open PR with exported JSON
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v8
         with:
           commit-message: 'chore(observability): export Grafana dashboard from live instance'
           title: 'chore(observability): sync dashboard JSON from Grafana (uid: ${{ github.event.inputs.dashboard_uid }})'
