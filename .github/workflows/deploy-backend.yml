@@ -26,7 +26,7 @@ jobs:
 
       - name: Wait for staging to be live
         run: |
-          for i in $(seq 1 30); do
+          for i in $(seq 1 60); do
             STATUS=$(curl -sf https://ai-wod-timer-be-staging.onrender.com/health \
               | jq -r '.status' 2>/dev/null || echo "down")
             [ "$STATUS" = "ok" ] && echo "Staging is up" && exit 0
@@ -187,7 +187,7 @@ jobs:
 
       - name: Wait for production to be live
         run: |
-          for i in $(seq 1 30); do
+          for i in $(seq 1 60); do
             STATUS=$(curl -sf https://ai-wod-timer.onrender.com/health \
               | jq -r '.status' 2>/dev/null || echo "down")
             [ "$STATUS" = "ok" ] && echo "Production is up" && exit 0
