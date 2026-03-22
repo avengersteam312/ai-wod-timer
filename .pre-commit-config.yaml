@@ -7,12 +7,6 @@ repos:
       - id: ruff-format
   - repo: local
     hooks:
-      - id: pip-compile
-        name: pip-compile
-        entry: scripts/pre_commit_checks.sh pip_compile
-        language: system
-        pass_filenames: false
-        files: ^backend/requirements\.in$
       - id: backend-pytest-fast
         name: backend pytest fast
         entry: scripts/pre_commit_checks.sh backend_pytest
