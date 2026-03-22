@@ -22,7 +22,7 @@ jobs:
     environment: Production
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: subosito/flutter-action@v2
         with:
@@ -30,15 +30,8 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Cache pub packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.pub-cache
-          key: pub-cache-${{ hashFiles('flutter/pubspec.lock') }}
-          restore-keys: pub-cache-
-
       - name: Cache pip packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.pip-cache
           key: pip-cache-appstore-connect
@@ -57,20 +50,6 @@ jobs:
         run: flutter pub get
         working-directory: flutter
 
-      - name: Patch camera_avfoundation for Xcode 26 / iOS 26 SDK
-        # AVCaptureSession.wasInterruptedNotification and .runtimeErrorNotification
-        # were removed in iOS 18 SDK. Replace with raw NSNotification.Name strings.
-        run: |
-          SWIFT_FILE=$(find ~/.pub-cache -path "*/camera_avfoundation-*/DefaultCamera.swift" | head -1)
-          if [ -n "$SWIFT_FILE" ]; then
-            sed -i '' \
-              -e 's/AVCaptureSession\.wasInterruptedNotification/NSNotification.Name("AVCaptureSessionWasInterruptedNotification")/g' \
-              -e 's/AVCaptureSession\.runtimeErrorNotification/NSNotification.Name("AVCaptureSessionRuntimeErrorNotification")/g' \
-              "$SWIFT_FILE"
-            echo "Patched $SWIFT_FILE"
-          else
-            echo "WARNING: camera_avfoundation DefaultCamera.swift not found — skipping patch"
-          fi
 
       - name: Bump build number
         # Sets version to current pubspec version + CI run number as build number.
