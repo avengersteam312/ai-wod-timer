@@ -51,13 +51,12 @@ Future<void> _signIn(WidgetTester tester) async {
   await tester.pump();
   await tester.enterText(
       find.byKey(UiTestKeys.loginPasswordField), _e2ePassword);
-  await tester.pump();
-  // Dismiss the iOS keyboard so it does not obscure the submit button.
-  await tester.testTextInput.receiveAction(TextInputAction.done);
-  await tester.pumpAndSettle();
-  // Scroll the button into view in case the layout shifted.
-  await tester.ensureVisible(find.byKey(UiTestKeys.loginSubmitButton));
-  await tester.pumpAndSettle();
+  // Wait for any loading states triggered by text input to settle before tapping.
+  await tester.pumpAndSettle(
+    const Duration(milliseconds: 100),
+    EnginePhase.sendSemanticsUpdate,
+    const Duration(seconds: 10),
+  );
   await tester.tap(find.byKey(UiTestKeys.loginSubmitButton));
   await tester.pump();
   await tester.pumpAndSettle(
@@ -155,10 +154,11 @@ void main() {
       );
       await tester.tap(find.byKey(UiTestKeys.dashboardCreateTimerButton));
       await tester.pump();
+      // 60s timeout — staging is on free tier and may cold-start during AI parse.
       await tester.pumpAndSettle(
         const Duration(milliseconds: 100),
         EnginePhase.sendSemanticsUpdate,
-        const Duration(seconds: 30),
+        const Duration(seconds: 60),
       );
 
       expect(find.byKey(UiTestKeys.manualSaveButton), findsOneWidget);
