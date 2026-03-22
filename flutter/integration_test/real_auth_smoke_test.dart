@@ -48,8 +48,16 @@ Future<void> _signIn(WidgetTester tester) async {
   expect(find.byKey(UiTestKeys.loginSubmitButton), findsOneWidget);
 
   await tester.enterText(find.byKey(UiTestKeys.loginEmailField), _e2eEmail);
+  await tester.pump();
   await tester.enterText(
       find.byKey(UiTestKeys.loginPasswordField), _e2ePassword);
+  await tester.pump();
+  // Dismiss the iOS keyboard so it does not obscure the submit button.
+  await tester.testTextInput.receiveAction(TextInputAction.done);
+  await tester.pumpAndSettle();
+  // Scroll the button into view in case the layout shifted.
+  await tester.ensureVisible(find.byKey(UiTestKeys.loginSubmitButton));
+  await tester.pumpAndSettle();
   await tester.tap(find.byKey(UiTestKeys.loginSubmitButton));
   await tester.pump();
   await tester.pumpAndSettle(
@@ -118,6 +126,13 @@ void main() {
 
       await _signOut(tester);
       expect(find.byKey(UiTestKeys.manualSaveButton), findsNothing);
+      // Drain all pending async operations before teardown to prevent
+      // "FocusManager used after disposed" errors.
+      await tester.pumpAndSettle(
+        const Duration(milliseconds: 100),
+        EnginePhase.sendSemanticsUpdate,
+        const Duration(seconds: 5),
+      );
     },
     skip: !_hasCredentials,
   );
