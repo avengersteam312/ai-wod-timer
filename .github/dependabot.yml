@@ -1,0 +1,37 @@
+version: 2
+updates:
+  # Flutter dependencies
+  - package-ecosystem: pub
+    directory: /flutter
+    schedule:
+      interval: weekly
+      day: saturday
+      time: "09:00"
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - flutter
+
+  # Python backend dependencies
+  - package-ecosystem: pip
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: saturday
+      time: "09:00"
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - backend
+
+  # GitHub Actions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+      day: saturday
+      time: "09:00"
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - ci

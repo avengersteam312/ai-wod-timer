@@ -1,0 +1,70 @@
+name: Dependency Audit
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'flutter/pubspec.yaml'
+      - 'flutter/pubspec.lock'
+      - 'backend/requirements.txt'
+  schedule:
+    - cron: '0 9 * * 6'  # Every Saturday at 9am UTC
+  workflow_dispatch:
+
+jobs:
+  flutter-audit:
+    name: Flutter security audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.4"
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+        working-directory: flutter
+
+      - name: Security audit
+        run: flutter pub audit
+        working-directory: flutter
+
+  python-audit:
+    name: Python security audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Security audit
+        run: pip-audit -r requirements.txt
+        working-directory: backend
+
+  notify-failure:
+    name: Notify Discord on failure
+    runs-on: ubuntu-latest
+    needs: [flutter-audit, python-audit]
+    if: failure()
+    steps:
+      - name: Send Discord alert
+        run: |
+          curl -s -X POST "$DISCORD_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"⚠️ Dependency audit failed\",
+                \"description\": \"A security vulnerability or audit failure was detected.\n**[View run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})**\",
+                \"color\": 15158332
+              }]
+            }"
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
