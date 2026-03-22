@@ -9,6 +9,10 @@ on:
       - ".github/workflows/deploy-backend.yml"
   workflow_dispatch:
 
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
 jobs:
   # ── Job 1: Deploy to staging + curl smoke test ────────────────────────────
   deploy-staging:
@@ -33,6 +37,12 @@ jobs:
 
       - name: Run backend smoke tests
         run: bash scripts/smoke_test.sh https://ai-wod-timer-be-staging.onrender.com
+
+      - name: Notify Discord — staging green
+        run: |
+          curl -sf -X POST "${{ secrets.DISCORD_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"content\": \"✅ Staging smoke tests passed — Flutter E2E starting.\\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}"
 
       - name: Notify Discord on failure
         if: failure()
@@ -139,6 +149,10 @@ jobs:
       - name: Update Sentry pod
         run: pod update Sentry
         working-directory: flutter/ios
+
+      - name: Build for simulator (fail fast on build errors)
+        run: flutter build ios --simulator --no-codesign
+        working-directory: flutter
 
       - name: Run Flutter E2E smoke test against staging
         run: |
