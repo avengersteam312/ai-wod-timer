@@ -58,18 +58,14 @@ jobs:
         working-directory: flutter
 
       - name: Patch camera_avfoundation for Xcode 26 / iOS 26 SDK
-        # AVCaptureSession.wasInterruptedNotification and .runtimeErrorNotification
-        # were removed in iOS 18 SDK. Replace with raw NSNotification.Name strings.
+        # TESTING: patch disabled to verify if build passes without it on Xcode 26.
+        # Re-enable if build fails with AVCaptureSession compiler errors.
         run: |
           SWIFT_FILE=$(find ~/.pub-cache -path "*/camera_avfoundation-*/DefaultCamera.swift" | head -1)
           if [ -n "$SWIFT_FILE" ]; then
-            sed -i '' \
-              -e 's/AVCaptureSession\.wasInterruptedNotification/NSNotification.Name("AVCaptureSessionWasInterruptedNotification")/g' \
-              -e 's/AVCaptureSession\.runtimeErrorNotification/NSNotification.Name("AVCaptureSessionRuntimeErrorNotification")/g' \
-              "$SWIFT_FILE"
-            echo "Patched $SWIFT_FILE"
+            echo "Found $SWIFT_FILE — patch disabled for test run, not modifying"
           else
-            echo "WARNING: camera_avfoundation DefaultCamera.swift not found — skipping patch"
+            echo "WARNING: camera_avfoundation DefaultCamera.swift not found"
           fi
 
       - name: Bump build number
