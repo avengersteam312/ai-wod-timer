@@ -63,7 +63,10 @@ jobs:
         run: |
           SWIFT_FILE=$(find ~/.pub-cache -path "*/camera_avfoundation-*/DefaultCamera.swift" | head -1)
           if [ -n "$SWIFT_FILE" ]; then
-            echo "Found $SWIFT_FILE — patch disabled for test run, not modifying"
+            echo "Found: $SWIFT_FILE"
+            echo "=== Relevant lines in DefaultCamera.swift ==="
+            grep -n "wasInterrupted\|runtimeError\|AVCaptureSession" "$SWIFT_FILE" || echo "No matching lines found"
+            echo "=== Patch disabled — not modifying file ==="
           else
             echo "WARNING: camera_avfoundation DefaultCamera.swift not found"
           fi
