@@ -42,7 +42,7 @@ jobs:
           cat > .env <<EOF
           SUPABASE_URL=${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
-          API_BASE_URL=${{ secrets.API_BASE_URL }}
+          API_BASE_URL=${{ vars.API_BASE_URL }}
           AUTH_ENABLED=true
           EOF
         working-directory: flutter
