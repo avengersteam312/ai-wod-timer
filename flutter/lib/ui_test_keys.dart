@@ -50,6 +50,7 @@ final class UiTestKeys {
       ValueKey<String>('save_template_cancel_button');
 
   static const authButton = ValueKey<String>('auth_button');
+  static const signOutButton = ValueKey<String>('sign_out_button');
   static const loginEmailField = ValueKey<String>('login_email_field');
   static const loginPasswordField = ValueKey<String>('login_password_field');
   static const loginSubmitButton = ValueKey<String>('login_submit_button');
