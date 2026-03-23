@@ -6,6 +6,7 @@ import '../providers/settings_provider.dart';
 import '../screens/settings/settings_screen.dart';
 import '../screens/auth/login_screen.dart';
 import '../theme/app_theme.dart';
+import '../ui_test_keys.dart';
 
 /// Simple app drawer
 class AppDrawer extends StatelessWidget {
@@ -122,6 +123,7 @@ class AppDrawer extends StatelessWidget {
             ),
           ),
           IconButton(
+            key: UiTestKeys.signOutButton,
             onPressed: () async {
               Navigator.pop(context);
               context.read<WorkoutProvider>().clearParseError();

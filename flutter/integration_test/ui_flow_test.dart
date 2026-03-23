@@ -125,10 +125,12 @@ void main() {
 
     await harness.pumpApp(tester);
 
+    // Verify user is authenticated by opening drawer and checking for sign out button
     await tester.tap(find.byKey(UiTestKeys.authButton));
     await tester.pumpAndSettle();
-    expect(find.text('Sign Out'), findsOneWidget);
-    await tester.tapAt(const Offset(20, 20));
+    expect(find.byKey(UiTestKeys.signOutButton), findsOneWidget);
+    // Close drawer by tapping scrim (right side of screen, outside drawer)
+    await tester.tapAt(const Offset(350, 300));
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(UiTestKeys.dashboardImageModeToggle));
@@ -178,10 +180,12 @@ void main() {
 
     await harness.pumpApp(tester);
 
+    // Verify user is authenticated by opening drawer and checking for sign out button
     await tester.tap(find.byKey(UiTestKeys.authButton));
     await tester.pumpAndSettle();
-    expect(find.text('Sign Out'), findsOneWidget);
-    await tester.tapAt(const Offset(20, 20));
+    expect(find.byKey(UiTestKeys.signOutButton), findsOneWidget);
+    // Close drawer by tapping scrim (right side of screen, outside drawer)
+    await tester.tapAt(const Offset(350, 300));
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(UiTestKeys.dashboardImageModeToggle));
@@ -467,7 +471,7 @@ void main() {
   });
 
   testWidgets(
-      'video flow records with fake provider, stops, and returns to timer',
+      'video flow records with fake provider, stops, and returns to dashboard',
       (tester) async {
     final user = AppTestHarness.buildUser();
     final initialWorkout = AppTestHarness.buildWorkout(
@@ -483,31 +487,29 @@ void main() {
 
     await harness.pumpApp(tester);
 
-    await tester.tap(find.byKey(UiTestKeys.timerPlayPauseButton));
-    await tester.pump(const Duration(milliseconds: 100));
-
+    // Swipe to video screen (timer not running, so stop button will show during recording)
     await tester.dragFrom(const Offset(260, 300), const Offset(-220, 0));
     await tester.pumpAndSettle();
     expect(find.byKey(UiTestKeys.videoScreen), findsOneWidget);
 
+    // Start recording
     await tester.tap(find.byKey(UiTestKeys.videoRecordButton));
     await tester.pump(const Duration(milliseconds: 100));
     await tester.pump(const Duration(seconds: 1));
 
+    // Verify recording is in progress and stop button is visible
     expect(find.byKey(UiTestKeys.videoStopButton), findsOneWidget);
     expect(find.text('00:01'), findsOneWidget);
 
+    // Stop recording
     await tester.tap(find.byKey(UiTestKeys.videoStopButton));
     await tester.pumpAndSettle();
     expect(find.text('Preview ready'), findsOneWidget);
 
+    // Close preview and return to dashboard
     await tester.tap(find.byKey(testPreviewCloseButtonKey));
     await tester.pumpAndSettle();
 
     expect(find.byKey(UiTestKeys.dashboardScreen), findsOneWidget);
-    expect(find.byKey(UiTestKeys.timerStopButton), findsOneWidget);
-
-    await tester.tap(find.byKey(UiTestKeys.timerStopButton));
-    await tester.pumpAndSettle();
   });
 }

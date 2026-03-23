@@ -78,7 +78,7 @@ class RecordingControls extends StatelessWidget {
               },
               child: !isRecording
                   ? _RecordButton(
-                      key: const ValueKey('record'),
+                      key: UiTestKeys.videoRecordButton,
                       onTap: onStartRecording,
                     )
                   : isTimerRunning
@@ -87,7 +87,7 @@ class RecordingControls extends StatelessWidget {
                           onTap: onStopTimer,
                         )
                       : _StopButton(
-                          key: const ValueKey('stopRecording'),
+                          key: UiTestKeys.videoStopButton,
                           onTap: onStopRecording,
                         ),
             ),
